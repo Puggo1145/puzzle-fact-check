@@ -16,10 +16,10 @@ class KnowledgeExtractor(Base):
     """
     
     default_config = ModelConfig(
-        model_name="qwen-plus",
-        temperature=0.0,
-        api_key_name="ALI_API_KEY",
-        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
+        model_name="gpt-4o-mini",
+        temperature=0,
+        api_key_name="OPENAI_API_KEY",
+        # base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
     )
 
     def __init__(
