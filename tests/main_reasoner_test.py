@@ -1,8 +1,6 @@
 import unittest
-import json
-from models.main_reasoner import MainReasoner, ModelConfig
+from models.main_reasoner import MainReasoner
 from dotenv import load_dotenv
-from utils.timer import response_timer
 
 load_dotenv()
 
@@ -18,7 +16,6 @@ class TestMainReasoner(unittest.TestCase):
     def setUp(self):
         self.reasoner = MainReasoner(dev_mode=True, stream=True)
 
-    @response_timer("主模型 - 进行事实核查规划")
     def test_plan_fact_check(self):
         result = self.reasoner.plan_fact_check(test_data)
 
