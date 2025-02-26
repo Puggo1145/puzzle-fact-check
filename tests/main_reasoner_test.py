@@ -31,13 +31,8 @@ class TestMainReasoner(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    # unittest.main()
     
     # 测试流式输出（百炼平台不支持通过 langchain 封装输出流式数据）
-    # stream_model_config = ModelConfig(
-    #     model_name="gpt-4o-mini",
-    #     temperature=0.0,
-    #     api_key_name="OPENAI_API_KEY",
-    # )
-    # reasoner = MainReasoner(model_config=stream_model_config, dev_mode=True, stream=True)
-    # reasoner.plan_fact_check(test_data)
+    reasoner = MainReasoner(dev_mode=True, stream=True)
+    reasoner.plan_fact_check(test_data)

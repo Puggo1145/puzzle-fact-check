@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any, Union
 from .base import ModelConfig, Base
-from langchain_openai import ChatOpenAI
-from langchain_core.output_parsers import StrOutputParser
+from langchain_deepseek import ChatDeepSeek
+from utils.llm_callbacks import ReasonerStreamingCallback
 from .prompts import (
     fact_check_plan_prompt,
     fact_check_plan_parser,
@@ -14,10 +14,10 @@ class MainReasoner(Base):
     """
 
     default_config = ModelConfig(
-        model_name="deepseek-r1",
-        api_key_name="ALI_API_KEY",
-        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-        # api_key_name="DEEPSEEK_API_KEY",
+        model_name="deepseek-reasoner",
+        temperature=0.0,
+        api_key_name="DEEPSEEK_API_KEY",
+        # base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
     )
 
     def __init__(
@@ -31,12 +31,13 @@ class MainReasoner(Base):
         """
         super().__init__(model_config, dev_mode, stream)
 
-        self.model = ChatOpenAI(
+        self.model = ChatDeepSeek(
             model=self.config.model_name,
             api_key=self.api_key,
             temperature=self.config.temperature,
             base_url=self.config.base_url,
             streaming=self.stream,
+            callbacks=[ReasonerStreamingCallback()],
         )
 
     def plan_fact_check(self, news_text: str) -> Union[Dict[str, Any], str]:
@@ -48,26 +49,12 @@ class MainReasoner(Base):
 
         Args:
             news_text: 新闻文本
-            stream: 是否使用流式输出，默认为False
+            stream: 是否使用流式输出，默认为 False
 
         Returns:
-            如果stream=False，返回Dict: 包含陈述列表和选定核查点的完整分析结果
-            如果stream=True，返回str: 完整的输出文本
+            完整的输出文本
         """
-        if self.stream:
-            # 执行链
-            chain = fact_check_plan_prompt | self.model | StrOutputParser()
-            chain_on_stream = chain.stream({"news_text": news_text})
-            
-            results = ""
-            for chunk in chain_on_stream:
-                results += chunk
-                print(chunk, end="", flush=True)
-            
-            # 返回累积的文本
-            return results
-        else:
-            # 非流式模式，返回解析后的结构化数据
-            chain = fact_check_plan_prompt | self.model | fact_check_plan_parser
-            response = chain.invoke({"news_text": news_text})
-            return response
+        
+        chain = fact_check_plan_prompt | self.model | fact_check_plan_parser
+        response = chain.invoke({"news_text": news_text})
+        return response
