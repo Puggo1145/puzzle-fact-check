@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any, Union
-from .base import ModelConfig, Base
+from ..base import ModelConfig, Base
 from langchain_deepseek import ChatDeepSeek
 from utils.llm_callbacks import ReasonerStreamingCallback
 from .prompts import (
@@ -57,4 +57,5 @@ class MainReasoner(Base):
         
         chain = fact_check_plan_prompt | self.model | fact_check_plan_parser
         response = chain.invoke({"news_text": news_text})
-        return response
+        return response 
+    

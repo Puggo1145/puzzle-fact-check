@@ -7,7 +7,7 @@ from langchain_core.output_parsers import JsonOutputParser
 
 
 # Define metadata extractor model role and ability
-METADATA_EXTRACTOR_SYSTEM_PROMPT = SystemMessage(
+METADATA_EXTRACTOR_SYSTEM_PROMPT = SystemMessage(content=
     """
 你是一名专业的新闻分析师。你的任务是分析新闻文本，识别新闻类型并提取新闻的六要素（5W1H）。
 你需要客观、准确地分析，不添加任何不在原文中的信息。
@@ -66,4 +66,4 @@ metadata_extractor_prompt = ChatPromptTemplate.from_messages([
             "format_instructions": metadata_extractor_parser.get_format_instructions()
         }
     )
-])
+]) 

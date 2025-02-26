@@ -1,5 +1,5 @@
 import unittest
-from models.experts.knowledge_extractor import KnowledgeExtractor
+from .model import KnowledgeExtractor
 from dotenv import load_dotenv
 
 load_dotenv()

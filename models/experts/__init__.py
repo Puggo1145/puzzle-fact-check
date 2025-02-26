@@ -1,5 +1,7 @@
-from models.experts.knowledge_extractor import KnowledgeExtractor
+from .knowledge_extractor.model import KnowledgeExtractor
+from .metadata_extractor.model import MetadataExtractor
 
 __all__ = [
-    "KnowledgeExtractor"
+    "KnowledgeExtractor",
+    "MetadataExtractor"
 ] 

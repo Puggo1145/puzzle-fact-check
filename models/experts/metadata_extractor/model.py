@@ -2,21 +2,21 @@ from typing import Optional, Dict, Any, List
 from models.base import ModelConfig, Base
 from utils import check_env
 from langchain_openai import ChatOpenAI
-from models.prompts.knowledge_extractor import (
-    knowledge_extraction_prompt,
-    knowledge_extraction_parser
+from .prompts import (
+    metadata_extractor_prompt,
+    metadata_extractor_parser
 )
 from utils.llm_callbacks import NormalStreamingCallback
 
 
-class KnowledgeExtractor(Base):
+class MetadataExtractor(Base):
     """
-    知识元素提取模型
-    负责从新闻文本中提取专业领域术语、关键概念和重要知识元素，作为 metadata 加入图谱根节点
+    新闻元数据提取模型
+    负责从新闻文本中提取新闻类型和新闻六要素（5W1H），作为元数据加入到分析结果中
     """
     
     default_config = ModelConfig(
-        model_name="qwen-plus",
+        model_name="qwen-max-latest",
         temperature=0.0,
         api_key_name="ALI_API_KEY",
         base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -29,7 +29,7 @@ class KnowledgeExtractor(Base):
         stream: bool = False
     ):
         """
-        初始化知识元素提取模型
+        初始化新闻元数据提取模型
         """
         super().__init__(model_config, dev_mode, stream)
         
@@ -44,19 +44,18 @@ class KnowledgeExtractor(Base):
             callbacks=[NormalStreamingCallback()]
         )
 
-    def extract_knowledge_elements(self, text: str) -> Dict[str, Any]:
+    def extract_metadata(self, news_text: str) -> Dict[str, Any]:
         """
-        从文本中提取知识元素，包括专业术语、关键概念等
+        从新闻文本中提取元数据，包括新闻类型和新闻六要素（5W1H）
 
         Args:
-            text: 需要分析的文本内容
+            news_text: 需要分析的新闻文本内容
 
         Returns:
-            包含知识元素的字典
+            包含新闻元数据的字典，包括新闻类型和六要素
         """
         
-        chain = knowledge_extraction_prompt | self.model | knowledge_extraction_parser
-        response = chain.invoke({"text": text})
+        chain = metadata_extractor_prompt | self.model | metadata_extractor_parser
+        response = chain.invoke({"news_text": news_text})
         
         return response 
-    

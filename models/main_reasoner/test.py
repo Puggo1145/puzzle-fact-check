@@ -1,5 +1,5 @@
 import unittest
-from models.main_reasoner import MainReasoner
+from .model import MainReasoner
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,5 +25,4 @@ class TestMainReasoner(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
-    
+    unittest.main() 

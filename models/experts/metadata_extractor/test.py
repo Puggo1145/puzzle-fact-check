@@ -1,5 +1,5 @@
 import unittest
-from models.experts.metadata_extractor import MetadataExtractor
+from .model import MetadataExtractor
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -49,4 +49,4 @@ class TestMetadataExtractor(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main() 
