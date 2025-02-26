@@ -6,6 +6,7 @@ from models.prompts.knowledge_extractor import (
     knowledge_extraction_prompt,
     knowledge_extraction_parser
 )
+from utils.llm_callbacks import NormalStreamingCallback
 
 
 class KnowledgeExtractor(Base):
@@ -24,12 +25,13 @@ class KnowledgeExtractor(Base):
     def __init__(
         self, 
         model_config: Optional[ModelConfig] = None, 
-        dev_mode: bool = False
+        dev_mode: bool = False,
+        stream: bool = False
     ):
         """
         初始化知识元素提取模型
         """
-        super().__init__(model_config, dev_mode)
+        super().__init__(model_config, dev_mode, stream)
         
         api_key = check_env(self.config.api_key_name)
         
@@ -38,6 +40,8 @@ class KnowledgeExtractor(Base):
             temperature=self.config.temperature,
             api_key=api_key,
             base_url=self.config.base_url,
+            streaming=self.stream,
+            callbacks=[NormalStreamingCallback()]
         )
 
     def extract_knowledge_elements(self, text: str) -> Dict[str, Any]:
@@ -55,3 +59,4 @@ class KnowledgeExtractor(Base):
         response = chain.invoke({"text": text})
         
         return response 
+    

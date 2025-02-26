@@ -6,7 +6,7 @@ load_dotenv()
 
 class TestKnowledgeExtractor(unittest.TestCase):
     def setUp(self):
-        self.extractor = KnowledgeExtractor(dev_mode=True)
+        self.extractor = KnowledgeExtractor(dev_mode=True, stream=True)
 
     def test_extract_knowledge_elements(self):
         # 准备测试数据
@@ -19,19 +19,6 @@ class TestKnowledgeExtractor(unittest.TestCase):
 """
         # 调用被测试的方法
         result = self.extractor.extract_knowledge_elements(test_news)
-
-        # 打印结果
-        if 'elements' in result:
-            for element in result['elements']:
-                print(f"术语: {element['term']}")
-                print(f"类别: {element['category']}")
-                if element.get('definition'):
-                    print(f"定义: {element['definition']}")
-                if element.get('domain'):
-                    print(f"领域: {element['domain']}")
-                print("-------------------")
-        else:
-            print(result)
 
         # 简单验证结果不为空
         self.assertIsNotNone(result)
