@@ -3,8 +3,8 @@ from ..base import ModelConfig, Base
 from langchain_deepseek import ChatDeepSeek
 from utils.llm_callbacks import ReasonerStreamingCallback
 from .prompts import (
-    fact_check_plan_prompt,
-    fact_check_plan_parser,
+    fact_check_plan_prompt_template,
+    fact_check_plan_output_parser,
 )
 
 class MainReasoner(Base):
@@ -15,7 +15,7 @@ class MainReasoner(Base):
 
     default_config = ModelConfig(
         model_name="deepseek-reasoner",
-        temperature=0.0,
+        temperature=0.6,
         api_key_name="DEEPSEEK_API_KEY",
         # base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
     )
@@ -55,7 +55,7 @@ class MainReasoner(Base):
             完整的输出文本
         """
         
-        chain = fact_check_plan_prompt | self.model | fact_check_plan_parser
+        chain = fact_check_plan_prompt_template | self.model | fact_check_plan_output_parser
         response = chain.invoke({"news_text": news_text})
         return response 
     

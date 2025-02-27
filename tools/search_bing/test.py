@@ -60,7 +60,7 @@ def test_llm_tool_invocation():
 请确保提供准确的信息，并引用信息来源。不要在没有引用的情况下自己生成回答。如果你认为没有找到相关信息，请回答“没有找到相关信息”。
                 """,
             ),
-            ("user", "Bun Elysia 官方文档的地址"),
+            ("user", "BBC 最新报道"),
         ]
     }
     for s in graph.stream(message, stream_mode="values"):
