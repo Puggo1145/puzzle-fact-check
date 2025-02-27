@@ -9,8 +9,7 @@ from langchain_core.tools import ToolException
 import time
 import json
 from bs4 import BeautifulSoup
-import urllib.parse  # Add this import for URL encoding
-import random
+import urllib.parse
 
 
 BingSearchAction = Literal[
