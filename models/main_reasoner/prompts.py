@@ -1,6 +1,6 @@
 # Main Reasoner Model Prompts
 from typing import List, Optional
-from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 from langchain_core.output_parsers import JsonOutputParser
 
