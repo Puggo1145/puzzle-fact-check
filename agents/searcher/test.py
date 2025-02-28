@@ -3,6 +3,7 @@ from utils.llm_callbacks import AgentStateCallback
 
 agent_callback = AgentStateCallback(verbose=True)
 
+
 def test_search_agent():
     example_input = {
         "news_metadata": {
@@ -19,20 +20,17 @@ def test_search_agent():
             "how": [],
         },
         "content": "网络流传'赛场水中大肠杆菌严重超标'的说法",
-        "purpose": "获取东京湾水质检测原始数据",
-        "expected_results": ["东京都环境局监测报告", "世界卫生组织检测记录"],
+        "purpose": "获取铁人三项赛出的水质检测原始数据",
+        "expected_results": ["东京都环境局监测报告", "世界卫生组织检测记录", "事实核查组织对相关新闻的核查报告"],
         "statuses": [],
         "latest_tool_messages": [],
         "total_tokens": 0,
-        "max_tokens": 24000,  # 设置最大token数量
-        "supporting_evidence": []  # 初始化证据列表
+        "max_tokens": 20000,  # 最大 token 数量
+        "supporting_evidence": [],
     }
 
-    result = search_agent.invoke(
-        example_input, 
-        config={"callbacks": [agent_callback]}
-    )
-    
+    result = search_agent.invoke(example_input, config={"callbacks": [agent_callback]})
+
     # 打印最终结果
     if "result" in result:
         final_result = result["result"]
@@ -42,10 +40,12 @@ def test_search_agent():
         print(f"信息来源: {final_result['sources']}")
         print(f"置信度: {final_result['confidence']}")
         print(f"总token消耗: {result.get('total_tokens', 'N/A')}")
-        
+
         # 打印收集到的证据
         if "supporting_evidence" in result and result["supporting_evidence"]:
-            print(f"\n===== 收集到的重要证据 ({len(result['supporting_evidence'])}条) =====")
+            print(
+                f"\n===== 收集到的重要证据 ({len(result['supporting_evidence'])}条) ====="
+            )
             for i, evidence in enumerate(result["supporting_evidence"]):
                 print(f"\n证据 {i+1}:")
                 print(f"内容: {evidence.content}")

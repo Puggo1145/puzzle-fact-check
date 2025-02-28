@@ -29,7 +29,7 @@ from langgraph.graph.state import StateGraph, END
 tools: list[BaseTool] = [
     SearchBingTool(),
     SearchGoogleTool(),
-    SearchWikipediaTool(),
+    # SearchWikipediaTool(),
     ReadWebpageTool(),
     get_current_time,
 ]
@@ -40,17 +40,17 @@ tool_calling_schema = [
     for tool in tools
 ]
 
-# model = ChatOpenAI(model="gpt-4o-mini", temperature=0.5) # 这几波玩意会原地卡死
+# model = ChatOpenAI(model="gpt-4o-mini", temperature=1) # 这几波玩意会原地卡死
 # model = ChatDeepSeek(model="deepseek-chat", temperature=0.5)
 model = ChatOpenAI(
     model="qwen-plus",
-    temperature=0.5,
+    temperature=0.3,
     api_key=check_env("ALI_API_KEY"),
     base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
 )
 
 # 初始化tokenizer
-tokenizer = tiktoken.get_encoding("cl100k_base")  # OpenAI的默认编码
+tokenizer = tiktoken.get_encoding("cl100k_base")
 
 def count_tokens(messages: List[BaseMessage]) -> int:
     """计算消息列表的token数量"""

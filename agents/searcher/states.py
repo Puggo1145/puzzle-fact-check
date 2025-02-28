@@ -6,7 +6,7 @@ from langchain_core.messages import ToolCall
 
 class Evidence(BaseModel):
     """存储支持核查目标的重要证据片段"""
-    content: str = Field(description="证据内容")
+    content: str = Field(description="证据内容的原文片段")
     source: Dict[str, str] = Field(
         description="证据来源",
         examples=[{"xx新闻": "https://www.example_news.com"}]
