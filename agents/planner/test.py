@@ -1,12 +1,8 @@
 from .graph import PlanAgentGraph
 from langchain_deepseek import ChatDeepSeek
-from langchain_openai import ChatOpenAI
 from langgraph.types import Command
-from langgraph.graph.state import START
-from utils.llm_callbacks import ReasonerStreamingCallback
 import readchar
 import sys
-import os
 
 
 def cli_select_option(options, prompt):
@@ -22,7 +18,6 @@ def cli_select_option(options, prompt):
     """
     selected = 0
     
-    # 首先打印提示信息，只打印一次
     print(prompt)
     
     def print_options():
@@ -54,10 +49,8 @@ def cli_select_option(options, prompt):
             return options[selected]
 
 
-def get_user_feedback(question):
+def get_user_feedback():
     """处理用户交互，返回用户反馈"""
-    print(question)
-    
     choice = cli_select_option(["continue", "revise"], "请选择操作：")
     
     if choice == "continue":
@@ -77,8 +70,7 @@ def test_plan_agent():
     model = ChatDeepSeek(
         model="deepseek-reasoner",
         temperature=0.6,
-        streaming=True,
-        callbacks=[ReasonerStreamingCallback()],
+        streaming=True
     )
 
     example_initial_state = {
@@ -94,10 +86,9 @@ def test_plan_agent():
     plan_agent = PlanAgentGraph(model=model)
     thread_config = {"thread_id": "some_id"}
     
-    plan_agent.graph.invoke(
+    plan_agent.invoke(
         example_initial_state, 
         {"configurable": thread_config},
-        stream_mode="updates"
     )
     
     # 需要反复捕获 interrups 才能不断进行 agent-human loop ！！！
@@ -105,11 +96,10 @@ def test_plan_agent():
         states = plan_agent.graph.get_state({"configurable": thread_config})
         interrupts = states.tasks[0].interrupts if len(states.tasks) > 0 else False
         if interrupts:
-            question = interrupts[0].value.get('question', '')
-
-            result = get_user_feedback(question)
+            # question = interrupts[0].value.get('question', '')
+            result = get_user_feedback()
             
-            plan_agent.graph.invoke(
+            plan_agent.invoke(
                 Command(resume=result),
                 config={"configurable": thread_config},
             )

@@ -1,9 +1,8 @@
-import uuid
 from typing import Any, List
 from agents.base import BaseAgent
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_deepseek import ChatDeepSeek
-from langgraph.graph.state import CompiledStateGraph, StateGraph, END, START
+from langgraph.graph.state import CompiledStateGraph, StateGraph
 from langgraph.types import interrupt, Command
 from .states import FactCheckPlanState
 from .prompts import (
@@ -11,15 +10,20 @@ from .prompts import (
     fact_check_plan_output_parser,
     human_feedback_prompt_template,
 )
+from .callback import PlanAgentCallback
 
 
 class PlanAgentGraph(BaseAgent[ChatDeepSeek]):
     def __init__(
         self,
         model: ChatDeepSeek,
+        verbose: bool = True,
     ):
         """初始化 plan agent 参数"""
-        super().__init__(model=model, default_config={"callbacks": []})
+        super().__init__(
+            model=model, 
+            default_config={"callbacks": [PlanAgentCallback(verbose=verbose)]}
+        )
 
     def _build_graph(self) -> CompiledStateGraph | Any:
         graph_builder = StateGraph(FactCheckPlanState)
