@@ -29,15 +29,11 @@ def test_search_agent():
         ],
     )
 
-    # model = ChatOpenAI(
-    #     model="qwen-plus-latest",
-    #     temperature=0.4,
-    #     api_key=check_env("ALI_API_KEY"),
-    #     base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-    # )
     model = ChatOpenAI(
-        model="gpt-4o-mini",
+        model="qwen-plus-latest",
         temperature=0.4,
+        api_key=check_env("ALI_API_KEY"),
+        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
     )
 
     search_agent = SearchAgentGraph(model=model, max_tokens=16000)

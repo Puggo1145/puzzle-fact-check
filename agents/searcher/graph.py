@@ -1,5 +1,6 @@
 import json
 from typing import cast, List
+from agents.base import BaseAgent
 from langchain_core.messages import ToolCall
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from utils import count_tokens
@@ -23,16 +24,14 @@ from .callback import AgentStateCallback
 
 
 
-class SearchAgentGraph:
-    """搜索代理图类"""
-    
+class SearchAgentGraph(BaseAgent):
     def __init__(
         self,
         model: ChatOpenAI,
         max_tokens: int
     ):
         """
-        初始化 search agent graph
+        初始化 search agent 参数
         
         Args:
             config: 配置参数，包含max_tokens、model等
@@ -80,10 +79,13 @@ class SearchAgentGraph:
         # 编译图
         return graph_builder.compile()
     
-    def invoke(self, initial_state: SearchAgentState):
+    def invoke(
+        self, 
+        initial_state: SearchAgentState,
+    ):
         return self.graph.invoke(
             initial_state,
-            config={ 
+            config={
                 "callbacks": [AgentStateCallback(verbose=True)] 
             }
         )

@@ -57,6 +57,7 @@ evaluate_current_status_output_parser = JsonOutputParser(pydantic_object=Status)
 evaluate_current_status_prompt_template = HumanMessagePromptTemplate.from_template(
     template="""
 请根据[检索到的结果]和[检索操作的历史记录]进行推理和自我评估，判断是否满足目标，并规划下一步操作
+检索未开始时不存在相关结果和记录
 注意，每一次操作都必须只专注于一个目标！
 
 回答时机：
