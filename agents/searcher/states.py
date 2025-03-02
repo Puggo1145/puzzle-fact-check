@@ -24,7 +24,7 @@ class Status(BaseModel):
         description="调用工具或回答",
         json_schema_extra={
             "options": [
-                "如果你希望调用工具，请在此处输出工具调用信息",
+                "如果你希望调用工具，请在以数组的形式此处输出工具调用信息",
                 "如果你认为现有信息已经满足预期目标，请在此处输出：'answer'",
             ]
         },
@@ -53,20 +53,23 @@ class SearchAgentState(BaseModel):
     expected_results: List[str] = Field(
         description="期望找到的信息来源类型，如官方网站、新闻报道、学术论文等。只需要满足其中一项即可"
     )
-    statuses: List[Status] = Field(description="所有已执行的操作", default=[])
+    statuses: List[Status] = Field(
+        description="所有已执行的操作", 
+        default=[]
+    )
     latest_tool_messages: List[str] = Field(
-        description="最近一次工具调用的结果", default=[]
-    )
-    result: Optional[SearchAgentResult] = Field(
-        description="最终的检索结果和结论", default=None
-    )
-    total_tokens: int = Field(
-        description="累计使用的token数量", default=0
-    )
-    max_tokens: int = Field(
-        description="最大允许使用的token数量", default=10000
+        description="最近一次工具调用的结果", 
+        default=[]
     )
     supporting_evidence: List[Evidence] = Field(
         description="收集到的支持核查目标的重要证据片段",
         default_factory=list
+    )
+    result: Optional[SearchAgentResult] = Field(
+        description="最终的检索结果和结论", 
+        default=None
+    )
+    token_usage: int = Field(
+        description="模型推理消耗的 token 总量",
+        default=0
     )
