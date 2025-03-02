@@ -1,8 +1,9 @@
 import json
-from typing import cast, List
+from typing import cast, List, Optional
 from agents.base import BaseAgent
 from langchain_core.messages import ToolCall
 from langchain_core.utils.function_calling import convert_to_openai_tool
+from langchain_core.runnables import RunnableConfig
 from utils import count_tokens
 from .states import SearchAgentState, Status
 from .prompts import (
@@ -24,7 +25,7 @@ from .callback import AgentStateCallback
 
 
 
-class SearchAgentGraph(BaseAgent):
+class SearchAgentGraph(BaseAgent[ChatOpenAI]):
     def __init__(
         self,
         model: ChatOpenAI,
@@ -36,8 +37,11 @@ class SearchAgentGraph(BaseAgent):
         Args:
             config: 配置参数，包含max_tokens、model等
         """
-        # params initialization
-        self.model = model
+        super().__init__(
+            model=model,
+            default_config={"callbacks": [AgentStateCallback(verbose=True)]}
+        )
+        
         self.max_tokens = max_tokens
         
         self.tools = [
@@ -49,8 +53,6 @@ class SearchAgentGraph(BaseAgent):
         self.tools_by_name = {tool.name: tool for tool in self.tools}
         self.tool_calling_schema = [convert_to_openai_tool(tool) for tool in self.tools]
         
-        self.graph = self._build_graph()
-    
     def _build_graph(self):
         """构建搜索代理图"""
         graph_builder = StateGraph(SearchAgentState)
@@ -78,17 +80,6 @@ class SearchAgentGraph(BaseAgent):
         
         # 编译图
         return graph_builder.compile()
-    
-    def invoke(
-        self, 
-        initial_state: SearchAgentState,
-    ):
-        return self.graph.invoke(
-            initial_state,
-            config={
-                "callbacks": [AgentStateCallback(verbose=True)] 
-            }
-        )
     
     # nodes
     def doesTokensExceeded(self, state: SearchAgentState):

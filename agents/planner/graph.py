@@ -1,10 +1,9 @@
-import json
-from typing import Any, Dict, List
+import uuid
+from typing import Any, List
 from agents.base import BaseAgent
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_deepseek import ChatDeepSeek
-from langgraph.graph.state import CompiledStateGraph, StateGraph
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph.state import CompiledStateGraph, StateGraph, END, START
 from langgraph.types import interrupt, Command
 from .states import FactCheckPlanState
 from .prompts import (
@@ -14,18 +13,13 @@ from .prompts import (
 )
 
 
-class PlanAgentGraph(BaseAgent):
-    memory_saver: MemorySaver
-    
+class PlanAgentGraph(BaseAgent[ChatDeepSeek]):
     def __init__(
         self,
         model: ChatDeepSeek,
     ):
         """初始化 plan agent 参数"""
-
-        self.model = model
-        self.memory_saver = MemorySaver()
-        self.graph = self._build_graph()
+        super().__init__(model=model, default_config={"callbacks": []})
 
     def _build_graph(self) -> CompiledStateGraph | Any:
         graph_builder = StateGraph(FactCheckPlanState)
@@ -39,19 +33,6 @@ class PlanAgentGraph(BaseAgent):
 
         return graph_builder.compile(
             checkpointer=self.memory_saver,
-            interrupt_before=["human_verification"]
-        )
-
-    def invoke(
-        self,
-        initial_state: Any,
-    ) -> Dict[str, Any] | Any:
-        return self.graph.invoke(
-            initial_state, 
-            config={
-                "callbacks": [],
-                "configurable": {"thread_id": "123"}
-            }
         )
 
     # 节点
@@ -65,7 +46,6 @@ class PlanAgentGraph(BaseAgent):
         Returns:
             核查方案 JSON
         """
-
         messages = [
             fact_check_plan_prompt_template.format(news_text=state.news_text)
         ]
@@ -75,7 +55,7 @@ class PlanAgentGraph(BaseAgent):
                 human_feedback=state.human_feedback
             )
             messages_with_feedback: List[BaseMessage] = [
-                AIMessage(json.dumps(state.check_points, ensure_ascii=False)),
+                AIMessage(state.check_points.model_dump_json()),
                 human_feedback_prompt
             ]
             messages.extend(messages_with_feedback)
@@ -91,19 +71,19 @@ class PlanAgentGraph(BaseAgent):
         Human-in-the-loop
         将检索方案交给人类进行核验，根据反馈开始核查或更新检索方案
         """
-        interrupt({})
-
         # 中断图的执行，等待人类输入
-        human_feedback = input(
-            "根据您提供的新闻文本，我规划了以下事实核查方案：\n"
-            f"{state.check_points}\n\n"
-            "选择 'continue' 开始核查，或输入修改建议"
-        )
-
-        if human_feedback == "continue":
+        result = interrupt({
+            "question": "根据您提供的新闻文本，我规划了以下事实核查方案:\n\n"
+            + f"{state.check_points.model_dump_json(indent=4) if state.check_points else 'LLM outputed nothing'}\n"
+            + "选择 'continue' 开始核查，或输入修改建议",
+        })
+        
+        if result["action"] == "continue":
             return Command(resume="")
-
-        return Command(
-            update={"human_feedback": human_feedback},
-            goto="extract_check_point"
-        )
+        else:
+            return Command(
+                goto="extract_check_point",
+                update={
+                    "human_feedback": result["feedback"],
+                },
+            )
