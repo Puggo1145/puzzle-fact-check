@@ -1,7 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 from langchain_core.messages import SystemMessage
 from langchain_core.output_parsers import JsonOutputParser
-from .states import BasicMetadata, AllKnowledge
+from .states import BasicMetadata, Knowledges
 
 
 # Define metadata extractor model role and ability
@@ -31,11 +31,11 @@ basic_metadata_extractor_prompt_template_string = """
    - 健康新闻：涉及医疗、疾病、健康生活等
    - 其他类型：如果不属于以上类别，请指明具体类型
 
-2. 新闻六要素（5W1H）：
-   - Who（谁）：新闻中的主要人物或组织，可能有多个
+2. 新闻六要素（5W1H）[！注意，所有要素都可能有多个！]：
+   - Who（谁）：新闻中的主要人物或组织
    - When（何时）：事件发生的时间，包括日期、时间点或时间段
    - Where（何地）：事件发生的地点，可能包括国家、城市、具体场所等
-   - What（什么）：发生了什么事件或行动，可能有多个关键事件
+   - What（什么）：发生了什么事件或行动
    - Why（为何）：事件发生的原因、动机或背景
    - How（如何）：事件是如何发生或进行的，包括方式、手段、过程等
 
@@ -58,7 +58,7 @@ basic_metadata_extractor_prompt_template = ChatPromptTemplate.from_messages(
 )
 
 # knowledge prompts
-knowledge_extraction_output_parser = JsonOutputParser(pydantic_object=AllKnowledge)
+knowledge_extraction_output_parser = JsonOutputParser(pydantic_object=Knowledges)
 knowledge_extraction_prompt_template_string = """
 # 定位
 名称：专业的知识元提取专家
@@ -82,7 +82,7 @@ knowledge_extraction_prompt_template_string = """
 
 # 提取标准
 - 只提取真正需要专业背景知识理解的术语
-- 对于边界情况，问自己："一般读者是否需要额外解释才能理解这个概念？"
+- 提取时考虑："一般读者是否需要额外解释才能理解这个概念？"
 - 如果一个词在上下文中只是作为普通词汇使用，而非作为专业概念，请不要提取
 
 你只需要提取术语名称和类别，具体定义将在后续检索过程中确定。

@@ -60,9 +60,9 @@ class MetadataExtractorAgent(BaseAgent):
         chain = (
             knowledge_extraction_prompt_template
             | self.model
-            | basic_metadata_extractor_output_parser
+            | knowledge_extraction_output_parser
         )
-        all_knowledge = chain.invoke({"news_text": state.news_text})
+        knowledges = chain.invoke({"news_text": state.news_text})
         
-        return {"all_knowledge": all_knowledge}
+        return {"knowledges": knowledges["items"]}
     

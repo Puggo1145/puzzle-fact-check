@@ -21,11 +21,11 @@ class Knowledge(BaseModel):
     source: Optional[str] = Field(description="知识元定义或解释的来源", default=None)
 
 
-class AllKnowledge(BaseModel):
-    all_knowledge: Optional[List[Knowledge]] = Field(description="新闻文本中的知识元", default=None)
+class Knowledges(BaseModel):
+    items: List[Knowledge] = Field(description="新闻文本中的知识元")
 
 
 class MetadataState(BaseModel):
     news_text: str = Field(description="待分析的新闻文本")
     basic_metadata: Optional[BasicMetadata] = Field(default=None)
-    all_knowledge: Optional[AllKnowledge] = Field(default=None)
+    knowledges: Optional[Knowledges] = Field(default=None)
