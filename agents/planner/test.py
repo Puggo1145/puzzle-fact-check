@@ -68,7 +68,7 @@ def get_user_feedback():
 
 def test_plan_agent():
     model = ChatDeepSeek(
-        model="deepseek-reasoner",
+        model="deepseek-chat",
         temperature=0.6,
         streaming=True
     )

@@ -3,7 +3,9 @@ import time
 from typing import Any, Dict, List, Optional, Union, cast
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
-from langchain_core.outputs import ChatGenerationChunk, GenerationChunk
+from langchain_core.outputs import ChatGenerationChunk, GenerationChunk, ChatGeneration
+from .states import CheckPoints
+from .prompts import fact_check_plan_output_parser
 
 
 class PlanAgentCallback(BaseCallbackHandler):
@@ -26,7 +28,7 @@ class PlanAgentCallback(BaseCallbackHandler):
         self.token_usage = 0
         self.has_thinking_started = False
         self.has_content_started = False
-        
+
         # ANSI color codes
         self.colors = {
             "blue": "\033[94m",
@@ -84,7 +86,7 @@ class PlanAgentCallback(BaseCallbackHandler):
             model_name = "Unknown Model"
             if serialized is not None and isinstance(serialized, dict):
                 model_name = serialized.get("name", "Unknown Model")
-                
+
             self._print_colored(
                 f"\n🧠 LLM 开始推理 (调用 #{self.llm_call_count}, {model_name})",
                 "purple",
@@ -108,23 +110,31 @@ class PlanAgentCallback(BaseCallbackHandler):
             if chunk is None:
                 print(token, end="", flush=True)
                 return
-                
+
             chunk_message = cast(ChatGenerationChunk, chunk).message
             # Handle reasoning content (thinking process)
-            if hasattr(chunk, "message") and hasattr(chunk_message, "additional_kwargs"):
+            if hasattr(chunk, "message") and hasattr(
+                chunk_message, "additional_kwargs"
+            ):
                 if "reasoning_content" in chunk_message.additional_kwargs:
                     if not self.has_thinking_started:
-                        self._print_colored("\n💭 THINKING:", "gray", True)
+                        self._print_colored("💭 思考:", "gray", True)
                         self.has_thinking_started = True
-                    
-                    reasoning = chunk_message.additional_kwargs['reasoning_content']
-                    print(f"{self.colors['gray']}{reasoning}{self.colors['reset']}", end="", flush=True)
-                
+
+                    reasoning = chunk_message.additional_kwargs["reasoning_content"]
+                    print(
+                        f"{self.colors['gray']}{reasoning}{self.colors['reset']}",
+                        end="",
+                        flush=True,
+                    )
+
                 # Handle regular content (final output)
                 elif hasattr(chunk_message, "content") and chunk_message.content:
                     if not self.has_content_started:
                         print("\n")
-                        self._print_colored("\n🔄 LLM 正在规划核查方案...", "cyan", True)
+                        self._print_colored(
+                            "\n🔄 思考完成，LLM 正在规划核查方案...", "cyan", True
+                        )
                         self.has_content_started = True
             else:
                 # Fallback for simple token streaming
@@ -138,32 +148,35 @@ class PlanAgentCallback(BaseCallbackHandler):
             return
 
         try:
-            # Calculate generation time
+            # 生成耗时
             if self.start_time:
                 generation_time = time.time() - self.start_time
-                self._print_colored(
-                    f"\n⏱️ 生成耗时: {generation_time:.2f}秒", "blue"
-                )
+                self._print_colored(f"\n⏱️ 推理耗时: {generation_time:.2f}秒", "blue")
+
+            # 控制台格式化输出
+            self._print_colored("\n📋 规划结果:", "cyan", True)
+
+            parsed_result = fact_check_plan_output_parser.parse(
+                response.generations[0][0].text
+            )
+            check_points = parsed_result["check_points"]
+            selected_check_points = [
+                check_point
+                for check_point in check_points
+                if check_point["is_verification_point"]
+            ]
+            for check_point in selected_check_points:
+                print(f"\n第 {check_point['id']} 条陈述")
+                print(f"陈述内容：{check_point['content']}")
+                print(f"核查理由：{check_point['importance']}")
+                if isinstance(check_point["retrieval_plan"], list):
+                    for idx, plan in enumerate(check_point["retrieval_plan"]):
+                        print(f"核查计划 {idx+1}：")
+                        print(f"- 核查目标：{plan['purpose']}")
+                        print(f"- 目标信源类型：{plan['expected_sources']}")
+
         except Exception as e:
             self._print_colored(f"Error in on_llm_end: {str(e)}", "red")
-
-    def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> None:
-        """Called when a chain ends running"""
-        if not self.verbose:
-            return
-
-        if isinstance(outputs, dict) and "check_points" in outputs:
-            self._print_colored("\n📋 规划结果:", "cyan", True)
-            try:
-                # 处理 check_points
-                if hasattr(outputs["check_points"], "model_dump_json"):
-                    formatted_output = json.loads(outputs["check_points"].model_dump_json(indent=4))
-                    self._print_formatted_plan(formatted_output)
-                else:
-                    self._print_colored(str(outputs["check_points"]), "cyan")
-            except Exception as e:
-                self._print_colored(f"无法格式化输出: {str(e)}", "red")
-                self._print_colored(str(outputs["check_points"]), "cyan")
 
     def _print_formatted_plan(self, plan_data):
         """Format and print the planning results with appropriate emojis"""
@@ -173,28 +186,40 @@ class PlanAgentCallback(BaseCallbackHandler):
                 return
 
             # Print check points
-            if "check_points" in plan_data and isinstance(plan_data["check_points"], list):
+            if "check_points" in plan_data and isinstance(
+                plan_data["check_points"], list
+            ):
                 for i, point in enumerate(plan_data["check_points"]):
                     is_verification = point.get("is_verification_point", False)
                     emoji = "🔍" if is_verification else "📌"
-                    
+
                     self._print_colored(
                         f"\n{emoji} 陈述 #{point.get('id', i+1)}: {point.get('content', '无内容')}",
-                        "cyan", 
-                        is_verification
+                        "cyan",
+                        is_verification,
                     )
-                    
+
                     if is_verification:
                         if "importance" in point and point["importance"]:
-                            self._print_colored(f"⭐ 重要性: {point['importance']}", "cyan")
-                        
+                            self._print_colored(
+                                f"⭐ 重要性: {point['importance']}", "cyan"
+                            )
+
                         if "retrieval_plan" in point and point["retrieval_plan"]:
                             self._print_colored(f"🔎 检索方案:", "cyan")
                             for j, step in enumerate(point["retrieval_plan"]):
-                                self._print_colored(f"  {j+1}. 目的: {step.get('purpose', '无目的')}", "cyan")
-                                if "expected_sources" in step and step["expected_sources"]:
+                                self._print_colored(
+                                    f"  {j+1}. 目的: {step.get('purpose', '无目的')}",
+                                    "cyan",
+                                )
+                                if (
+                                    "expected_sources" in step
+                                    and step["expected_sources"]
+                                ):
                                     sources = ", ".join(step["expected_sources"])
-                                    self._print_colored(f"     预期来源: {sources}", "cyan")
+                                    self._print_colored(
+                                        f"     预期来源: {sources}", "cyan"
+                                    )
         except Exception as e:
             self._print_colored(f"Error in _print_formatted_plan: {str(e)}", "red")
 
