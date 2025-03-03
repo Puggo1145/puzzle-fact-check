@@ -131,7 +131,6 @@ class PlanAgentCallback(BaseCallbackHandler):
                 # Handle regular content (final output)
                 elif hasattr(chunk_message, "content") and chunk_message.content:
                     if not self.has_content_started:
-                        print("\n")
                         self._print_colored(
                             "\n🔄 思考完成，LLM 正在规划核查方案...", "cyan", True
                         )

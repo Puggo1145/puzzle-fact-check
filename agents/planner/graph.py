@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import List
 from agents.base import BaseAgent
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_deepseek import ChatDeepSeek
@@ -25,7 +25,7 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek]):
             default_config={"callbacks": [PlanAgentCallback(verbose=verbose)]}
         )
 
-    def _build_graph(self) -> CompiledStateGraph | Any:
+    def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(FactCheckPlanState)
 
         graph_builder.add_node("extract_check_point", self.extract_check_point)
@@ -39,7 +39,7 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek]):
             checkpointer=self.memory_saver,
         )
 
-    # 节点
+    # nodes
     def extract_check_point(self, state: FactCheckPlanState):
         """
         对新闻文本进行核查前规划：

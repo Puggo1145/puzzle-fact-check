@@ -2,8 +2,9 @@ from typing import Dict, Any, Optional, TypeVar, Generic
 from langgraph.graph.state import CompiledStateGraph
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import MemorySaver
+from langchain.chat_models.base import BaseChatModel
 
-ModelT = TypeVar("ModelT")
+ModelT = TypeVar("ModelT", bound=BaseChatModel)
 
 class BaseAgent(Generic[ModelT]):
     model: ModelT
