@@ -14,7 +14,7 @@ from .prompts import (
 from tools import SearchWikipediaTool
 
 
-class MetadataExtractorAgent(BaseAgent[ChatOpenAI]):
+class MetadataExtractAgentGraph(BaseAgent[ChatOpenAI]):
     def __init__(
         self, 
         model: ChatOpenAI, 

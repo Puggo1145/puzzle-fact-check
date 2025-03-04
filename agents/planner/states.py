@@ -1,5 +1,6 @@
 from typing import Optional, List
 from pydantic import BaseModel, Field
+from agents.metadata_extractor.states import MetadataState
 
 
 class RetrievalStep(BaseModel):
@@ -35,6 +36,7 @@ class CheckPoints(BaseModel):
 
 class FactCheckPlanState(BaseModel):
     news_text: str = Field(description="待核查的新闻文本")
+    metadata: Optional[MetadataState] = Field(description="新闻元数据及知识元", default=None)
     check_points: Optional[CheckPoints] = Field(
         description="核查点信息",
         default=None

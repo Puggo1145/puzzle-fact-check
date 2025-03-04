@@ -1,5 +1,5 @@
-from .graph import MetadataExtractorAgent
+from .graph import MetadataExtractAgentGraph
 
 __all__ = [
-    "MetadataExtractorAgent"
+    "MetadataExtractAgentGraph"
 ]

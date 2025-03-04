@@ -1,8 +1,10 @@
-from .graph import PlanAgentGraph
-from langchain_deepseek import ChatDeepSeek
-from langgraph.types import Command
 import readchar
 import sys
+from .graph import PlanAgentGraph
+from langchain_deepseek import ChatDeepSeek
+from langchain_openai import ChatOpenAI
+from langgraph.types import Command
+from utils import check_env
 
 
 def cli_select_option(options, prompt):
@@ -72,6 +74,16 @@ def test_plan_agent():
         temperature=0.6,
         streaming=True
     )
+    metadata_extract_model = ChatOpenAI(
+        model="gpt-4o-mini",
+        temperature=0.3
+    )
+    search_model = ChatOpenAI(
+        model="qwen-plus-latest",
+        temperature=0.4,
+        api_key=check_env("ALI_API_KEY"),
+        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    )
 
     example_initial_state = {
         "news_text": """
@@ -83,9 +95,13 @@ def test_plan_agent():
 """
     }
 
-    plan_agent = PlanAgentGraph(model=model)
-    thread_config = {"thread_id": "some_id"}
+    plan_agent = PlanAgentGraph(
+        model=model,
+        metadata_extract_model=metadata_extract_model,
+        search_model=search_model
+    )
     
+    thread_config = {"thread_id": "some_id"}
     plan_agent.invoke(
         example_initial_state, 
         {"configurable": thread_config},

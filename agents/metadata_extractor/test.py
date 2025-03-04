@@ -1,6 +1,6 @@
 import json
 from langchain_openai import ChatOpenAI
-from .graph import MetadataExtractorAgent
+from .graph import MetadataExtractAgentGraph
 
 def test_metadata_extractor():
     model = ChatOpenAI(
@@ -16,7 +16,7 @@ def test_metadata_extractor():
 """
     }
     
-    metadata_extractor_agent = MetadataExtractorAgent(model)
+    metadata_extractor_agent = MetadataExtractAgentGraph(model)
     result = metadata_extractor_agent.invoke(example_initial_state)
     
     print(json.dumps(result, indent=4, ensure_ascii=False))

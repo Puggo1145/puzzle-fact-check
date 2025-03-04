@@ -1,22 +1,30 @@
-from typing import List
+from typing import List, Union
 from agents.base import BaseAgent
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_deepseek import ChatDeepSeek
+from langchain_openai import ChatOpenAI
 from langgraph.graph.state import CompiledStateGraph, StateGraph
-from langgraph.types import interrupt, Command
+from langgraph.types import interrupt, Command, Send
 from .states import FactCheckPlanState
+from agents.searcher.states import SearchAgentState
 from .prompts import (
     fact_check_plan_prompt_template,
     fact_check_plan_output_parser,
     human_feedback_prompt_template,
 )
 from .callback import PlanAgentCallback
+from agents import (
+    SearchAgentGraph,
+    MetadataExtractAgentGraph
+)
 
 
 class PlanAgentGraph(BaseAgent[ChatDeepSeek]):
     def __init__(
         self,
         model: ChatDeepSeek,
+        metadata_extract_model: ChatOpenAI,
+        search_model: ChatOpenAI,
         verbose: bool = True,
     ):
         """初始化 plan agent 参数"""
@@ -24,6 +32,10 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek]):
             model=model, 
             default_config={"callbacks": [PlanAgentCallback(verbose=verbose)]}
         )
+        
+        """初始化子 agent 模型"""
+        self.metadata_extract_model = metadata_extract_model
+        self.search_model = search_model
 
     def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(FactCheckPlanState)
@@ -91,3 +103,21 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek]):
                     "human_feedback": result["feedback"],
                 },
             )
+            
+    def invoke_metadata_extract_agent(self, state: FactCheckPlanState):
+        """调用知识元检索 agent 补充"""
+        metadata_extract_agent = MetadataExtractAgentGraph(model=self.metadata_extract_model)
+        result = metadata_extract_agent.invoke({ "news_text": state.news_text })
+        
+        return {"metadata": result["metadata"]}
+
+    def invoke_search_agent(self, state: SearchAgentState):
+        """根据检索规划调用子检索模型执行深度检索"""
+        search_agent = SearchAgentGraph(
+            model=self.search_model,
+            max_tokens=12000
+        )
+        search_agent.invoke(state)
+        
+    def continue_to_parallel_retrieval(self, state: FactCheckPlanState):
+        pass

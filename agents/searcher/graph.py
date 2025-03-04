@@ -1,9 +1,8 @@
 import json
-from typing import cast, List, Optional
+from typing import cast, List
 from agents.base import BaseAgent
 from langchain_core.messages import ToolCall
 from langchain_core.utils.function_calling import convert_to_openai_tool
-from langchain_core.runnables import RunnableConfig
 from utils import count_tokens
 from .states import SearchAgentState, Status
 from .prompts import (
