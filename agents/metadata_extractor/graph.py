@@ -1,3 +1,4 @@
+from typing import cast
 from agents.base import BaseAgent
 from langgraph.graph.state import CompiledStateGraph, StateGraph, END
 from langgraph.prebuilt import create_react_agent
@@ -12,6 +13,7 @@ from .prompts import (
     knowledge_retrieve_prompt
 )
 from tools import SearchWikipediaTool
+from .callback import MetadataExtractorCallback
 
 
 class MetadataExtractAgentGraph(BaseAgent[ChatOpenAI]):
@@ -22,7 +24,7 @@ class MetadataExtractAgentGraph(BaseAgent[ChatOpenAI]):
     ):
         super().__init__(
             model=model, 
-            default_config={"callbacks": []}
+            default_config={"callbacks": [MetadataExtractorCallback(verbose=verbose)]}
         )
 
         self.tools = [SearchWikipediaTool()]
@@ -69,25 +71,24 @@ class MetadataExtractAgentGraph(BaseAgent[ChatOpenAI]):
         Returns:
             包含知识元素的字典
         """
-
         chain = (
             knowledge_extraction_prompt_template
             | self.model
             | knowledge_extraction_output_parser
         )
         knowledges = chain.invoke({"news_text": state.news_text})
-
-        return {"knowledges": [knowledges]}
+        
+        return {"knowledges": knowledges["items"]}
 
     # 并行执行知识元检索：使用 Send 一次性拓展出多个并发的边，每个边复制一份独立的 state
     def should_continue_to_retrieval(self, state: MetadataState):
-        if len(state.knowledges) > 0:
+        if state.knowledges and len(state.knowledges) > 0:
             return [
-                Send("retrieve_knowledge", knowledge,)
+                Send("retrieve_knowledge", knowledge)
                 for knowledge in state.knowledges
             ]
-
-        return END
+        else:
+            return "merge_knowledges"
 
     def retrieve_knowledge(self, sub_state: Knowledge):
         """
@@ -104,8 +105,8 @@ class MetadataExtractAgentGraph(BaseAgent[ChatOpenAI]):
             f"你需要检索的知识元是：{sub_state.term}。该知识元的类别是：{sub_state.category}"
         )
         response = sub_graph.invoke({"messages": [retrieve_message]})
-        retrieved_knowledge: Knowledge = response["structured_response"]
+        retrieved_knowledge = cast(Knowledge, response["structured_response"]).model_dump()
         
-        # 将 Knowledge 对象转换为字典，确保可以正确序列化
-        return {"knowledges": [retrieved_knowledge.model_dump()]}
+        # 返回检索到的知识元
+        return {"retrieved_knowledges": [retrieved_knowledge]}
     

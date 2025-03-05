@@ -1,7 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 from langchain_core.messages import SystemMessage
 from langchain_core.output_parsers import JsonOutputParser
-from .states import BasicMetadata, Knowledge
+from .states import BasicMetadata, Knowledges
 
 
 # Define metadata extractor model role and ability
@@ -58,7 +58,7 @@ basic_metadata_extractor_prompt_template = ChatPromptTemplate.from_messages(
 )
 
 # knowledge prompts
-knowledge_extraction_output_parser = JsonOutputParser(pydantic_object=Knowledge)
+knowledge_extraction_output_parser = JsonOutputParser(pydantic_object=Knowledges)
 knowledge_extraction_prompt_template_string = """
 # 定位
 名称：专业的知识元提取专家

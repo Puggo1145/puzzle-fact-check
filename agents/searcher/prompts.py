@@ -8,7 +8,7 @@ system_prompt_template = SystemMessagePromptTemplate.from_template(
 
 你正在核查的新闻的类型和六要素有：
 <metadata>
-{news_metadata}
+{basic_metadata}
 </metadata>
 你要确保核查证据和这些新闻要素高度保持高度一致：
 

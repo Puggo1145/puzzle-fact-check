@@ -7,9 +7,9 @@ class RetrievalStep(BaseModel):
     purpose: str = Field(
         description="该检索步骤的目的，想要获取什么信息",
     )
-    expected_sources: Optional[List[str]] = Field(
+    expected_sources: List[str] = Field(
         description="期望找到的信息来源类型，如官方网站、新闻报道、学术论文等",
-        default=None,
+        default=[],
     )
 
 
@@ -28,19 +28,13 @@ class CheckPoint(BaseModel):
 
 
 class CheckPoints(BaseModel):
-    check_points: List[CheckPoint] = Field(
-        description="从新闻文本中提取的核查点",
-        default=[]
-    )
+    items: List[CheckPoint] = Field(description="从新闻文本中提取的核查点")
 
 
 class FactCheckPlanState(BaseModel):
     news_text: str = Field(description="待核查的新闻文本")
     metadata: Optional[MetadataState] = Field(description="新闻元数据及知识元", default=None)
-    check_points: Optional[CheckPoints] = Field(
-        description="核查点信息",
-        default=None
-    )
+    check_points: Optional[CheckPoints] = Field(description="从新闻文本中提取的核查点", default=None)
     human_feedback: Optional[str] = Field(
         description="人类对于核查方案的评估结果",
         default=None

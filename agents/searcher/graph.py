@@ -127,10 +127,10 @@ class SearchAgentGraph(BaseAgent[ChatOpenAI]):
             return {"statuses": state.statuses}
 
         system_prompt = system_prompt_template.format(
-            news_metadata=state.news_metadata,
+            basic_metadata=state.basic_metadata,
             content=state.content,
             purpose=state.purpose,
-            expected_results=state.expected_results,
+            expected_sources=state.expected_sources,
             tools_schema=self.tool_calling_schema,
         )
 
@@ -163,10 +163,10 @@ class SearchAgentGraph(BaseAgent[ChatOpenAI]):
     def generate_answer(self, state: SearchAgentState):
         """生成最终答案"""
         system_prompt = system_prompt_template.format(
-            news_metadata=state.news_metadata,
+            basic_metadata=state.basic_metadata,
             content=state.content,
             purpose=state.purpose,
-            expected_results=state.expected_results,
+            expected_sources=state.expected_sources,
             tools_schema=self.tool_calling_schema,
         )
 

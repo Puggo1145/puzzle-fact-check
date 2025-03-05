@@ -1,6 +1,7 @@
 from typing import List, Union, Literal, Optional, Dict
 from pydantic import BaseModel, Field
-from models.experts.metadata_extractor.prompts import NewsMetadata
+from agents.metadata_extractor.states import BasicMetadata
+from agents.planner.states import CheckPoint
 from langchain_core.messages import ToolCall
 
 
@@ -45,12 +46,10 @@ class SearchAgentResult(BaseModel):
 
 
 class SearchAgentState(BaseModel):
-    news_metadata: NewsMetadata = Field(
-        description="待核验新闻文本的新闻类型和新闻要素"
-    )
+    basic_metadata: BasicMetadata
     content: str = Field(description="从新闻中提取的事实陈述")
     purpose: str = Field(description="你的检索目标")
-    expected_results: List[str] = Field(
+    expected_sources: List[str] = Field(
         description="期望找到的信息来源类型，如官方网站、新闻报道、学术论文等。只需要满足其中一项即可"
     )
     statuses: List[Status] = Field(

@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional, Union, cast
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
 from langchain_core.outputs import ChatGenerationChunk, GenerationChunk, ChatGeneration
-from .states import CheckPoints
 from .prompts import fact_check_plan_output_parser
 
 
@@ -28,6 +27,8 @@ class PlanAgentCallback(BaseCallbackHandler):
         self.token_usage = 0
         self.has_thinking_started = False
         self.has_content_started = False
+        # 跟踪当前是否在 planner graph 内部
+        self.is_in_planner_graph = True
 
         # ANSI color codes
         self.colors = {
@@ -44,7 +45,7 @@ class PlanAgentCallback(BaseCallbackHandler):
 
     def _print_colored(self, text, color="blue", bold=False):
         """Print colored text"""
-        if not self.verbose:
+        if not self.verbose or not self.is_in_planner_graph:
             return
 
         prefix = ""
@@ -70,11 +71,38 @@ class PlanAgentCallback(BaseCallbackHandler):
         else:
             return str(data)
 
+    def on_chain_start(
+        self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any
+    ) -> None:
+        """Called when a chain starts running, check if we're in planner graph"""
+        try:
+            # 检查是否进入了其他 graph 节点
+            chain_name = ""
+            if serialized is not None and isinstance(serialized, dict):
+                chain_name = serialized.get("name", "")
+            
+            if "metadata_extractor" in chain_name.lower() or "search_agent" in chain_name.lower():
+                self.is_in_planner_graph = False
+            else:
+                self.is_in_planner_graph = True
+        except Exception as e:
+            # 出错时保持在 planner graph 内
+            self.is_in_planner_graph = True
+            if self.verbose:
+                print(f"Error in on_chain_start: {str(e)}")
+
+    def on_chain_end(
+        self, outputs: Dict[str, Any], **kwargs: Any
+    ) -> None:
+        """Called when a chain ends, reset to planner graph context"""
+        # 链结束后重置为 planner 上下文
+        self.is_in_planner_graph = True
+
     def on_llm_start(
         self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
     ) -> None:
         """Called when LLM starts generating"""
-        if not self.verbose:
+        if not self.verbose or not self.is_in_planner_graph:
             return
 
         try:
@@ -103,7 +131,7 @@ class PlanAgentCallback(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         """Process streaming tokens from LLM, handling reasoning and content separately"""
-        if not self.verbose:
+        if not self.verbose or not self.is_in_planner_graph:
             return
 
         try:
@@ -143,7 +171,7 @@ class PlanAgentCallback(BaseCallbackHandler):
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """Called when LLM generation ends"""
-        if not self.verbose:
+        if not self.verbose or not self.is_in_planner_graph:
             return
 
         try:
@@ -158,7 +186,7 @@ class PlanAgentCallback(BaseCallbackHandler):
             parsed_result = fact_check_plan_output_parser.parse(
                 response.generations[0][0].text
             )
-            check_points = parsed_result["check_points"]
+            check_points = parsed_result["items"]
             selected_check_points = [
                 check_point
                 for check_point in check_points
@@ -179,6 +207,9 @@ class PlanAgentCallback(BaseCallbackHandler):
 
     def _print_formatted_plan(self, plan_data):
         """Format and print the planning results with appropriate emojis"""
+        if not self.is_in_planner_graph:
+            return
+            
         try:
             if not isinstance(plan_data, dict):
                 self._print_colored(str(plan_data), "cyan")
@@ -224,10 +255,17 @@ class PlanAgentCallback(BaseCallbackHandler):
 
     def on_agent_action(self, action, **kwargs: Any) -> Any:
         """Called when agent takes an action"""
-        if not self.verbose:
+        if not self.verbose or not self.is_in_planner_graph:
             return
 
         try:
+            # 检查是否是调用其他 agent 的动作
+            tool_name = action.tool.lower() if hasattr(action, "tool") else ""
+            if "metadata_extractor" in tool_name or "search" in tool_name:
+                self.is_in_planner_graph = False
+                self._print_colored(f"\n🔄 调用外部工具: {action.tool}", "purple", True)
+                return
+                
             self._print_colored(f"\n🛠️ 执行动作: {action.tool}", "purple", True)
             self._print_colored(f"📥 输入: {action.tool_input}", "purple")
         except Exception as e:
@@ -235,7 +273,7 @@ class PlanAgentCallback(BaseCallbackHandler):
 
     def on_agent_finish(self, finish, **kwargs: Any) -> None:
         """Called when agent finishes"""
-        if not self.verbose:
+        if not self.verbose or not self.is_in_planner_graph:
             return
 
         try:
@@ -245,7 +283,7 @@ class PlanAgentCallback(BaseCallbackHandler):
 
     def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
         """Called when a tool errors"""
-        if not self.verbose:
+        if not self.verbose or not self.is_in_planner_graph:
             return
 
         try:
@@ -254,3 +292,30 @@ class PlanAgentCallback(BaseCallbackHandler):
             self._print_colored(f"{'-'*50}", "red")
         except Exception as e:
             self._print_colored(f"Error in on_tool_error: {str(e)}", "red")
+
+    def on_tool_start(
+        self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
+    ) -> None:
+        """Called when a tool starts running"""
+        try:
+            # 检查是否是调用其他 agent 的工具
+            tool_name = ""
+            if serialized is not None and isinstance(serialized, dict):
+                tool_name = serialized.get("name", "").lower()
+            
+            if "metadata_extractor" in tool_name or "search" in tool_name:
+                self.is_in_planner_graph = False
+            else:
+                self.is_in_planner_graph = True
+        except Exception as e:
+            # 出错时保持在 planner graph 内
+            self.is_in_planner_graph = True
+            if self.verbose:
+                print(f"Error in on_tool_start: {str(e)}")
+
+    def on_tool_end(
+        self, output: str, **kwargs: Any
+    ) -> None:
+        """Called when a tool ends running"""
+        # 工具结束后重置为 planner 上下文
+        self.is_in_planner_graph = True

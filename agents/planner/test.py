@@ -76,7 +76,7 @@ def test_plan_agent():
     )
     metadata_extract_model = ChatOpenAI(
         model="gpt-4o-mini",
-        temperature=0.3
+        temperature=0
     )
     search_model = ChatOpenAI(
         model="qwen-plus-latest",
@@ -96,13 +96,21 @@ def test_plan_agent():
     }
 
     plan_agent = PlanAgentGraph(
-        model=model,
+        model=metadata_extract_model,
         metadata_extract_model=metadata_extract_model,
         search_model=search_model
     )
     
+    # 添加命令行查看图的选项
+    if "--view-graph" in sys.argv:
+        import os
+        graph_path = "plan_agent_graph.png"
+        plan_agent.graph.get_graph().draw_mermaid_png(output_file_path=graph_path)
+        print(f"Graph saved to {os.path.abspath(graph_path)}")
+        return
+    
     thread_config = {"thread_id": "some_id"}
-    plan_agent.invoke(
+    res = plan_agent.invoke(
         example_initial_state, 
         {"configurable": thread_config},
     )
@@ -121,8 +129,6 @@ def test_plan_agent():
             )
         else:
             break
-        
     
-
 if __name__ == "__main__":
     test_plan_agent()

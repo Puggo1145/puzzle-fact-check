@@ -1,13 +1,13 @@
 from .graph import SearchAgentGraph
 from .states import SearchAgentState
-from models.experts.metadata_extractor.prompts import NewsMetadata
+from agents.metadata_extractor.states import BasicMetadata
 from langchain_openai import ChatOpenAI
 from utils import check_env
 
 
 def test_search_agent():
     example_input = SearchAgentState(
-        news_metadata=NewsMetadata(
+        basic_metadata=BasicMetadata(
             news_type="体育新闻",
             who=["挪威选手 Kristian Blummenfelt", "其他铁人三项选手"],
             what=[
@@ -22,7 +22,7 @@ def test_search_agent():
         ),
         content="网络流传'赛场水中大肠杆菌严重超标'的说法",
         purpose="获取铁人三项赛出的水质检测原始数据",
-        expected_results=[
+        expected_sources=[
             "东京都环境局监测报告",
             "世界卫生组织检测记录",
             "事实核查组织对相关新闻的核查报告",
