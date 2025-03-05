@@ -31,25 +31,23 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek]):
         """初始化子 agent 模型"""
         self.metadata_extract_model = metadata_extract_model
         self.search_model = search_model
-
+        
     def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(FactCheckPlanState)
 
         graph_builder.add_node("extract_check_point", self.extract_check_point)
-        graph_builder.add_node("human_verification", self.human_verification)
         graph_builder.add_node("invoke_metadata_extract_agent", self.invoke_metadata_extract_agent)
         graph_builder.add_node("invoke_search_agent", self.invoke_search_agent)
-        graph_builder.add_node("wait_for_check_points", self.wait_for_check_points)
+        graph_builder.add_node("human_verification", self.human_verification)
 
         graph_builder.add_edge(START, "invoke_metadata_extract_agent")
         graph_builder.add_edge(START, "extract_check_point")
         graph_builder.add_edge("extract_check_point", "human_verification")
-        graph_builder.add_edge("human_verification", "wait_for_check_points")
         
         graph_builder.add_conditional_edges(
-            "wait_for_check_points",
-            self.should_continue_to_parallel_retrieval, # type: ignore
-            ["invoke_search_agent", END]
+            "human_verification",
+            self.should_continue_to_parallel_retrieval,
+            ["extract_check_point", END, "invoke_search_agent"]
         )
         
         graph_builder.set_finish_point("invoke_search_agent")
@@ -84,8 +82,11 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek]):
         response = self.model.invoke(messages)
         check_points = fact_check_plan_output_parser.invoke(response)
 
-        # 更新状态
-        return {"check_points": check_points}
+        # 更新核查点并清除上一次反馈
+        return {
+            "check_points": check_points,
+            "human_feedback": ""
+        }
 
     def human_verification(self, state: FactCheckPlanState):
         """
@@ -93,27 +94,20 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek]):
         将检索方案交给人类进行核验，根据反馈开始核查或更新检索方案
         """
         # 中断图的执行，等待人类输入
-        result = interrupt(
+        result =  interrupt(
             {
                 "question": "根据您提供的新闻文本，我规划了以下事实核查方案:\n\n"
                 + f"{state.check_points.model_dump_json(indent=4) if state.check_points else 'LLM outputed nothing'}\n"
                 + "选择 'continue' 开始核查，或输入修改建议",
             }
         )
-
-        if result["action"] == "continue":
-            return Command(resume="")
+        
+        if result == "revise":
+            return Command(goto="extract_check_point")
         else:
-            return Command(
-                goto="extract_check_point",
-                update={
-                    "human_feedback": result["feedback"],
-                },
-            )
-
-    def wait_for_check_points(self, state: FactCheckPlanState):
-        pass
-
+            return Command(resume="")
+        
+            
     def invoke_metadata_extract_agent(self, state: FactCheckPlanState):
         """调用知识元检索 agent 补充"""
         from agents import MetadataExtractAgentGraph
@@ -132,6 +126,9 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek]):
         如果有检查点和基本元数据，则创建并行检索任务
         如果没有，则结束图的执行
         """
+        if state.human_feedback:
+            return "extract_check_point"
+        
         if (
             state.check_points and 
             state.metadata and 

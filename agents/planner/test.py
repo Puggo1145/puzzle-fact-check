@@ -10,36 +10,36 @@ from utils import check_env
 def cli_select_option(options, prompt):
     """
     实现命令行选择功能，用户可以通过左右箭头键选择选项
-    
+
     Args:
         options: 选项列表
         prompt: 提示信息
-        
+
     Returns:
         选中的选项
     """
     selected = 0
-    
+
     print(prompt)
-    
+
     def print_options():
         # 清除当前行
-        sys.stdout.write('\r' + ' ' * 100 + '\r')
-        
+        sys.stdout.write("\r" + " " * 100 + "\r")
+
         # 只打印选项，不打印提示
         for i, option in enumerate(options):
             if i == selected:
                 sys.stdout.write(f"[•] {option}  ")
             else:
                 sys.stdout.write(f"[ ] {option}  ")
-        
+
         sys.stdout.flush()
-    
+
     print_options()
-    
+
     while True:
         key = readchar.readkey()
-        
+
         if key == readchar.key.LEFT and selected > 0:
             selected -= 1
             print_options()
@@ -47,37 +47,25 @@ def cli_select_option(options, prompt):
             selected += 1
             print_options()
         elif key == readchar.key.ENTER:
-            sys.stdout.write('\n')
+            sys.stdout.write("\n")
             return options[selected]
 
 
 def get_user_feedback():
     """处理用户交互，返回用户反馈"""
     choice = cli_select_option(["continue", "revise"], "请选择操作：")
-    
+
     if choice == "continue":
-        return {
-            "action": "continue"
-        }
+        return {"action": "continue"}
     else:
         print("\n请输入您的修改建议：")
         feedback = input("> ")
-        return {
-            "action": "revise",
-            "feedback": feedback
-        }
+        return {"action": "revise", "feedback": feedback}
 
 
 def test_plan_agent():
-    model = ChatDeepSeek(
-        model="deepseek-reasoner",
-        temperature=0.6,
-        streaming=True
-    )
-    metadata_extract_model = ChatOpenAI(
-        model="gpt-4o-mini",
-        temperature=0
-    )
+    model = ChatDeepSeek(model="deepseek-reasoner", temperature=0.6, streaming=True)
+    metadata_extract_model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     search_model = ChatOpenAI(
         model="qwen-plus-latest",
         temperature=0.4,
@@ -96,25 +84,26 @@ def test_plan_agent():
     }
 
     plan_agent = PlanAgentGraph(
-        model=metadata_extract_model,
+        model=model,
         metadata_extract_model=metadata_extract_model,
-        search_model=search_model
+        search_model=search_model,
     )
-    
+
     # 添加命令行查看图的选项
     if "--view-graph" in sys.argv:
         import os
+
         graph_path = "plan_agent_graph.png"
         plan_agent.graph.get_graph().draw_mermaid_png(output_file_path=graph_path)
         print(f"Graph saved to {os.path.abspath(graph_path)}")
         return
-    
+
     thread_config = {"thread_id": "some_id"}
     res = plan_agent.invoke(
-        example_initial_state, 
+        example_initial_state,
         {"configurable": thread_config},
     )
-    
+
     # 需要反复捕获 interrups 才能不断进行 agent-human loop ！！！
     while True:
         states = plan_agent.graph.get_state({"configurable": thread_config})
@@ -122,13 +111,25 @@ def test_plan_agent():
         if interrupts:
             # question = interrupts[0].value.get('question', '')
             result = get_user_feedback()
-            
-            plan_agent.invoke(
-                Command(resume=result),
-                config={"configurable": thread_config},
-            )
+
+            if result["action"] == "continue":
+                plan_agent.invoke(
+                    Command(resume="continue"),
+                    config={"configurable": thread_config},
+                )
+            else:
+                plan_agent.invoke(
+                    Command(
+                        resume="revise",
+                        update={
+                            "human_feedback": result["feedback"],
+                        },
+                    ),
+                    config={"configurable": thread_config},
+                )
         else:
             break
-    
+
+
 if __name__ == "__main__":
     test_plan_agent()

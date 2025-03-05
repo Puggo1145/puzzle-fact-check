@@ -23,9 +23,9 @@ system_prompt_template = SystemMessagePromptTemplate.from_template(
 </Purpose>
 
 尝试寻找这些类型的证据，其有助于验证核查点的真实性：
-<Expected Results>
-{expected_results}
-</Expected Results>
+<Expected Sources>
+{expected_sources}
+</Expected Sources>
 
 <Task>
 1. 使用工具检索信息
