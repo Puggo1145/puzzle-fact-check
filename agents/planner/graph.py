@@ -114,7 +114,7 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek]):
         
         metadata_extract_agent = MetadataExtractAgentGraph(
             model=self.metadata_extract_model,
-            verbose=True
+            verbose=False
         )
         result = metadata_extract_agent.invoke({"news_text": state.news_text})
 
@@ -162,7 +162,6 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek]):
     def invoke_search_agent(self, state):
         """根据检索规划调用子检索模型执行深度检索"""
         from agents import SearchAgentGraph
-        print(state)
-        
-        # search_agent = SearchAgentGraph(model=self.search_model, max_tokens=12000)
-        # search_agent.invoke(state)
+
+        search_agent = SearchAgentGraph(model=self.search_model, max_tokens=12000)
+        search_agent.invoke(state)
