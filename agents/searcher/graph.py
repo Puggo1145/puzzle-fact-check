@@ -19,7 +19,8 @@ from tools import (
     ReadWebpageTool,
     get_current_time,
 )
-from langgraph.graph.state import StateGraph, START, END
+from langgraph.graph.state import StateGraph
+from langgraph.types import Command
 from .callback import AgentStateCallback
 
 
@@ -59,31 +60,56 @@ class SearchAgentGraph(BaseAgent[ChatOpenAI]):
         graph_builder.add_node("evaluate_current_status", self.evaluate_current_status)
         graph_builder.add_node("tools", self.tool_node)
         graph_builder.add_node("generate_answer", self.generate_answer)
-        
-        # 检查 token 是否超出
+        graph_builder.add_node("check_token_usage", self.check_token_usage)
+
+        graph_builder.set_entry_point("check_token_usage")
         graph_builder.add_conditional_edges(
-            START,
-            self.doesTokensExceeded,
-            {True: "generate_answer", False: "evaluate_current_status"},
+            "check_token_usage",
+            self._route_based_on_token_usage,
+            {
+                "exceeded": "generate_answer",
+                "not_exceeded": "evaluate_current_status"
+            }
         )
-        
-        # 模型是否要输出回答
+
         graph_builder.add_conditional_edges(
             "evaluate_current_status",
-            self.does_llm_generate_answer,
+            self._does_llm_generate_answer,
             {"tools": "tools", "generate_answer": "generate_answer"},
         )
         
-        graph_builder.add_edge("tools", "evaluate_current_status")
-        graph_builder.add_edge("generate_answer", END)
+        # 工具调用后再次检查token
+        graph_builder.add_edge("tools", "check_token_usage")
+        graph_builder.set_finish_point("generate_answer")
         
-        # 编译图
         return graph_builder.compile()
     
-    # nodes
-    def doesTokensExceeded(self, state: SearchAgentState):
-        """检查是否超过最大token限制"""
-        return state.token_usage >= self.max_tokens
+    def check_token_usage(self, state: SearchAgentState):
+        """检查 token 是否超出最大窗口"""
+        
+        print(f"已消耗 token：{state.token_usage}/{self.max_tokens}")
+        
+        # 超出最大 token 窗口，强制进行回答
+        if state.token_usage >= self.max_tokens:
+            forced_answer_status = Status(
+                evaluation="检索 token 超出最大可用 token，强制基于当前信息开始回答",
+                memory="检索消耗的 token 超出最大可用 token",
+                next_step="基于已收集的信息生成最终回答",
+                action="answer",
+            )
+            return {"statuses": [forced_answer_status]}
+        # 没有超出，继续
+        else:
+            return state
+    
+    def _route_based_on_token_usage(self, state: SearchAgentState):
+        """根据 token 消耗结果决策的 router"""
+
+        # token 消耗超出限制，强制回答
+        if state.token_usage >= self.max_tokens:
+            return "exceeded"
+        else:
+            return "not_exceeded"
     
     def _is_in_loop(self, state: SearchAgentState) -> bool:
         """检测是否陷入搜索循环"""
@@ -110,11 +136,12 @@ class SearchAgentGraph(BaseAgent[ChatOpenAI]):
         # 如果有3个相同的查询，则认为陷入了循环
         return len(queries) == 3 and len(set(queries)) == 1
     
+    # nodes
     def evaluate_current_status(self, state: SearchAgentState):
-        """评估当前状态并决定下一步行动"""
-        # 检查是否陷入循环
+        """模型自我评估当前状态并决定下一步行动"""
+
+        # 如果搜索陷入循环，强制结束并生成回答
         if self._is_in_loop(state):
-            # 强制改变搜索策略或生成回答
             forced_status = Status(
                 evaluation="搜索陷入循环，需要改变搜索策略或基于当前信息生成回答。",
                 memory="搜索过程陷入循环，多次执行相同的搜索查询。",
@@ -122,9 +149,7 @@ class SearchAgentGraph(BaseAgent[ChatOpenAI]):
                 action="answer",
             )
 
-            state.statuses.append(forced_status)
-
-            return {"statuses": state.statuses}
+            return {"statuses": [forced_status]}
 
         system_prompt = system_prompt_template.format(
             basic_metadata=state.basic_metadata,
@@ -142,25 +167,19 @@ class SearchAgentGraph(BaseAgent[ChatOpenAI]):
         messages = [system_prompt, evaluate_current_status_prompt]
 
         response = self.model.invoke(input=messages)
-
+        new_status = evaluate_current_status_output_parser.parse(str(response.content))
+        
         # 计算 token 消耗
         state.token_usage += count_tokens(messages + [response])
 
-        new_status = evaluate_current_status_output_parser.parse(str(response.content))
-        state.statuses.append(new_status)
-
-        # 处理新的证据
-        if hasattr(new_status, "new_evidence") and new_status.new_evidence:
-            for evidence in new_status.new_evidence:
-                state.supporting_evidence.append(evidence)
-
         return {
-            "statuses": state.statuses,
-            "supporting_evidence": state.supporting_evidence,
+            "statuses": [new_status],
+            "supporting_evidence": new_status["new_evidence"] or [],
             "token_usage": state.token_usage
         }
     
     def generate_answer(self, state: SearchAgentState):
+        print(state.statuses)
         """生成最终答案"""
         system_prompt = system_prompt_template.format(
             basic_metadata=state.basic_metadata,
@@ -208,7 +227,7 @@ class SearchAgentGraph(BaseAgent[ChatOpenAI]):
 
         return {"latest_tool_messages": tool_calling_results}
     
-    def does_llm_generate_answer(self, state: SearchAgentState):
+    def _does_llm_generate_answer(self, state: SearchAgentState):
         """决定是否继续执行工具调用或生成回答"""
         last_action = cast(Status, state.statuses[-1]).action
         if last_action == "answer":

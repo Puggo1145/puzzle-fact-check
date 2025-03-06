@@ -99,7 +99,7 @@ def test_plan_agent():
         return
 
     thread_config = {"thread_id": "some_id"}
-    res = plan_agent.invoke(
+    plan_agent.invoke(
         example_initial_state,
         {"configurable": thread_config},
     )

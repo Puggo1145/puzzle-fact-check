@@ -1,7 +1,7 @@
-from typing import List, Union, Literal, Optional, Dict
+import operator
+from typing import List, Union, Literal, Optional, Dict, Annotated
 from pydantic import BaseModel, Field
 from agents.metadata_extractor.states import BasicMetadata
-from agents.planner.states import CheckPoint
 from langchain_core.messages import ToolCall
 
 
@@ -17,23 +17,27 @@ class Evidence(BaseModel):
 
 class Status(BaseModel):
     evaluation: str = Field(
-        description="使用第一人称评估上一次操作的结果是否达到上一个步骤的目标"
+        description="第一人称评估上一次检索结果是否达到上一个步骤的目标"
     )
-    memory: str = Field(description="对上一个执行的操作的结果进行总结")
+    memory: str = Field(description="对上一个步骤的检索结果进行总结")
+    new_evidence: Optional[List[Evidence]] = Field(
+        description="从当前检索信息中提取的新证据片段",
+        default=None
+    )
+    sub_query: Optional[str] = Field(
+        description="对比核查目标和当前步骤获取的信息，得出的子检索关键词",
+        default=None
+    )
     next_step: str = Field(description="使用第一人称基于已有信息规划的下一步目标")
     action: Union[List[ToolCall], Literal["answer"]] = Field(
         description="调用工具或回答",
         json_schema_extra={
             "options": [
-                "如果你希望调用工具，请在以数组的形式此处输出工具调用信息",
+                "如果你希望调用工具，请在以[数组]的形式此处输出工具调用信息",
                 "如果你认为现有信息已经满足预期目标，请在此处输出：'answer'",
             ]
         },
         default=[],
-    )
-    new_evidence: Optional[List[Evidence]] = Field(
-        description="从当前步骤中提取的新证据片段",
-        default=None
     )
 
 
@@ -52,17 +56,17 @@ class SearchAgentState(BaseModel):
     expected_sources: List[str] = Field(
         description="期望找到的信息来源类型，如官方网站、新闻报道、学术论文等。只需要满足其中一项即可"
     )
-    statuses: List[Status] = Field(
+    statuses: Annotated[List[Status], operator.add] = Field(
         description="所有已执行的操作", 
         default=[]
+    )
+    supporting_evidence: Annotated[List[Evidence], operator.add] = Field(
+        description="收集到的支持核查目标的重要证据片段",
+        default_factory=list
     )
     latest_tool_messages: List[str] = Field(
         description="最近一次工具调用的结果", 
         default=[]
-    )
-    supporting_evidence: List[Evidence] = Field(
-        description="收集到的支持核查目标的重要证据片段",
-        default_factory=list
     )
     result: Optional[SearchAgentResult] = Field(
         description="最终的检索结果和结论", 

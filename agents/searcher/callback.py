@@ -124,7 +124,7 @@ class AgentStateCallback(BaseCallbackHandler):
 
         model_name = serialized.get("name", "Unknown Model")
         self._print_colored(
-            f"\n🧠 LLM 开始生成 (调用 #{self.llm_call_count}, {model_name})",
+            f"🧠 LLM 开始生成 (调用 #{self.llm_call_count}, {model_name})",
             "purple",
             True,
         )
