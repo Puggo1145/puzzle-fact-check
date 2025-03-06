@@ -1,10 +1,10 @@
 import json
-from langchain_openai import ChatOpenAI
+from models import ChatQwen
 from .graph import MetadataExtractAgentGraph
 
 def test_metadata_extractor():
-    model = ChatOpenAI(
-        model="gpt-4o-mini",
+    model = ChatQwen(
+        model="qwen-turbo",
         temperature=0,
     )
     

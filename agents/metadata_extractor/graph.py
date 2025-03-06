@@ -3,7 +3,7 @@ from agents.base import BaseAgent
 from langgraph.graph.state import CompiledStateGraph, StateGraph, END
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import Send
-from langchain_openai import ChatOpenAI
+from models import ChatQwen
 from .states import MetadataState, Knowledge
 from .prompts import (
     basic_metadata_extractor_prompt_template,
@@ -16,10 +16,10 @@ from tools import SearchWikipediaTool
 from .callback import MetadataExtractorCallback
 
 
-class MetadataExtractAgentGraph(BaseAgent[ChatOpenAI]):
+class MetadataExtractAgentGraph(BaseAgent[ChatQwen]):
     def __init__(
         self, 
-        model: ChatOpenAI, 
+        model: ChatQwen,
         verbose: bool = True
     ):
         super().__init__(

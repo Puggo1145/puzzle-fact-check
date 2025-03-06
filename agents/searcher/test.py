@@ -2,8 +2,7 @@ from utils import view_graph
 from .graph import SearchAgentGraph
 from .states import SearchAgentState
 from agents.metadata_extractor.states import BasicMetadata
-from langchain_openai import ChatOpenAI
-from utils import check_env
+from models import ChatQwen
 
 
 def test_search_agent():
@@ -30,11 +29,9 @@ def test_search_agent():
         ],
     )
 
-    model = ChatOpenAI(
-        model="qwen-plus-2025-01-25",
+    model = ChatQwen(
+        model="qwen-plus-2024-09-19",
         temperature=0.4,
-        api_key=check_env("ALI_API_KEY"),
-        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
     )
 
     search_agent = SearchAgentGraph(model=model, max_tokens=9000)

@@ -31,6 +31,7 @@ class CheckPoints(BaseModel):
     items: List[CheckPoint] = Field(description="从新闻文本中提取的核查点")
 
 
+
 class FactCheckPlanState(BaseModel):
     news_text: str = Field(description="待核查的新闻文本")
     metadata: Optional[MetadataState] = Field(description="新闻元数据及知识元", default=None)

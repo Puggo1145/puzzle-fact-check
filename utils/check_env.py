@@ -30,5 +30,5 @@ def check_env(
         
         # 将用户输入的值设置为环境变量，以便后续使用
         os.environ[env_name] = env_value
-    
+        
     return SecretStr(env_value)

@@ -2,9 +2,8 @@ import readchar
 import sys
 from .graph import PlanAgentGraph
 from langchain_deepseek import ChatDeepSeek
-from langchain_openai import ChatOpenAI
+from models import ChatQwen
 from langgraph.types import Command
-from utils import check_env
 
 
 def cli_select_option(options, prompt):
@@ -65,12 +64,10 @@ def get_user_feedback():
 
 def test_plan_agent():
     model = ChatDeepSeek(model="deepseek-reasoner", temperature=0.6, streaming=True)
-    metadata_extract_model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    search_model = ChatOpenAI(
+    metadata_extract_model = ChatQwen(model="qwen-turbo", temperature=0)
+    search_model = ChatQwen(
         model="qwen-plus-latest",
         temperature=0.4,
-        api_key=check_env("ALI_API_KEY"),
-        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
     )
 
     example_initial_state = {

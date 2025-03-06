@@ -19,7 +19,7 @@ class ReasonerStreamingCallback(BaseCallbackHandler):
         **kwargs: Any,
     ):
         """Run on new LLM token. Only available when streaming is enabled."""
-
+        
         if "reasoning_content" in chunk.message.additional_kwargs:  # type: ignore
             # Reasoning Content Flag
             if not self.has_thinking_started:

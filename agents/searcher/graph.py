@@ -12,7 +12,7 @@ from .prompts import (
     generate_answer_prompt_template,
     generate_answer_output_parser,
 )
-from langchain_openai import ChatOpenAI
+from models import ChatQwen
 from tools import (
     SearchBingTool,
     SearchGoogleTool,
@@ -20,15 +20,14 @@ from tools import (
     get_current_time,
 )
 from langgraph.graph.state import StateGraph
-from langgraph.types import Command
 from .callback import AgentStateCallback
 
 
 
-class SearchAgentGraph(BaseAgent[ChatOpenAI]):
+class SearchAgentGraph(BaseAgent[ChatQwen]):
     def __init__(
         self,
-        model: ChatOpenAI,
+        model: ChatQwen,
         max_tokens: int
     ):
         """
@@ -87,7 +86,7 @@ class SearchAgentGraph(BaseAgent[ChatOpenAI]):
     def check_token_usage(self, state: SearchAgentState):
         """检查 token 是否超出最大窗口"""
         
-        print(f"已消耗 token：{state.token_usage}/{self.max_tokens}")
+        # print(f"已消耗 token：{state.token_usage}/{self.max_tokens}")
         
         # 超出最大 token 窗口，强制进行回答
         if state.token_usage >= self.max_tokens:
@@ -179,7 +178,6 @@ class SearchAgentGraph(BaseAgent[ChatOpenAI]):
         }
     
     def generate_answer(self, state: SearchAgentState):
-        print(state.statuses)
         """生成最终答案"""
         system_prompt = system_prompt_template.format(
             basic_metadata=state.basic_metadata,

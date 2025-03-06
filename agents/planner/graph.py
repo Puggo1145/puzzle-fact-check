@@ -2,7 +2,7 @@ from typing import List
 from agents.base import BaseAgent
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_deepseek import ChatDeepSeek
-from langchain_openai import ChatOpenAI
+from models import ChatQwen
 from langgraph.graph.state import CompiledStateGraph, StateGraph, END, START
 from langgraph.types import interrupt, Command, Send
 from .states import FactCheckPlanState
@@ -18,8 +18,8 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek]):
     def __init__(
         self,
         model: ChatDeepSeek,
-        metadata_extract_model: ChatOpenAI,
-        search_model: ChatOpenAI,
+        metadata_extract_model: ChatQwen,
+        search_model: ChatQwen,
         verbose: bool = True,
     ):
         """初始化 plan agent 参数"""
