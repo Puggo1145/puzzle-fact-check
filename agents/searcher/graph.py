@@ -161,7 +161,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         evaluate_current_status_prompt = evaluate_current_status_prompt_template.format(
             retrieved_information=state.latest_tool_messages,
             statuses=state.statuses,
-            supporting_evidence=state.supporting_evidence,
+            evidences=state.evidences,
         )
         messages = [system_prompt, evaluate_current_status_prompt]
 
@@ -190,7 +190,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         generate_answer_prompt = generate_answer_prompt_template.format(
             retrieved_information=state.latest_tool_messages,
             statuses=state.statuses,
-            supporting_evidence=state.supporting_evidence,
+            evidences=state.evidences,
         )
         messages = [system_prompt, generate_answer_prompt]
 

@@ -1,6 +1,8 @@
 from .states import Status, SearchAgentResult
-from langchain_core.prompts import HumanMessagePromptTemplate, SystemMessagePromptTemplate
+from langchain_core.prompts import HumanMessagePromptTemplate, SystemMessagePromptTemplate, AIMessagePromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
+
+evaluate_current_status_output_parser = JsonOutputParser(pydantic_object=Status)
 
 system_prompt_template = SystemMessagePromptTemplate.from_template(
     """
@@ -21,30 +23,13 @@ system_prompt_template = SystemMessagePromptTemplate.from_template(
 {expected_sources}
 
 # 可用工具：
+[严格遵循 JSON 格式，禁止混杂 Python 字面量，例如: True, False, None]
 {tools_schema}
-"""
-)
 
-evaluate_current_status_output_parser = JsonOutputParser(pydantic_object=Status)
-
-evaluate_current_status_prompt_template = HumanMessagePromptTemplate.from_template(
-    template="""
-以下是你先前的检索记录（注：检索未开始时不存在检索记录）：
-# 检索历史记录：
-{statuses}
-
-# 上一次工具调用结果：
-{retrieved_information}
-
-# 重要证据：
-这是你在先前的检索过程中所摘取的重要证据：
-{supporting_evidence}
-
-
-# 任务：
+# 我的任务：
 1. 评估与推理：对比核查目标和检索到的信息，提取出能够支持核查目标的证据和缺失的证据
- - 如果检索结果存在能够支持核查目标的部分证据，将其更新到 new_evidence 中
- - 如果检索结果存在缺失的证据，构造 sub_query，作为下一次检索的目标关键词
+ - 如果检索结果存在能够支持或反对核查目标的部分重要证据，按照格式将其更新到 new_evidence 中
+ - 如果检索结果存在缺失的证据或逻辑关系，按照格式将其更新在 missing_information 中，并作为下一次检索的子目标
 2. 如果已检索到的信息足以支撑核查目标，请停止检索，开始生成回答
 3. 如果已检索到的信息不能充分满足核查目标，继续使用工具检索信息
 
@@ -53,7 +38,8 @@ evaluate_current_status_prompt_template = HumanMessagePromptTemplate.from_templa
 1. 多语言检索：
     - 不要只使用一种语言检索，使用多语言检索以获得更多信息角度
     - 尝试使用核查目标的当地语言构造检索关键词，提高找到原始信息的可能性
-2. 高级检索词：在构造检索关键词时，使用以下策略以提高检索的准确性：
+2. 高级检索词：在构造检索关键词时，选用以下策略以提高检索的准确性：
+    [注意：仅在必要时选用高级检索词，过度使用可能会影响搜索结果的广度，一般情况下构造普通关键词即可]
     - “site:”: 只搜索某个特定网站的内容
     - “fileType:”：搜索特定文件类型
     - 关键词加双引号：搜索引擎会返回和关键词完全一致的搜索结果。在搜索英文人名、地点、引语、歌词、文学作品等比较确定的关键词时比较有用
@@ -82,22 +68,38 @@ evaluate_current_status_prompt_template = HumanMessagePromptTemplate.from_templa
     },
 )
 
+
+evaluate_current_status_prompt_template = AIMessagePromptTemplate.from_template(
+    template="""
+以下是我执行的检索历史记录（注：检索未开始时不存在检索记录）：
+# 检索历史记录：
+{statuses}
+
+# 上一次工具调用结果：
+{retrieved_information}
+
+# 重要证据：
+这是我在先前的检索过程中所摘取的重要证据：
+{evidences}
+"""
+)
+
 # 添加回答生成的输出解析器
 generate_answer_output_parser = JsonOutputParser(pydantic_object=SearchAgentResult)
 
 # 添加回答生成的提示模板
-generate_answer_prompt_template = HumanMessagePromptTemplate.from_template(
+generate_answer_prompt_template = AIMessagePromptTemplate.from_template(
     template="""
-现在你已经收集了足够的信息，请基于所有检索到的信息，给出该核查点的核查结论。
+现在我已经收集了足够的信息，我需要基于检索到的信息，给出该核查点的核查结论。
 
 # 最后一次工具调用结果：
 {retrieved_information}
 
-# 你的检索历史记录：
+# 我的检索历史记录：
 {statuses}
 
-# 你在检索过程中收集到的重要证据片段：
-{supporting_evidence}
+# 我在检索过程中收集到的重要证据片段：
+{evidences}
 
 # 任务：
 请提供一个全面的总结，明确的结论，支持你结论的信息来源，以及你对结论的置信度评估

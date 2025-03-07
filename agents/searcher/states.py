@@ -6,29 +6,36 @@ from langchain_core.messages import ToolCall
 
 
 class Evidence(BaseModel):
-    """存储支持核查目标的重要证据片段"""
-    content: str = Field(description="证据内容的原文片段")
+    """支持或反对核查目标的重要证据片段"""
+    content: str = Field(description="与核查目标高度相关的证据原文片段")
     source: Dict[str, str] = Field(
         description="证据来源",
         examples=[{"xx新闻": "https://www.example_news.com"}]
     )
-    relevance: str = Field(description="与核查目标的相关性说明")
+    relationship: Literal["support", "contradict"] = Field(
+        description="该证据与核查目标的关系",
+        examples=[
+            {"support": "该证据支持核查目标"},
+            {"contradict": "该证据反对核查目标"},
+        ]
+    )
+    reasoning: str = Field(description="该证据与核查目标之间关系的推理说明")
 
 
 class Status(BaseModel):
     evaluation: str = Field(
-        description="第一人称评估上一次检索结果是否达到上一个步骤的目标"
+        description="评估上一次检索结果是否达到上一个步骤的目标"
     )
-    memory: str = Field(description="对上一个步骤的检索结果进行总结")
+    missing_information: Optional[str] = Field(
+        description="核查目标和当前步骤所获取的信息之间缺失的证据信息和逻辑关系",
+        default=None
+    )
     new_evidence: Optional[List[Evidence]] = Field(
-        description="从当前检索信息中提取的新证据片段",
+        description="从当前检索信息中提取的证据片段",
         default=None
     )
-    sub_query: Optional[str] = Field(
-        description="对比核查目标和当前步骤获取的信息，得出的子检索关键词",
-        default=None
-    )
-    next_step: str = Field(description="使用第一人称基于已有信息规划的下一步目标")
+    memory: str = Field(description="对上一个步骤的检索结果的总结")
+    next_step: str = Field(description="基于已有信息规划的下一步目标")
     action: Union[List[ToolCall], Literal["answer"]] = Field(
         description="调用工具或回答",
         json_schema_extra={
@@ -42,11 +49,14 @@ class Status(BaseModel):
 
 
 class SearchAgentResult(BaseModel):
-    """搜索代理的最终结果"""
+    """ search agent 的核查结论"""
     summary: str = Field(description="对所有检索到的信息的总结")
     conclusion: str = Field(description="基于检索到的信息对核查点的结论")
-    sources: List[str] = Field(description="支持结论的信息来源列表")
     confidence: str = Field(description="对结论的置信度评估")
+    sources: List[str] = Field(
+        description="支持结论的信息来源列表",
+        examples=[{"xx新闻": "https://www.example_news.com"}]
+    )
 
 
 class SearchAgentState(BaseModel):
@@ -60,13 +70,13 @@ class SearchAgentState(BaseModel):
         description="所有已执行的操作", 
         default=[]
     )
-    supporting_evidence: Annotated[List[Evidence], operator.add] = Field(
-        description="收集到的支持核查目标的重要证据片段",
-        default_factory=list
-    )
     latest_tool_messages: List[str] = Field(
         description="最近一次工具调用的结果", 
         default=[]
+    )
+    evidences: Annotated[List[Evidence], operator.add] = Field(
+        description="检索中收集的，与核查目标构成重要关系的证据片段",
+        default_factory=list
     )
     result: Optional[SearchAgentResult] = Field(
         description="最终的检索结果和结论", 

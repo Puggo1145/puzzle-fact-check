@@ -165,3 +165,8 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek]):
 
         search_agent = SearchAgentGraph(model=self.search_model, max_tokens=12000)
         search_agent.invoke(state)
+        
+    def evaluate_search_result(self, state):
+        """主模型对 search agent 的检索结论进行复核推理"""
+        pass
+    

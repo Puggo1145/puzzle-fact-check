@@ -3,7 +3,7 @@ import time
 from typing import Any, Dict, List, Optional, Union, cast
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
-from langchain_core.outputs import ChatGenerationChunk, GenerationChunk, ChatGeneration
+from langchain_core.outputs import ChatGenerationChunk, GenerationChunk
 from .prompts import fact_check_plan_output_parser
 
 

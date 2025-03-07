@@ -1,5 +1,6 @@
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Union, cast
+from langchain_core.outputs import ChatGenerationChunk, GenerationChunk
 from langchain_core.callbacks import BaseCallbackHandler
 
 
@@ -160,7 +161,7 @@ class AgentStateCallback(BaseCallbackHandler):
                                 self._print_formatted_output(parsed_content)
                             except:
                                 self._print_colored(content, "cyan")
-
+                                
     def _print_formatted_output(self, content):
         """优化打印格式，使用emoji分行"""
         if isinstance(content, dict):
