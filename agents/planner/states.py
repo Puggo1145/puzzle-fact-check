@@ -12,7 +12,6 @@ class RetrievalStep(BaseModel):
         description="期望找到的信息来源类型，如官方网站、新闻报道、学术论文等",
         default=[],
     )
-    # result: 
 
 
 class CheckPoint(BaseModel):

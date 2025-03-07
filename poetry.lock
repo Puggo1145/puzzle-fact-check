@@ -1434,6 +1434,29 @@ pandas = ["numpy (>=1.7.0,<3.0.0)", "pandas (>=1.1.0,<3.0.0)"]
 pyarrow = ["pyarrow (>=1.0.0)"]
 
 [[package]]
+name = "neomodel"
+version = "5.4.4"
+description = "An object mapper for the neo4j graph database."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "neomodel-5.4.4-py3-none-any.whl", hash = "sha256:de1474675b091b9f718e0554192e25696fefb1949dea6a1b78d372f14946f0a8"},
+    {file = "neomodel-5.4.4.tar.gz", hash = "sha256:ce2e017d8f242af4df7148d862eba3bb662e614c1f88a1295f6fd858cbd860ff"},
+]
+
+[package.dependencies]
+neo4j = ">=5.28.1,<5.29.0"
+
+[package.extras]
+dev = ["black", "isort", "mypy", "pandas-stubs", "pre-commit", "pytest (>=7.1)", "pytest-asyncio", "pytest-cov (>=4.0)", "pytest-mock", "types-pytz", "types-shapely", "unasync"]
+extras = ["numpy", "pandas", "shapely"]
+numpy = ["numpy"]
+pandas = ["pandas"]
+rust-driver-ext = ["neo4j-rust-ext (==5.28.1.0)"]
+shapely = ["Shapely (>=2.0.0)"]
+
+[[package]]
 name = "nest-asyncio"
 version = "1.6.0"
 description = "Patch asyncio to allow nested event loops"
@@ -2846,4 +2869,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<4.0"
-content-hash = "cfefdd5ec0179ade8b996cfbc9c510117787c6647ea69b0918bc17432d98d2ce"
+content-hash = "0d6cd66e4cec11c0dbeafa351ff1c292fa544c64ac73eae04c87a894e263bc76"

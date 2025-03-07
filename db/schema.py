@@ -1,44 +1,72 @@
-from typing import Required, Optional
-from pydantic import BaseModel, Field
-from agents.metadata_extractor.states import BasicMetadata, Knowledge
-from agents.planner.states import RetrievalStep
-from agents.searcher.states import SearchResult, Evidence
+from neomodel import (
+    StructuredNode,
+    StringProperty,
+    ArrayProperty,
+    BooleanProperty,
+    RelationshipFrom,
+    JSONProperty
+)
 
 
-class NewsTextNode(BaseModel):
-    content: Required[str] = Field(description="带核查的新闻文本")
+class NewsText(StructuredNode):
+    """News Text Node"""
+    content = StringProperty(required=True)
+    # relationships
+    basic_metadata = RelationshipFrom("BasicMetadata", "HAS_BASIC_METADATA")
+    knowledge = RelationshipFrom("Knowledge", "HAS_KNOWLEDGE")
+    check_point = RelationshipFrom("CheckPoint", "CHECKED_BY")
 
 
-class BasicMetadataNode(BasicMetadata):
+class BasicMetadata(StructuredNode):
     """Basic Metadata Node"""
+    news_type = StringProperty(required=True)
+    who = ArrayProperty(StringProperty())
+    when = ArrayProperty(StringProperty())
+    where = ArrayProperty(StringProperty())
+    what = ArrayProperty(StringProperty())
+    why = ArrayProperty(StringProperty())
+    how = ArrayProperty(StringProperty())
 
 
-class KnowledgeNode(Knowledge):
+class Knowledge(StructuredNode):
     """Knowledge Node"""
+    term = StringProperty(required=True)
+    category = StringProperty(required=True)
+    description = StringProperty()
+    source = StringProperty()
 
 
-class CheckPointNode(BaseModel):
-    """CheckPoint Node. 和原 CheckPoint State 相比，不继承 retrieval step"""
-    id: int = Field(description="陈述 id")
-    content: str = Field(description="从新闻中提取的事实陈述")
-    is_verification_point: bool = Field(description="该陈述是否被选为核查点")
-    importance: Optional[str] = Field(
-        description="若被选为核查点，说明其重要性",
-        default=None
-    )
+class CheckPoint(StructuredNode):
+    """CheckPoint Node 和 CheckPoint State 相比，不继承 retrieval step"""
+    content = StringProperty(required=True)
+    is_verification_point = BooleanProperty(required=True)
+    importance = StringProperty()
+    # relationship
+    retrieval_step = RelationshipFrom("RetrievalStep", "VERIFIED_BY")
+        
 
-
-class RetrievalStepNode(RetrievalStep):
+class RetrievalStep(StructuredNode):
     """RetrievalStep Node"""
+    purpose = StringProperty(required=True)
+    expected_sources = ArrayProperty(StringProperty(), required=True)
+    # relationship
+    search_result = RelationshipFrom("SearchResult", "HAS_RESULT")
 
 
-class SearchResultNode(SearchResult):
+class SearchResult(StructuredNode):
     """SearchResult Node"""
+    summary = StringProperty(required=True)
+    conclusion = StringProperty(required=True)
+    confidence = StringProperty(required=True)
+    sources = ArrayProperty(StringProperty(), required=True)
+    # relationships
+    evidence_support = RelationshipFrom("Evidence", "SUPPORTS_BY")
+    evidence_contradict = RelationshipFrom("Evidence", "CONTRADICTS_WITH")
 
 
-class EvidenceNode(Evidence):
+class Evidence(StructuredNode):
     """Evidence node"""
-
-
-def create_node():
-    """创建 node 的 factor"""
+    content = StringProperty(required=True)
+    source = JSONProperty(required=True)
+    relationship = StringProperty(required=True)
+    reasoning = StringProperty(required=True)

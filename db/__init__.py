@@ -1,17 +1,11 @@
-from neo4j import GraphDatabase
+from neomodel import config  # type: ignore
 from utils import get_env
 
+USERNAME = get_env("NEO4J_USERNAME")
+PASSWORD = get_env("NEO4J_PASSWORD")
 
-URI = get_env("NEO4J_URI")
-AUTH = (
-    get_env("NEO4J_USERNAME"), 
-    get_env("NEO4J_PASSWORD")
-)
+config.DATABASE_URL = f"bolt://{USERNAME}:{PASSWORD}@localhost:7687"
 
-db_driver = GraphDatabase.driver(URI, auth=AUTH)
-db_driver.verify_connectivity()
+from neomodel import db as neo4j
 
-__all__ = [
-    "db_driver"
-]
-
+__all__ = ["neo4j"]
