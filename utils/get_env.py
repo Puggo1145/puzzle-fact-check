@@ -1,22 +1,38 @@
-from typing import Optional
+from typing import Optional, Union, overload, Literal
 from pydantic import SecretStr
 import os
 import getpass
 
 
-def check_env(
+@overload
+def get_env(
     env_name: str, 
     prompt_message: Optional[str] = None, 
-) -> SecretStr:
+    as_secret_str: Literal[False] = False
+) -> str: ...
+
+@overload
+def get_env(
+    env_name: str, 
+    prompt_message: Optional[str] = None, 
+    as_secret_str: Literal[True] = True
+) -> SecretStr: ...
+
+def get_env(
+    env_name: str, 
+    prompt_message: Optional[str] = None, 
+    as_secret_str: bool = False
+) -> Union[SecretStr, str]:
     """
     检查环境变量是否存在，如果不存在则提示用户输入
     
     Args:
         env_name: 环境变量名称
         prompt_message: 提示用户输入的消息，如果为None则使用默认消息
+        as_secret_str: 是否使用 SecretStr 作为返回值
         
     Returns:
-        环境变量的值或用户输入的值
+        环境变量的值或用户输入的值，根据 as_secret_str 参数返回 SecretStr 或 str 类型
     """
     # 检查环境变量是否存在
     env_value = os.environ.get(env_name)
@@ -28,7 +44,9 @@ def check_env(
         
         env_value = getpass.getpass(prompt_message)
         
-        # 将用户输入的值设置为环境变量，以便后续使用
         os.environ[env_name] = env_value
-        
-    return SecretStr(env_value)
+    
+    if as_secret_str:
+        return SecretStr(env_value)
+    
+    return env_value

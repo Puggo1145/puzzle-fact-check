@@ -14,10 +14,10 @@ from .prompts import (
 from .callback import PlanAgentCallback
 
 
-class PlanAgentGraph(BaseAgent[ChatDeepSeek]):
+class PlanAgentGraph(BaseAgent[ChatDeepSeek | ChatQwen]):
     def __init__(
         self,
-        model: ChatDeepSeek,
+        model: ChatDeepSeek | ChatQwen,
         metadata_extract_model: ChatQwen,
         search_model: ChatQwen,
         verbose: bool = True,

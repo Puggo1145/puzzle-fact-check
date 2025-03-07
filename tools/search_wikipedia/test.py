@@ -1,7 +1,6 @@
 import unittest
 import json
 from .tool import SearchWikipediaTool
-from langchain_deepseek import ChatDeepSeek
 from langchain_openai import ChatOpenAI
 
 
@@ -88,7 +87,7 @@ class TestSearchWikipediaTool(unittest.TestCase):
 
 
 from langgraph.prebuilt import create_react_agent
-from utils.check_env import check_env
+from utils.get_env import get_env
 
 
 # 经过初步测试，gpt-4o-mini 在这个任务中的表现最佳，又快又准

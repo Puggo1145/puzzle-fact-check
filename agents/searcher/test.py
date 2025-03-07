@@ -1,4 +1,3 @@
-from utils import view_graph
 from .graph import SearchAgentGraph
 from .states import SearchAgentState
 from agents.metadata_extractor.states import BasicMetadata
@@ -33,13 +32,12 @@ def test_search_agent():
     model = ChatQwen(
         model="qwq-plus-0305",
         # model="qwen-plus-2024-09-19",
-        temperature=0.6,
+        # temperature=0.6, # 官方不支持 temperature
         streaming=True,
         callbacks=[ReasonerStreamingCallback()]
     )
 
     search_agent = SearchAgentGraph(model=model, max_tokens=20000)
-    view_graph(search_agent)
     
     search_agent.invoke(example_input)
 

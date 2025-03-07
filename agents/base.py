@@ -3,6 +3,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import MemorySaver
 from langchain.chat_models.base import BaseChatModel
+from utils import view_graph
 
 ModelT = TypeVar("ModelT", bound=BaseChatModel)
 
@@ -19,6 +20,7 @@ class BaseAgent(Generic[ModelT]):
         self.model = model
         self.memory_saver = MemorySaver()
         self.graph = self._build_graph()
+        view_graph(self.graph) # 运行时使用 --view-graph 输出 agent 的 graph 并停止运行
     
     def _build_graph(self) -> CompiledStateGraph | Any:
         """ 在该方法内构建 agent graph """

@@ -4,6 +4,7 @@ from langchain_core.output_parsers import JsonOutputParser
 
 evaluate_current_status_output_parser = JsonOutputParser(pydantic_object=Status)
 
+# TODO：考虑根据 model 类型选择是否使用 System Prompt。官方建议推理模型不实用 System Prompt
 system_prompt_template = SystemMessagePromptTemplate.from_template(
     """
 你正在执行一个新闻事实核查任务，你被分配到一个核查点，你需要检索互联网，对核查点进行事实核查

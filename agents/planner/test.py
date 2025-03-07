@@ -63,13 +63,6 @@ def get_user_feedback():
 
 
 def test_plan_agent():
-    model = ChatDeepSeek(model="deepseek-reasoner", temperature=0.6, streaming=True)
-    metadata_extract_model = ChatQwen(model="qwen-turbo", temperature=0)
-    search_model = ChatQwen(
-        model="qwen-plus-latest",
-        temperature=0.4,
-    )
-
     example_initial_state = {
         "news_text": """
 2021 年 7 月 26 日，东京奥运会男子铁人三项比赛结束后，
@@ -79,21 +72,26 @@ def test_plan_agent():
 中游泳"等
 """
     }
+    
+    # model = ChatDeepSeek(model="deepseek-reasoner", temperature=0.6, streaming=True)
+    model = ChatQwen(
+        model="qwq-plus-0305",
+        streaming=True
+    )
+    metadata_extract_model = ChatQwen(
+        model="qwen-turbo", 
+        temperature=0
+    )
+    search_model = ChatQwen(
+        model="qwq-plus-0305",
+        streaming=True
+    )
 
     plan_agent = PlanAgentGraph(
         model=model,
         metadata_extract_model=metadata_extract_model,
         search_model=search_model,
     )
-
-    # 添加命令行查看图的选项
-    if "--view-graph" in sys.argv:
-        import os
-
-        graph_path = "plan_agent_graph.png"
-        plan_agent.graph.get_graph().draw_mermaid_png(output_file_path=graph_path)
-        print(f"Graph saved to {os.path.abspath(graph_path)}")
-        return
 
     thread_config = {"thread_id": "some_id"}
     plan_agent.invoke(
