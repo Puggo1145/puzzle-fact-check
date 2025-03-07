@@ -12,6 +12,9 @@ from .prompts import (
     human_feedback_prompt_template,
 )
 from .callback import PlanAgentCallback
+from ..searcher.states import SearchAgentState
+from ..searcher.graph import SearchAgentGraph
+from ..metadata_extractor.graph import MetadataExtractAgentGraph
 
 
 class PlanAgentGraph(BaseAgent[ChatDeepSeek | ChatQwen]):
@@ -40,17 +43,17 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek | ChatQwen]):
         graph_builder.add_node("invoke_search_agent", self.invoke_search_agent)
         graph_builder.add_node("human_verification", self.human_verification)
 
-        graph_builder.add_edge(START, "invoke_metadata_extract_agent")
+        # graph_builder.add_edge(START, "invoke_metadata_extract_agent")
         graph_builder.add_edge(START, "extract_check_point")
         graph_builder.add_edge("extract_check_point", "human_verification")
         
-        graph_builder.add_conditional_edges(
-            "human_verification",
-            self.should_continue_to_parallel_retrieval,
-            ["extract_check_point", END, "invoke_search_agent"]
-        )
+        # graph_builder.add_conditional_edges(
+        #     "human_verification",
+        #     self.should_continue_to_parallel_retrieval,
+        #     ["extract_check_point", END, "invoke_search_agent"]
+        # )
         
-        graph_builder.set_finish_point("invoke_search_agent")
+        # graph_builder.set_finish_point("invoke_search_agent")
 
         return graph_builder.compile(
             checkpointer=self.memory_saver,
@@ -110,8 +113,6 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek | ChatQwen]):
             
     def invoke_metadata_extract_agent(self, state: FactCheckPlanState):
         """调用知识元检索 agent 补充"""
-        from agents import MetadataExtractAgentGraph
-        
         metadata_extract_agent = MetadataExtractAgentGraph(
             model=self.metadata_extract_model,
             verbose=False
@@ -133,9 +134,7 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek | ChatQwen]):
             state.check_points and 
             state.metadata and 
             state.metadata.basic_metadata
-        ):
-            from agents.searcher.states import SearchAgentState
-            
+        ):            
             retrieval_plans = []
             for check_point in state.check_points.items:
                 if not check_point.retrieval_plan:
@@ -159,14 +158,12 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek | ChatQwen]):
         
         return END
 
-    def invoke_search_agent(self, state):
+    def invoke_search_agent(self, state: SearchAgentState):
         """根据检索规划调用子检索模型执行深度检索"""
-        from agents import SearchAgentGraph
-
         search_agent = SearchAgentGraph(model=self.search_model, max_tokens=12000)
         search_agent.invoke(state)
         
-    def evaluate_search_result(self, state):
+    def evaluate_search_result(self, state: SearchAgentState):
         """主模型对 search agent 的检索结论进行复核推理"""
         pass
     

@@ -24,7 +24,6 @@ system_prompt_template = SystemMessagePromptTemplate.from_template(
 {expected_sources}
 
 # 可用工具：
-[严格遵循 JSON 格式，禁止混杂 Python 字面量，例如: True, False, None]
 {tools_schema}
 
 # 我的任务：
@@ -60,6 +59,8 @@ system_prompt_template = SystemMessagePromptTemplate.from_template(
  - 尝试阅读已找到的网页
 2. 检索语言：如果检索后没有获得理想的结果，尝试更换语言检索
 3. 禁止重复提取已存在的证据。确保你提取的是新的、不同的证据！
+4. ！请严格遵循 JSON 响应格式，禁止混杂 Python 字面量，例如: True, False, None！
+
 
 # 响应格式：
 {format_instructions}

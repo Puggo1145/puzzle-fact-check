@@ -8,5 +8,10 @@ AUTH = (
     get_env("NEO4J_PASSWORD")
 )
 
-with GraphDatabase.driver(URI, auth=AUTH) as driver:
-    driver.verify_connectivity()
+db_driver = GraphDatabase.driver(URI, auth=AUTH)
+db_driver.verify_connectivity()
+
+__all__ = [
+    "db_driver"
+]
+
