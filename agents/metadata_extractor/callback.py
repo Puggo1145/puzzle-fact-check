@@ -1,10 +1,9 @@
 import json
-from typing import Any, Dict, List, Optional, Sequence
 from uuid import UUID
+from typing import Any, Dict, List, Optional, Sequence
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.documents import Document
 from langchain_core.agents import AgentAction
-from langchain_core.outputs import LLMResult
 
 
 class MetadataExtractorCallback(BaseCallbackHandler):
@@ -12,14 +11,13 @@ class MetadataExtractorCallback(BaseCallbackHandler):
     Callback function，用于跟踪和显示 Metadata Extractor Agent 执行过程中的状态变化
     """
 
-    def __init__(self, verbose=True):
+    def __init__(self):
         """
         初始化回调处理器
 
         Args:
             verbose: 是否显示详细信息
         """
-        self.verbose = verbose
         self.step_count = 0  # 总步骤计数
         self.llm_call_count = 0  # LLM调用计数
         self.start_time = None
@@ -38,9 +36,6 @@ class MetadataExtractorCallback(BaseCallbackHandler):
 
     def _print_colored(self, text, color="blue", bold=False):
         """打印彩色文本"""
-        if not self.verbose:
-            return
-
         prefix = ""
         if bold:
             prefix += self.colors["bold"]
@@ -65,9 +60,6 @@ class MetadataExtractorCallback(BaseCallbackHandler):
             return str(data)
         
     def on_chain_end(self, outputs, **kwargs):
-        if not self.verbose:
-            return
-
         # 检查outputs是否为布尔值或不是字典
         if not isinstance(outputs, dict):
             return
@@ -97,9 +89,6 @@ class MetadataExtractorCallback(BaseCallbackHandler):
         **kwargs: Any
     ) -> Any:
         """当Agent执行动作时调用"""
-        if not self.verbose:
-            return
-        
         self.step_count += 1
         action_name = action.tool if hasattr(action, "tool") else "Unknown Action"
         self._print_colored(f"\n🔄 执行动作 #{self.step_count}: {action_name}", "yellow", True)
@@ -113,17 +102,11 @@ class MetadataExtractorCallback(BaseCallbackHandler):
             self._print_colored(f"📥 输入: {input_str}", "yellow")
         
     def on_tool_start(self, serialized, input_str, **kwargs):
-        if not self.verbose:
-            return
-
         tool_name = serialized.get("name", "Unknown Tool")
         self._print_colored(f"\n🔨 开始执行工具: {tool_name}", "purple")
         self._print_colored(f"📥 输入: {input_str}", "purple")
 
     def on_tool_end(self, output, **kwargs):
-        if not self.verbose:
-            return
-
         self._print_colored(f"📤 工具执行结果:", "green")
         
         # 处理不同类型的输出
@@ -151,18 +134,12 @@ class MetadataExtractorCallback(BaseCallbackHandler):
             self._print_colored(f"输出处理错误: {str(e)}", "red")
 
     def on_tool_error(self, error, **kwargs):
-        if not self.verbose:
-            return
-
         self._print_colored(f"\n❌ 工具执行错误:", "red", True)
         self._print_colored(f"{str(error)}", "red")
         self._print_colored(f"{'-'*50}", "red")
 
     def on_llm_start(self, serialized, prompts, **kwargs):
         """当LLM开始生成时调用"""
-        if not self.verbose:
-            return
-
         self.llm_call_count += 1  # 增加LLM调用计数
 
         model_name = serialized.get("name", "Unknown Model")
@@ -176,9 +153,6 @@ class MetadataExtractorCallback(BaseCallbackHandler):
 
     def on_llm_end(self, response, **kwargs):
         """当LLM生成结束时调用"""
-        if not self.verbose:
-            return
-
         # 打印模型输出内容
         if hasattr(response, "generations") and response.generations:
             for _, generation_list in enumerate(response.generations):
@@ -224,9 +198,6 @@ class MetadataExtractorCallback(BaseCallbackHandler):
         **kwargs: Any
     ) -> None:
         """当检索开始时调用"""
-        if not self.verbose:
-            return
-        
         self._print_colored(f"\n🔍 开始检索知识元", "yellow", True)
         self._print_colored(f"查询: {query}", "yellow")
     
@@ -239,9 +210,6 @@ class MetadataExtractorCallback(BaseCallbackHandler):
         **kwargs: Any
     ) -> None:
         """当检索结束时调用"""
-        if not self.verbose:
-            return
-        
         self._print_colored(f"📚 检索到 {len(documents)} 条知识元", "green", True)
         for i, doc in enumerate(documents[:3]):  # 只显示前3条
             self._print_colored(f"知识元 #{i+1}: {str(doc)[:100]}...", "green")

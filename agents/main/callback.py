@@ -13,14 +13,13 @@ class MainAgentCallback(BaseCallbackHandler):
     output tokens, and planning results during execution.
     """
 
-    def __init__(self, verbose=True):
+    def __init__(self):
         """
         Initialize the callback handler
 
         Args:
             verbose: Whether to display detailed information
         """
-        self.verbose = verbose
         self.step_count = 0
         self.llm_call_count = 0
         self.start_time = None
@@ -45,7 +44,7 @@ class MainAgentCallback(BaseCallbackHandler):
 
     def _print_colored(self, text, color="blue", bold=False):
         """Print colored text"""
-        if not self.verbose or not self.is_in_planner_graph:
+        if not self.is_in_planner_graph:
             return
 
         prefix = ""
@@ -88,8 +87,6 @@ class MainAgentCallback(BaseCallbackHandler):
         except Exception as e:
             # 出错时保持在 planner graph 内
             self.is_in_planner_graph = True
-            if self.verbose:
-                print(f"Error in on_chain_start: {str(e)}")
 
     def on_chain_end(
         self, outputs: Dict[str, Any], **kwargs: Any
@@ -102,7 +99,7 @@ class MainAgentCallback(BaseCallbackHandler):
         self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
     ) -> None:
         """Called when LLM starts generating"""
-        if not self.verbose or not self.is_in_planner_graph:
+        if not self.is_in_planner_graph:
             return
 
         try:
@@ -131,7 +128,7 @@ class MainAgentCallback(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         """Process streaming tokens from LLM, handling reasoning and content separately"""
-        if not self.verbose or not self.is_in_planner_graph:
+        if not self.is_in_planner_graph:
             return
 
         try:
@@ -171,7 +168,7 @@ class MainAgentCallback(BaseCallbackHandler):
 
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """Called when LLM generation ends"""
-        if not self.verbose or not self.is_in_planner_graph:
+        if not self.is_in_planner_graph:
             return
 
         try:
@@ -255,7 +252,7 @@ class MainAgentCallback(BaseCallbackHandler):
 
     def on_agent_action(self, action, **kwargs: Any) -> Any:
         """Called when agent takes an action"""
-        if not self.verbose or not self.is_in_planner_graph:
+        if not self.is_in_planner_graph:
             return
 
         try:
@@ -273,7 +270,7 @@ class MainAgentCallback(BaseCallbackHandler):
 
     def on_agent_finish(self, finish, **kwargs: Any) -> None:
         """Called when agent finishes"""
-        if not self.verbose or not self.is_in_planner_graph:
+        if not self.is_in_planner_graph:
             return
 
         try:
@@ -283,7 +280,7 @@ class MainAgentCallback(BaseCallbackHandler):
 
     def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
         """Called when a tool errors"""
-        if not self.verbose or not self.is_in_planner_graph:
+        if not self.is_in_planner_graph:
             return
 
         try:
@@ -310,8 +307,6 @@ class MainAgentCallback(BaseCallbackHandler):
         except Exception as e:
             # 出错时保持在 planner graph 内
             self.is_in_planner_graph = True
-            if self.verbose:
-                print(f"Error in on_tool_start: {str(e)}")
 
     def on_tool_end(
         self, output: str, **kwargs: Any

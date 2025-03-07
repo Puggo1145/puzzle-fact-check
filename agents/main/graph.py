@@ -1,5 +1,6 @@
-from typing import List
+from typing import List, Optional, Any
 from agents.base import BaseAgent
+from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_deepseek import ChatDeepSeek
 from models import ChatQwen
@@ -23,12 +24,13 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         model: ChatDeepSeek | ChatQwen,
         metadata_extract_model: ChatQwen,
         search_model: ChatQwen,
-        verbose: bool = True,
+        cli_mode: bool = True
     ):
         """初始化 plan agent 参数"""
         super().__init__(
             model=model,
-            default_config={"callbacks": [MainAgentCallback(verbose=verbose)]},
+            default_config={"callbacks": [MainAgentCallback()]},
+            cli_mode=cli_mode
         )
 
         """初始化子 agent 模型"""
@@ -113,10 +115,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
             
     def invoke_metadata_extract_agent(self, state: FactCheckPlanState):
         """调用知识元检索 agent 补充"""
-        metadata_extract_agent = MetadataExtractAgentGraph(
-            model=self.metadata_extract_model,
-            verbose=False
-        )
+        metadata_extract_agent = MetadataExtractAgentGraph(model=self.metadata_extract_model)
         result = metadata_extract_agent.invoke({"news_text": state.news_text})
 
         return {"metadata": result}
@@ -166,4 +165,84 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
     def evaluate_search_result(self, state: SearchAgentState):
         """主模型对 search agent 的检索结论进行复核推理"""
         pass
+
+    # 重写 invoke 方法以支持 CLI 模式，令 Main Agent 能够在内部处理 human-in-the-loop 流程
+    def invoke(
+        self, 
+        initial_state: Any,
+        config: Optional[RunnableConfig] = None
+    ):
+        if not config or not config.get("configurable"):
+            raise ValueError("Agent 缺少 thread_id 配置")
+        
+        result = super().invoke(initial_state, config)
+        
+        if self.cli_mode:
+            thread_config = config.get("configurable", {})
+            while True:
+                states = self.graph.get_state({"configurable": thread_config})
+                interrupts = states.tasks[0].interrupts if len(states.tasks) > 0 else False
+                if interrupts:
+                    result = get_user_feedback()
+                    
+                    if result["action"] == "continue":
+                        super().invoke(
+                            Command(resume="continue"),
+                            config={"configurable": thread_config},
+                        )
+                    else:
+                        super().invoke(
+                            Command(
+                                resume="revise",
+                                update={
+                                    "human_feedback": result["feedback"],
+                                },
+                            ),
+                            config={"configurable": thread_config},
+                        )
+                else:
+                    break
+                    
+        return result
+
+def cli_select_option(options, prompt):
+    """实现命令行选择功能"""
+    import readchar
+    import sys
     
+    selected = 0
+    print(prompt)
+
+    def print_options():
+        sys.stdout.write("\r" + " " * 100 + "\r")
+        for i, option in enumerate(options):
+            if i == selected:
+                sys.stdout.write(f"[•] {option}  ")
+            else:
+                sys.stdout.write(f"[ ] {option}  ")
+        sys.stdout.flush()
+
+    print_options()
+
+    while True:
+        key = readchar.readkey()
+        if key == readchar.key.LEFT and selected > 0:
+            selected -= 1
+            print_options()
+        elif key == readchar.key.RIGHT and selected < len(options) - 1:
+            selected += 1
+            print_options()
+        elif key == readchar.key.ENTER:
+            sys.stdout.write("\n")
+            return options[selected]
+
+def get_user_feedback():
+    """处理用户交互，返回用户反馈"""
+    choice = cli_select_option(["continue", "revise"], "请选择操作：")
+
+    if choice == "continue":
+        return {"action": "continue"}
+    else:
+        print("\n请输入您的修改建议：")
+        feedback = input("> ")
+        return {"action": "revise", "feedback": feedback}

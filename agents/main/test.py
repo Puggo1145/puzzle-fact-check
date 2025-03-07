@@ -94,38 +94,10 @@ def test_plan_agent():
     )
 
     thread_config = {"thread_id": "some_id"}
-    res = plan_agent.invoke(
+    plan_agent.invoke(
         example_initial_state,
         {"configurable": thread_config},
     )
-
-    # 需要反复捕获 interrups 才能不断进行 agent-human loop ！！！
-    while True:
-        states = plan_agent.graph.get_state({"configurable": thread_config})
-        interrupts = states.tasks[0].interrupts if len(states.tasks) > 0 else False
-        if interrupts:
-            # question = interrupts[0].value.get('question', '')
-            result = get_user_feedback()
-
-            if result["action"] == "continue":
-                plan_agent.invoke(
-                    Command(resume="continue"),
-                    config={"configurable": thread_config},
-                )
-            else:
-                plan_agent.invoke(
-                    Command(
-                        resume="revise",
-                        update={
-                            "human_feedback": result["feedback"],
-                        },
-                    ),
-                    config={"configurable": thread_config},
-                )
-        else:
-            break
-
-    print(res)
 
 if __name__ == "__main__":
     test_plan_agent()

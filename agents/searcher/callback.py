@@ -9,14 +9,13 @@ class AgentStateCallback(BaseCallbackHandler):
     Callback function，用于跟踪和显示 Search Agent 执行过程中的状态变化
     """
 
-    def __init__(self, verbose=True):
+    def __init__(self):
         """
         初始化回调处理器
 
         Args:
             verbose: 是否显示详细信息
         """
-        self.verbose = verbose
         self.step_count = 0  # 总步骤计数
         self.llm_call_count = 0  # LLM调用计数
         self.start_time = None
@@ -35,9 +34,6 @@ class AgentStateCallback(BaseCallbackHandler):
 
     def _print_colored(self, text, color="blue", bold=False):
         """打印彩色文本"""
-        if not self.verbose:
-            return
-
         prefix = ""
         if bold:
             prefix += self.colors["bold"]
@@ -62,9 +58,6 @@ class AgentStateCallback(BaseCallbackHandler):
             return str(data)
         
     def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> None:
-        if not self.verbose:
-            return
-
         # 检查outputs是否为布尔值或不是字典
         if not isinstance(outputs, dict):
             return
@@ -88,17 +81,11 @@ class AgentStateCallback(BaseCallbackHandler):
     def on_tool_start(
         self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
     ) -> None:
-        if not self.verbose:
-            return
-
         tool_name = serialized.get("name", "Unknown Tool")
         self._print_colored(f"\n🔨 开始执行工具: {tool_name}", "purple")
         self._print_colored(f"📥 输入: {input_str}", "purple")
 
     def on_tool_end(self, output: str, **kwargs: Any) -> None:
-        if not self.verbose:
-            return
-
         self._print_colored(f"📤 工具执行结果:", "green")
         # 如果输出太长，截断显示
         if len(output) > 500:
@@ -107,9 +94,6 @@ class AgentStateCallback(BaseCallbackHandler):
             self._print_colored(output, "green")
 
     def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
-        if not self.verbose:
-            return
-
         self._print_colored(f"\n❌ 工具执行错误:", "red", True)
         self._print_colored(f"{str(error)}", "red")
         self._print_colored(f"{'-'*50}", "red")
@@ -118,9 +102,6 @@ class AgentStateCallback(BaseCallbackHandler):
         self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
     ) -> None:
         """当LLM开始生成时调用"""
-        if not self.verbose:
-            return
-
         self.llm_call_count += 1  # 增加LLM调用计数
 
         model_name = serialized.get("name", "Unknown Model")
@@ -134,9 +115,6 @@ class AgentStateCallback(BaseCallbackHandler):
 
     def on_llm_end(self, response, **kwargs: Any) -> None:
         """当LLM生成结束时调用"""
-        if not self.verbose:
-            return
-
         # 打印模型输出内容
         if hasattr(response, "generations") and response.generations:
             for _, generation in enumerate(response.generations):

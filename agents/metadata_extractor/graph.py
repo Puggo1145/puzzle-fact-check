@@ -20,11 +20,10 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen]):
     def __init__(
         self, 
         model: ChatQwen,
-        verbose: bool = True
     ):
         super().__init__(
             model=model, 
-            default_config={"callbacks": [MetadataExtractorCallback(verbose=verbose)]}
+            default_config={"callbacks": [MetadataExtractorCallback()]}
         )
 
         self.tools = [SearchWikipediaTool()]
