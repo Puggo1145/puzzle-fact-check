@@ -1,7 +1,7 @@
 import readchar
 import sys
 from .graph import PlanAgentGraph
-from langchain_deepseek import ChatDeepSeek
+# from langchain_deepseek import ChatDeepSeek
 from models import ChatQwen
 from langgraph.types import Command
 
@@ -125,7 +125,7 @@ def test_plan_agent():
         else:
             break
 
-    print(plan_agent.graph.get_state(config={"configurable": thread_config}))
+    print(res)
 
 if __name__ == "__main__":
     test_plan_agent()

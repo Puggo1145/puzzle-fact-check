@@ -4,17 +4,11 @@ from neomodel import (
     ArrayProperty,
     BooleanProperty,
     RelationshipFrom,
+    RelationshipTo,
     JSONProperty
 )
 
 
-class NewsText(StructuredNode):
-    """News Text Node"""
-    content = StringProperty(required=True)
-    # relationships
-    basic_metadata = RelationshipFrom("BasicMetadata", "HAS_BASIC_METADATA")
-    knowledge = RelationshipFrom("Knowledge", "HAS_KNOWLEDGE")
-    check_point = RelationshipFrom("CheckPoint", "CHECKED_BY")
 
 
 class BasicMetadata(StructuredNode):
@@ -26,6 +20,7 @@ class BasicMetadata(StructuredNode):
     what = ArrayProperty(StringProperty())
     why = ArrayProperty(StringProperty())
     how = ArrayProperty(StringProperty())
+    has_basic_metadata = RelationshipTo("NewsText", "HAS_BASIC_METADATA")
 
 
 class Knowledge(StructuredNode):
@@ -36,13 +31,22 @@ class Knowledge(StructuredNode):
     source = StringProperty()
 
 
+class NewsText(StructuredNode):
+    """News Text Node"""
+    content = StringProperty(required=True)
+    # relationships
+    has_basic_metadata = RelationshipFrom("BasicMetadata", "HAS_BASIC_METADATA")
+    has_knowledge = RelationshipFrom("Knowledge", "HAS_KNOWLEDGE")
+    has_check_point = RelationshipFrom("CheckPoint", "CHECKED_BY")
+
+
 class CheckPoint(StructuredNode):
     """CheckPoint Node 和 CheckPoint State 相比，不继承 retrieval step"""
     content = StringProperty(required=True)
     is_verification_point = BooleanProperty(required=True)
     importance = StringProperty()
     # relationship
-    retrieval_step = RelationshipFrom("RetrievalStep", "VERIFIED_BY")
+    verified_by = RelationshipFrom("RetrievalStep", "VERIFIED_BY")
         
 
 class RetrievalStep(StructuredNode):
@@ -50,7 +54,9 @@ class RetrievalStep(StructuredNode):
     purpose = StringProperty(required=True)
     expected_sources = ArrayProperty(StringProperty(), required=True)
     # relationship
-    search_result = RelationshipFrom("SearchResult", "HAS_RESULT")
+    has_result = RelationshipFrom("SearchResult", "HAS_RESULT")
+    supports_by = RelationshipFrom("Evidence", "SUPPORTS_BY")
+    contradicts_with = RelationshipFrom("Evidence", "CONTRADICTS_WITH")
 
 
 class SearchResult(StructuredNode):
@@ -59,9 +65,6 @@ class SearchResult(StructuredNode):
     conclusion = StringProperty(required=True)
     confidence = StringProperty(required=True)
     sources = ArrayProperty(StringProperty(), required=True)
-    # relationships
-    evidence_support = RelationshipFrom("Evidence", "SUPPORTS_BY")
-    evidence_contradict = RelationshipFrom("Evidence", "CONTRADICTS_WITH")
 
 
 class Evidence(StructuredNode):
