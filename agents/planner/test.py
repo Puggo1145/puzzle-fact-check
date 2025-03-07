@@ -94,7 +94,7 @@ def test_plan_agent():
     )
 
     thread_config = {"thread_id": "some_id"}
-    plan_agent.invoke(
+    res = plan_agent.invoke(
         example_initial_state,
         {"configurable": thread_config},
     )
@@ -125,6 +125,7 @@ def test_plan_agent():
         else:
             break
 
+    print(plan_agent.graph.get_state(config={"configurable": thread_config}))
 
 if __name__ == "__main__":
     test_plan_agent()

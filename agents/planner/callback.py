@@ -192,12 +192,12 @@ class PlanAgentCallback(BaseCallbackHandler):
                 for check_point in check_points
                 if check_point["is_verification_point"]
             ]
-            for check_point in selected_check_points:
-                print(f"\n第 {check_point['id']} 条陈述")
+            for idx, check_point in enumerate(selected_check_points):
+                print(f"\n第 {idx+1} 条陈述")
                 print(f"陈述内容：{check_point['content']}")
                 print(f"核查理由：{check_point['importance']}")
-                if isinstance(check_point["retrieval_plan"], list):
-                    for idx, plan in enumerate(check_point["retrieval_plan"]):
+                if isinstance(check_point["retrieval_step"], list):
+                    for idx, plan in enumerate(check_point["retrieval_step"]):
                         print(f"核查计划 {idx+1}：")
                         print(f"- 核查目标：{plan['purpose']}")
                         print(f"- 目标信源类型：{plan['expected_sources']}")
@@ -235,9 +235,9 @@ class PlanAgentCallback(BaseCallbackHandler):
                                 f"⭐ 重要性: {point['importance']}", "cyan"
                             )
 
-                        if "retrieval_plan" in point and point["retrieval_plan"]:
+                        if "retrieval_step" in point and point["retrieval_step"]:
                             self._print_colored(f"🔎 检索方案:", "cyan")
-                            for j, step in enumerate(point["retrieval_plan"]):
+                            for j, step in enumerate(point["retrieval_step"]):
                                 self._print_colored(
                                     f"  {j+1}. 目的: {step.get('purpose', '无目的')}",
                                     "cyan",

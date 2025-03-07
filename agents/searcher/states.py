@@ -48,8 +48,8 @@ class Status(BaseModel):
     )
 
 
-class SearchAgentResult(BaseModel):
-    """ search agent 的核查结论"""
+class SearchResult(BaseModel):
+    """ search 的核查结论"""
     summary: str = Field(description="对所有检索到的信息的总结")
     conclusion: str = Field(description="基于检索到的信息对核查点的结论")
     confidence: str = Field(description="对结论的置信度评估")
@@ -78,7 +78,7 @@ class SearchAgentState(BaseModel):
         description="检索中收集的，与核查目标构成重要关系的证据片段",
         default_factory=list
     )
-    result: Optional[SearchAgentResult] = Field(
+    result: Optional[SearchResult] = Field(
         description="最终的检索结果和结论", 
         default=None
     )

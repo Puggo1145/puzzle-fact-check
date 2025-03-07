@@ -1,5 +1,5 @@
-from .states import Status, SearchAgentResult
-from langchain_core.prompts import HumanMessagePromptTemplate, SystemMessagePromptTemplate, AIMessagePromptTemplate
+from .states import Status, SearchResult
+from langchain_core.prompts import SystemMessagePromptTemplate, AIMessagePromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 
 evaluate_current_status_output_parser = JsonOutputParser(pydantic_object=Status)
@@ -87,7 +87,7 @@ evaluate_current_status_prompt_template = AIMessagePromptTemplate.from_template(
 )
 
 # 添加回答生成的输出解析器
-generate_answer_output_parser = JsonOutputParser(pydantic_object=SearchAgentResult)
+generate_answer_output_parser = JsonOutputParser(pydantic_object=SearchResult)
 
 # 添加回答生成的提示模板
 generate_answer_prompt_template = AIMessagePromptTemplate.from_template(

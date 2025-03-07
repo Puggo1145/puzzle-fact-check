@@ -1,3 +1,4 @@
+import uuid
 from typing import List
 from agents.base import BaseAgent
 from langchain_core.messages import AIMessage, BaseMessage
@@ -77,17 +78,17 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek | ChatQwen]):
                 human_feedback=state.human_feedback
             )
             messages_with_feedback: List[BaseMessage] = [
-                AIMessage(state.check_points.model_dump_json()),
+                AIMessage(str(state.check_points)),
                 human_feedback_prompt,
             ]
             messages.extend(messages_with_feedback)
 
         response = self.model.invoke(messages)
         check_points = fact_check_plan_output_parser.invoke(response)
-
+        
         # 更新核查点并清除上一次反馈
         return {
-            "check_points": check_points,
+            "check_points": check_points["items"],
             "human_feedback": ""
         }
 
@@ -97,10 +98,10 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek | ChatQwen]):
         将检索方案交给人类进行核验，根据反馈开始核查或更新检索方案
         """
         # 中断图的执行，等待人类输入
-        result =  interrupt(
+        result = interrupt(
             {
                 "question": "根据您提供的新闻文本，我规划了以下事实核查方案:\n\n"
-                + f"{state.check_points.model_dump_json(indent=4) if state.check_points else 'LLM outputed nothing'}\n"
+                + f"{state.check_points}\n"
                 + "选择 'continue' 开始核查，或输入修改建议",
             }
         )
@@ -135,13 +136,13 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek | ChatQwen]):
             state.metadata and 
             state.metadata.basic_metadata
         ):            
-            retrieval_plans = []
-            for check_point in state.check_points.items:
-                if not check_point.retrieval_plan:
+            retrieval_steps = []
+            for check_point in state.check_points:
+                if not check_point.retrieval_step:
                     continue
 
-                for retrieval_step in check_point.retrieval_plan:
-                    retrieval_plans.append(
+                for retrieval_step in check_point.retrieval_step:
+                    retrieval_steps.append(
                         Send(
                             "invoke_search_agent",
                             SearchAgentState(
@@ -153,8 +154,8 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek | ChatQwen]):
                         )
                     )
                     
-            if retrieval_plans:
-                return retrieval_plans
+            if retrieval_steps:
+                return retrieval_steps
         
         return END
 
