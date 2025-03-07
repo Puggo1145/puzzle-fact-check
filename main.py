@@ -1,10 +1,10 @@
-import os
 from dotenv import load_dotenv
+from agents import MainAgent
 
 load_dotenv()
 
 def main():
-    print(os.environ["QWEN_API_KEY"])
+    agent = MainAgent()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 import readchar
 import sys
-from .graph import PlanAgentGraph
+from .graph import MainAgent
 # from langchain_deepseek import ChatDeepSeek
 from models import ChatQwen
 from langgraph.types import Command
@@ -87,7 +87,7 @@ def test_plan_agent():
         streaming=True
     )
 
-    plan_agent = PlanAgentGraph(
+    plan_agent = MainAgent(
         model=model,
         metadata_extract_model=metadata_extract_model,
         search_model=search_model,

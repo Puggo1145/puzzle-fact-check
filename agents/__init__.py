@@ -1,9 +1,9 @@
+from .main import MainAgent
 from .searcher import SearchAgentGraph
-from .planner import PlanAgentGraph
 from .metadata_extractor import MetadataExtractAgentGraph
 
 __all__ = [
-    "PlanAgentGraph",
+    "MainAgent",
     "SearchAgentGraph",
     "MetadataExtractAgentGraph"
 ]

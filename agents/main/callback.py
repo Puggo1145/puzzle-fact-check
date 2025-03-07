@@ -7,9 +7,9 @@ from langchain_core.outputs import ChatGenerationChunk, GenerationChunk
 from .prompts import fact_check_plan_output_parser
 
 
-class PlanAgentCallback(BaseCallbackHandler):
+class MainAgentCallback(BaseCallbackHandler):
     """
-    Callback handler for PlanAgent to track and display the agent's reasoning process,
+    Callback handler for MainAgent to track and display the agent's reasoning process,
     output tokens, and planning results during execution.
     """
 

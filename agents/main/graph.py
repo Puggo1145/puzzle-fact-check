@@ -1,4 +1,3 @@
-import uuid
 from typing import List
 from agents.base import BaseAgent
 from langchain_core.messages import AIMessage, BaseMessage
@@ -12,13 +11,13 @@ from .prompts import (
     fact_check_plan_output_parser,
     human_feedback_prompt_template,
 )
-from .callback import PlanAgentCallback
+from .callback import MainAgentCallback
 from ..searcher.states import SearchAgentState
 from ..searcher.graph import SearchAgentGraph
 from ..metadata_extractor.graph import MetadataExtractAgentGraph
 
 
-class PlanAgentGraph(BaseAgent[ChatDeepSeek | ChatQwen]):
+class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
     def __init__(
         self,
         model: ChatDeepSeek | ChatQwen,
@@ -29,7 +28,7 @@ class PlanAgentGraph(BaseAgent[ChatDeepSeek | ChatQwen]):
         """初始化 plan agent 参数"""
         super().__init__(
             model=model,
-            default_config={"callbacks": [PlanAgentCallback(verbose=verbose)]},
+            default_config={"callbacks": [MainAgentCallback(verbose=verbose)]},
         )
 
         """初始化子 agent 模型"""
