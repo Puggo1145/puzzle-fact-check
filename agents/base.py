@@ -15,7 +15,7 @@ class BaseAgent(Generic[ModelT]):
         self,
         model: ModelT,
         default_config: RunnableConfig = {},
-        cli_mode: bool = False
+        cli_mode: bool = True
     ) -> None:
         self.default_config = default_config
         if not cli_mode: # 非 cli_mode 下不在 terminal 追踪模型信息

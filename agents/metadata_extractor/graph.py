@@ -1,6 +1,6 @@
-from typing import cast
+from typing import cast, Optional, TYPE_CHECKING
 from agents.base import BaseAgent
-from langgraph.graph.state import CompiledStateGraph, StateGraph, END
+from langgraph.graph.state import CompiledStateGraph, StateGraph
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import Send
 from models import ChatQwen
@@ -15,6 +15,8 @@ from .prompts import (
 from tools import SearchWikipediaTool
 from .callback import MetadataExtractorCallback
 
+from db import db_integration
+
 
 class MetadataExtractAgentGraph(BaseAgent[ChatQwen]):
     def __init__(
@@ -28,12 +30,16 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen]):
 
         self.tools = [SearchWikipediaTool()]
         self.model_with_tools = self.model.bind_tools(tools=self.tools)
+        
+        self.db_integration = db_integration
 
     def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(MetadataState)
+        
         graph_builder.add_node("extract_basic_metadata", self.extract_basic_metadata)
         graph_builder.add_node("extract_knowledge", self.extract_knowledge)
         graph_builder.add_node("retrieve_knowledge", self.retrieve_knowledge)
+        graph_builder.add_node("store_metadata_state_to_db", self.store_metadata_state_to_db)
 
         graph_builder.set_entry_point("extract_basic_metadata")
         graph_builder.add_edge("extract_basic_metadata", "extract_knowledge")
@@ -42,7 +48,8 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen]):
             self.should_continue_to_retrieval, # type: ignore
             ["retrieve_knowledge"]
         )
-        graph_builder.set_finish_point("retrieve_knowledge")
+        graph_builder.add_edge("retrieve_knowledge", "store_metadata_state_to_db")
+        graph_builder.set_finish_point("store_metadata_state_to_db")
 
         return graph_builder.compile()
 
@@ -109,3 +116,7 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen]):
         # 返回检索到的知识元
         return {"retrieved_knowledges": [retrieved_knowledge]}
     
+    def store_metadata_state_to_db(self, state: MetadataState):
+        self.db_integration.store_metadata_state(state)
+
+        return state

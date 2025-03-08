@@ -1,7 +1,7 @@
 import operator
 from typing import Optional, List, Annotated
 from pydantic import BaseModel, Field
-from agents.metadata_extractor.states import MetadataState
+from ..metadata_extractor.states import MetadataState
 
 
 class RetrievalStep(BaseModel):

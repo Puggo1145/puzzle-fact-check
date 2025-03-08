@@ -1,5 +1,5 @@
 import json
-from typing import cast, List
+from typing import cast, List, Optional
 from agents.base import BaseAgent
 from langchain_core.messages import ToolCall
 from langchain_core.utils.function_calling import convert_to_openai_tool
@@ -21,14 +21,14 @@ from tools import (
 )
 from langgraph.graph.state import StateGraph
 from .callback import AgentStateCallback
-
+from db import db_integration
 
 
 class SearchAgentGraph(BaseAgent[ChatQwen]):
     def __init__(
         self,
         model: ChatQwen,
-        max_tokens: int
+        max_tokens: int,
     ):
         """
         初始化 search agent 参数
@@ -38,7 +38,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         """
         super().__init__(
             model=model,
-            default_config={"callbacks": [AgentStateCallback(verbose=True)]}
+            default_config={"callbacks": [AgentStateCallback()]}
         )
         
         self.max_tokens = max_tokens
@@ -52,14 +52,17 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         self.tools_by_name = {tool.name: tool for tool in self.tools}
         self.tool_calling_schema = [convert_to_openai_tool(tool) for tool in self.tools]
         
+        self.db_integration = db_integration
+        
     def _build_graph(self):
         """构建搜索代理图"""
         graph_builder = StateGraph(SearchAgentState)
         
+        graph_builder.add_node("check_token_usage", self.check_token_usage)
         graph_builder.add_node("evaluate_current_status", self.evaluate_current_status)
         graph_builder.add_node("tools", self.tool_node)
         graph_builder.add_node("generate_answer", self.generate_answer)
-        graph_builder.add_node("check_token_usage", self.check_token_usage)
+        graph_builder.add_node("store_search_result_to_db", self.store_search_result_to_db)
 
         graph_builder.set_entry_point("check_token_usage")
         graph_builder.add_conditional_edges(
@@ -76,10 +79,11 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
             self._does_llm_generate_answer,
             {"tools": "tools", "generate_answer": "generate_answer"},
         )
-        
         # 工具调用后再次检查token
         graph_builder.add_edge("tools", "check_token_usage")
-        graph_builder.set_finish_point("generate_answer")
+        
+        graph_builder.add_edge("generate_answer", "store_search_result_to_db")
+        graph_builder.set_finish_point("store_search_result_to_db")
         
         return graph_builder.compile()
     
@@ -173,34 +177,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
 
         return {
             "statuses": [new_status],
-            "supporting_evidence": new_status["new_evidence"] or [],
-            "token_usage": state.token_usage
-        }
-    
-    def generate_answer(self, state: SearchAgentState):
-        """生成最终答案"""
-        system_prompt = system_prompt_template.format(
-            basic_metadata=state.basic_metadata,
-            content=state.content,
-            purpose=state.purpose,
-            expected_sources=state.expected_sources,
-            tools_schema=self.tool_calling_schema,
-        )
-
-        generate_answer_prompt = generate_answer_prompt_template.format(
-            retrieved_information=state.latest_tool_messages,
-            statuses=state.statuses,
-            evidences=state.evidences,
-        )
-        messages = [system_prompt, generate_answer_prompt]
-
-        response = self.model.invoke(input=messages)
-        answer = generate_answer_output_parser.parse(str(response.content))
-
-        state.token_usage += count_tokens(messages + [response])
-
-        return {
-            "result": answer,
+            "evidences": new_status["new_evidence"] or [],
             "token_usage": state.token_usage
         }
     
@@ -233,3 +210,40 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         else:
             return "tools"
     
+    def generate_answer(self, state: SearchAgentState):
+        """生成最终答案"""
+        system_prompt = system_prompt_template.format(
+            basic_metadata=state.basic_metadata,
+            content=state.content,
+            purpose=state.purpose,
+            expected_sources=state.expected_sources,
+            tools_schema=self.tool_calling_schema,
+        )
+
+        generate_answer_prompt = generate_answer_prompt_template.format(
+            retrieved_information=state.latest_tool_messages,
+            statuses=state.statuses,
+            evidences=state.evidences,
+        )
+        messages = [system_prompt, generate_answer_prompt]
+
+        response = self.model.invoke(input=messages)
+        answer = generate_answer_output_parser.parse(str(response.content))
+
+        state.token_usage += count_tokens(messages + [response])
+        
+        return {
+            "result": answer,
+            "token_usage": state.token_usage
+        }
+    
+    def store_search_result_to_db(self, state: SearchAgentState):
+        if not state.result:
+            raise RuntimeWarning(
+                f"[Agent Execution Error]: No results from search agent for purpose: {state.purpose}."
+            )
+        
+        # 找到对应的 retrieval step
+        retrieval_step = self.db_integration.get_retrieval_step_node(state.purpose)
+        if retrieval_step:
+            self.db_integration.store_search_results(state)

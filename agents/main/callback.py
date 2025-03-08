@@ -27,7 +27,7 @@ class MainAgentCallback(BaseCallbackHandler):
         self.has_thinking_started = False
         self.has_content_started = False
         # 跟踪当前是否在 planner graph 内部
-        self.is_in_planner_graph = True
+        self.is_in_planner_graph = False
 
         # ANSI color codes
         self.colors = {
@@ -79,6 +79,7 @@ class MainAgentCallback(BaseCallbackHandler):
             chain_name = ""
             if serialized is not None and isinstance(serialized, dict):
                 chain_name = serialized.get("name", "")
+                print(f"当前位于：{chain_name}")
             
             if "metadata_extractor" in chain_name.lower() or "search_agent" in chain_name.lower():
                 self.is_in_planner_graph = False

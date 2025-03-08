@@ -1,10 +1,10 @@
-from typing import List, Optional, Any
+from typing import List, Optional, Any, cast, TYPE_CHECKING
 from agents.base import BaseAgent
 from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import AIMessage, BaseMessage
-from langchain_deepseek import ChatDeepSeek
 from models import ChatQwen
-from langgraph.graph.state import CompiledStateGraph, StateGraph, END, START
+from langchain_deepseek import ChatDeepSeek
+from langgraph.graph.state import CompiledStateGraph, StateGraph, END
 from langgraph.types import interrupt, Command, Send
 from .states import FactCheckPlanState
 from .prompts import (
@@ -16,6 +16,9 @@ from .callback import MainAgentCallback
 from ..searcher.states import SearchAgentState
 from ..searcher.graph import SearchAgentGraph
 from ..metadata_extractor.graph import MetadataExtractAgentGraph
+from ..metadata_extractor.states import MetadataState
+
+from db import db_integration
 
 
 class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
@@ -24,7 +27,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         model: ChatDeepSeek | ChatQwen,
         metadata_extract_model: ChatQwen,
         search_model: ChatQwen,
-        cli_mode: bool = True
+        cli_mode: bool = True,
     ):
         """初始化 plan agent 参数"""
         super().__init__(
@@ -37,31 +40,55 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         self.metadata_extract_model = metadata_extract_model
         self.search_model = search_model
         
+        self.db_integration = db_integration
+        
     def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(FactCheckPlanState)
 
-        graph_builder.add_node("extract_check_point", self.extract_check_point)
+        graph_builder.add_node("store_news_text_to_db", self.store_news_text_to_db)
         graph_builder.add_node("invoke_metadata_extract_agent", self.invoke_metadata_extract_agent)
+        graph_builder.add_node("store_metadata_state_to_db", self.store_metadata_state_to_db)
+        graph_builder.add_node("extract_check_point", self.extract_check_point)
         graph_builder.add_node("invoke_search_agent", self.invoke_search_agent)
         graph_builder.add_node("human_verification", self.human_verification)
+        graph_builder.add_node("store_check_points_to_db", self.store_check_points_to_db)
 
-        # graph_builder.add_edge(START, "invoke_metadata_extract_agent")
-        graph_builder.add_edge(START, "extract_check_point")
+        graph_builder.set_entry_point("store_news_text_to_db")
+        graph_builder.add_edge("store_news_text_to_db", "invoke_metadata_extract_agent")
+        graph_builder.add_edge("invoke_metadata_extract_agent", "store_metadata_state_to_db")
+        graph_builder.add_edge("store_metadata_state_to_db", "extract_check_point")
         graph_builder.add_edge("extract_check_point", "human_verification")
+        graph_builder.add_edge("human_verification", "store_check_points_to_db")
         
-        # graph_builder.add_conditional_edges(
-        #     "human_verification",
-        #     self.should_continue_to_parallel_retrieval,
-        #     ["extract_check_point", END, "invoke_search_agent"]
-        # )
+        graph_builder.add_conditional_edges(
+            "store_check_points_to_db",
+            self.should_continue_to_parallel_retrieval,
+            ["extract_check_point", END, "invoke_search_agent"]
+        )
         
-        # graph_builder.set_finish_point("invoke_search_agent")
+        graph_builder.set_finish_point("invoke_search_agent")
 
         return graph_builder.compile(
             checkpointer=self.memory_saver,
         )
-
+    
     # nodes
+    def store_news_text_to_db(self, state: FactCheckPlanState):
+        db_integration.initialize_with_news_text(state.news_text)
+        return state
+
+    def invoke_metadata_extract_agent(self, state: FactCheckPlanState):
+        metadata_extract_agent = MetadataExtractAgentGraph(model=self.metadata_extract_model)
+        result = metadata_extract_agent.invoke({"news_text": state.news_text})
+
+        return {"metadata": result}
+    
+    def store_metadata_state_to_db(self, state: FactCheckPlanState):
+        if state.metadata:
+            self.db_integration.store_metadata_state(state.metadata)
+
+        return state            
+    
     def extract_check_point(self, state: FactCheckPlanState):
         """
         对新闻文本进行核查前规划：
@@ -87,11 +114,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         response = self.model.invoke(messages)
         check_points = fact_check_plan_output_parser.invoke(response)
         
-        # 更新核查点并清除上一次反馈
-        return {
-            "check_points": check_points["items"],
-            "human_feedback": ""
-        }
+        return {"check_points": check_points["items"], "human_feedback": ""}
 
     def human_verification(self, state: FactCheckPlanState):
         """
@@ -112,55 +135,61 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         else:
             return Command(resume="")
         
+    def store_check_points_to_db(self, state: FactCheckPlanState):
+        if len(state.check_points) > 0:
+            self.db_integration.store_check_points(state.check_points)
             
-    def invoke_metadata_extract_agent(self, state: FactCheckPlanState):
-        """调用知识元检索 agent 补充"""
-        metadata_extract_agent = MetadataExtractAgentGraph(model=self.metadata_extract_model)
-        result = metadata_extract_agent.invoke({"news_text": state.news_text})
-
-        return {"metadata": result}
+        return state
     
     def should_continue_to_parallel_retrieval(self, state: FactCheckPlanState):
         """
         决定是否继续执行并行检索
-        如果有检查点和基本元数据，则创建并行检索任务
+        如果有 check point 和 basic_metadata，则创建并行检索任务
         如果没有，则结束图的执行
         """
         if state.human_feedback:
             return "extract_check_point"
         
+        # 没有核查点或元数据，结束图执行
         if (
-            state.check_points and 
-            state.metadata and 
-            state.metadata.basic_metadata
-        ):            
-            retrieval_steps = []
-            for check_point in state.check_points:
-                if not check_point.retrieval_step:
-                    continue
+            len(state.check_points) < 1
+            or not state.metadata 
+            or not state.metadata.basic_metadata
+        ):
+            print("无法从文本中提取核查点或元数据，请检查文本")
+            return END
 
-                for retrieval_step in check_point.retrieval_step:
-                    retrieval_steps.append(
-                        Send(
-                            "invoke_search_agent",
-                            SearchAgentState(
-                                basic_metadata=state.metadata.basic_metadata,
-                                content=check_point.content,
-                                purpose=retrieval_step.purpose,
-                                expected_sources=retrieval_step.expected_sources,
-                            ),
-                        )
+        # 提取 retireval step 分配检索任务
+        retrieval_tasks = []
+        for check_point in state.check_points:
+            if not check_point.retrieval_step:
+                continue
+
+            for retrieval_step in check_point.retrieval_step:
+                retrieval_tasks.append(
+                    Send(
+                        "invoke_search_agent",
+                        SearchAgentState(
+                            basic_metadata=state.metadata.basic_metadata,
+                            content=check_point.content,
+                            purpose=retrieval_step.purpose,
+                            expected_sources=retrieval_step.expected_sources,
+                        ),
                     )
-                    
-            if retrieval_steps:
-                return retrieval_steps
+                )
         
+        # 如果有检索任务，开始检索
+        if retrieval_tasks:
+            return retrieval_tasks
+    
         return END
 
     def invoke_search_agent(self, state: SearchAgentState):
         """根据检索规划调用子检索模型执行深度检索"""
         search_agent = SearchAgentGraph(model=self.search_model, max_tokens=12000)
-        search_agent.invoke(state)
+        result = search_agent.invoke(state)
+        
+        return result
         
     def evaluate_search_result(self, state: SearchAgentState):
         """主模型对 search agent 的检索结论进行复核推理"""
@@ -175,6 +204,12 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         if not config or not config.get("configurable"):
             raise ValueError("Agent 缺少 thread_id 配置")
         
+        # Initialize database integration with news text if not already initialized
+        if isinstance(initial_state, dict) and "news_text" in initial_state:
+            self.db_integration.initialize_with_news_text(initial_state["news_text"])
+        elif isinstance(initial_state, FactCheckPlanState):
+            self.db_integration.initialize_with_news_text(initial_state.news_text)
+            
         result = super().invoke(initial_state, config)
         
         if self.cli_mode:

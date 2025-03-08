@@ -1,6 +1,7 @@
 import json
 from models import ChatQwen
 from .graph import MetadataExtractAgentGraph
+from db import db_integration
 
 def test_metadata_extractor():
     model = ChatQwen(
@@ -18,11 +19,14 @@ def test_metadata_extractor():
 """
     }
     
+    # 初始化 db news text node
+    db_integration.initialize_with_news_text(news_text=example_initial_state["news_text"])
+    
     metadata_extractor_agent = MetadataExtractAgentGraph(model)
     result = metadata_extractor_agent.invoke(example_initial_state)
     
     # 打印结果
-    print(json.dumps(result, indent=4, ensure_ascii=False))
+    print(result)
 
 if __name__ == "__main__":
     test_metadata_extractor()
