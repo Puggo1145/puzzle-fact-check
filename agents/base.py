@@ -4,6 +4,8 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import MemorySaver
 from langchain.chat_models.base import BaseChatModel
 from utils import view_graph
+from db import AgentDatabaseIntegration
+
 
 ModelT = TypeVar("ModelT", bound=BaseChatModel)
 
@@ -15,7 +17,8 @@ class BaseAgent(Generic[ModelT]):
         self,
         model: ModelT,
         default_config: RunnableConfig = {},
-        cli_mode: bool = True
+        cli_mode: bool = True,
+        db_integration: Optional[AgentDatabaseIntegration] = None
     ) -> None:
         self.default_config = default_config
         if not cli_mode: # 非 cli_mode 下不在 terminal 追踪模型信息
@@ -25,6 +28,7 @@ class BaseAgent(Generic[ModelT]):
         self.memory_saver = MemorySaver()
         self.graph = self._build_graph()
         self.cli_mode = cli_mode
+        self.db_integration = db_integration or AgentDatabaseIntegration()
         
         view_graph(self.graph) # 运行时使用 --view-graph 输出 agent 的 graph 并停止运行
     

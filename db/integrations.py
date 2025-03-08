@@ -13,6 +13,8 @@ from .schema import (
     RetrievalStep,
     SearchResult,
 )
+from .services import DatabaseService
+
 
 # 使用TYPE_CHECKING条件导入来避免循环导入
 if TYPE_CHECKING:
@@ -30,8 +32,8 @@ class AgentDatabaseIntegration:
     def __init__(self):
         # 将 nodes 全部按需提取到 runtime 方便追踪对应层级的 node 对其操作
         self.news_text_node = None
-        self.check_point_nodes = {}
-        self.retrieval_step_nodes = {}
+        self.check_point_nodes: Dict[str, CheckPoint] = {}
+        self.retrieval_step_nodes: Dict[str, RetrievalStep] = {}
     
     def initialize_with_news_text(self, news_text: str) -> NewsText:
         self.news_text_node = NewsTextRepository.create_or_find(news_text)
@@ -53,16 +55,14 @@ class AgentDatabaseIntegration:
         if not self.news_text_node:
             raise ValueError("News text node not initialized. Call initialize_with_news_text first.")
         
-        db_check_points = CheckPointRepository.store_check_points_from_state(self.news_text_node, check_points)
+        CheckPointRepository.store_check_points_from_state(self.news_text_node, check_points)
         
-        for check_point in db_check_points:
-            # 创建 check point nodes 的 map，使用 content 作为键名
+        # 从 db 创建好的 nodes 中，将 check point nodes 和 retrieval step nodes 存入内存以供后续操作
+        for check_point in CheckPoint.nodes.all():
             self.check_point_nodes[check_point.content] = check_point
             
-            # 创建 retrieval step nodes 的 map，使用 purpose 作为键名
-            retrieval_steps = list(RetrievalStep.nodes.filter(verified_by=check_point))
-            for step in retrieval_steps:
-                self.retrieval_step_nodes[step.purpose] = step
+        for step in RetrievalStep.nodes.all():
+            self.retrieval_step_nodes[step.purpose] = step
         
         return self.check_point_nodes
     
@@ -73,14 +73,15 @@ class AgentDatabaseIntegration:
         if not self.retrieval_step_nodes:
             raise ValueError("No retrieval steps found. Store check points first.")
         
-        retrieval_step = self.retrieval_step_nodes.get(search_state.purpose)
-        if not retrieval_step:
+        # 找到对应的 retrieval step node
+        retrieval_step_node = self.get_retrieval_step_node(search_state.purpose)
+        if not retrieval_step_node:
             raise ValueError(f"Retrieval step with purpose '{search_state.purpose}' not found.")
         
-        return SearchRepository.store_search_results_from_state(retrieval_step, search_state)
+        return SearchRepository.store_search_results_from_state(retrieval_step_node, search_state)
     
     def get_check_point_node(self, content: str) -> Optional[CheckPoint]:
         return self.check_point_nodes.get(content)
     
     def get_retrieval_step_node(self, purpose: str) -> Optional[RetrievalStep]:
-        return self.retrieval_step_nodes.get(purpose) 
+        return self.retrieval_step_nodes.get(purpose)

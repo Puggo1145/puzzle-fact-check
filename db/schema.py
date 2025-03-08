@@ -9,8 +9,6 @@ from neomodel import (
 )
 
 
-
-
 class BasicMetadata(StructuredNode):
     """Basic Metadata Node"""
     news_type = StringProperty(required=True)

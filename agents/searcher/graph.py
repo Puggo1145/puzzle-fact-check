@@ -1,5 +1,5 @@
 import json
-from typing import cast, List, Optional
+from typing import cast, List, Optional, TYPE_CHECKING
 from agents.base import BaseAgent
 from langchain_core.messages import ToolCall
 from langchain_core.utils.function_calling import convert_to_openai_tool
@@ -21,7 +21,9 @@ from tools import (
 )
 from langgraph.graph.state import StateGraph
 from .callback import AgentStateCallback
-from db import db_integration
+
+if TYPE_CHECKING:
+    from db import AgentDatabaseIntegration
 
 
 class SearchAgentGraph(BaseAgent[ChatQwen]):
@@ -29,6 +31,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         self,
         model: ChatQwen,
         max_tokens: int,
+        db_integration: Optional["AgentDatabaseIntegration"] = None
     ):
         """
         初始化 search agent 参数
@@ -38,7 +41,8 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         """
         super().__init__(
             model=model,
-            default_config={"callbacks": [AgentStateCallback()]}
+            default_config={"callbacks": [AgentStateCallback()]},
+            db_integration=db_integration
         )
         
         self.max_tokens = max_tokens
@@ -51,8 +55,6 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         ]
         self.tools_by_name = {tool.name: tool for tool in self.tools}
         self.tool_calling_schema = [convert_to_openai_tool(tool) for tool in self.tools]
-        
-        self.db_integration = db_integration
         
     def _build_graph(self):
         """构建搜索代理图"""
@@ -177,7 +179,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
 
         return {
             "statuses": [new_status],
-            "evidences": new_status["new_evidence"] or [],
+            "evidences": new_status["new_evidence"] if new_status["new_evidence"] else [],
             "token_usage": state.token_usage
         }
     
@@ -243,7 +245,4 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
                 f"[Agent Execution Error]: No results from search agent for purpose: {state.purpose}."
             )
         
-        # 找到对应的 retrieval step
-        retrieval_step = self.db_integration.get_retrieval_step_node(state.purpose)
-        if retrieval_step:
-            self.db_integration.store_search_results(state)
+        self.db_integration.store_search_results(state)

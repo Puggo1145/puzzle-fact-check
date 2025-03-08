@@ -16,11 +16,9 @@ from .repository import (
 )
 from .services import DatabaseService
 
-db_integration = AgentDatabaseIntegration()
-
 __all__ = [
     "neo4j",
-    "db_integration",
+    "AgentDatabaseIntegration",
     "NewsTextRepository",
     "SearchRepository",
     "MetadataRepository",

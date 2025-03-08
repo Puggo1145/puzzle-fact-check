@@ -1,5 +1,5 @@
 from typing import List, Optional, TYPE_CHECKING
-from neomodel import db as neo4j
+from neomodel import db
 from neomodel.exceptions import DoesNotExist
 
 from .schema import (
@@ -70,7 +70,7 @@ class DatabaseService:
                 importance=check_point.importance
             ).save()
             
-            news_text_node.checked_by.connect(check_point)
+            news_text_node.has_check_point.connect(check_point_node)
             
             # 分离 CheckPoint 下的 RetrievalStep
             if check_point.retrieval_step:
@@ -141,9 +141,35 @@ class DatabaseService:
         return None
     
     @staticmethod
+    # 你妈的，直接用 Cypher 暴力查了
+    def get_retrieval_steps_for_check_point(check_point: CheckPoint) -> List[RetrievalStep]:
+       """Get all retrieval steps for a check point"""
+       try:
+           # 使用 Cypher 查询来获取与 check_point 相关联的 RetrievalStep 节点
+           # 通过 check_point 的 content 属性来匹配
+           query = """
+           MATCH (c:CheckPoint {content: $content})<-[:VERIFIED_BY]-(r:RetrievalStep)
+           RETURN r
+           """
+           
+           # 执行查询
+           results, _ = db.cypher_query(
+               query, 
+               {"content": check_point.content}
+            )
+           
+           # 将结果转换为 RetrievalStep 对象
+           retrieval_steps = [RetrievalStep.inflate(row[0]) for row in results]
+           
+           return retrieval_steps
+       except Exception as e:
+           print(f"Error getting retrieval steps: {e}")
+           return []
+    
+    @staticmethod
     def transaction(func):
         """Decorator to wrap database operations in a transaction."""
         def wrapper(*args, **kwargs):
-            with neo4j.transaction:
+            with db.transaction:
                 return func(*args, **kwargs)
         return wrapper 

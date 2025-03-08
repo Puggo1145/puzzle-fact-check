@@ -1,9 +1,10 @@
 from .graph import SearchAgentGraph
 from .states import SearchAgentState
 from agents.metadata_extractor.states import BasicMetadata
+from agents.main.states import CheckPoint, RetrievalStep
 from models import ChatQwen
 from utils.llm_callbacks import ReasonerStreamingCallback
-from db import db_integration
+from db import AgentDatabaseIntegration
 
 
 def test_search_agent():
@@ -22,21 +23,20 @@ def test_search_agent():
             how=[],
         ),
         content="网络流传'赛场水中大肠杆菌严重超标'的说法",
-        purpose="获取铁人三项赛出的水质检测原始数据",
+        purpose="获取铁人三项赛出的相关水质事实核查报告",
         expected_sources=[
-            "东京都环境局监测报告",
-            "世界卫生组织检测记录",
             "事实核查组织对相关新闻的核查报告",
         ],
     )
 
     model = ChatQwen(
         model="qwq-plus-0305",
-        # model="qwen-plus-2024-09-19",
-        # temperature=0.6, # 官方不支持 temperature
         streaming=True,
         callbacks=[ReasonerStreamingCallback()]
     )
+    
+    # 和 graph 使用同一个 db_integration
+    db_integration = AgentDatabaseIntegration()
 
     db_integration.initialize_with_news_text(news_text="""
 2021 年 7 月 26 日，东京奥运会男子铁人三项比赛结束后，
@@ -45,9 +45,25 @@ def test_search_agent():
 为"赛场水中大肠杆菌严重超标"、"铁人三项选手在粪水
 中游泳"""
 )
-
-    search_agent = SearchAgentGraph(model=model, max_tokens=12000)
+    db_integration.store_check_points(check_points=[
+        CheckPoint(
+            content=example_input.content,
+            is_verification_point=True,
+            importance="test",
+            retrieval_step=[
+                RetrievalStep(
+                    purpose=example_input.purpose,
+                    expected_sources=example_input.expected_sources,
+                )
+            ]
+        )
+    ])
     
+    search_agent = SearchAgentGraph(
+        model=model,
+        max_tokens=5000,
+        db_integration=db_integration
+    )
     search_agent.invoke(example_input)
 
 

@@ -15,24 +15,25 @@ from .prompts import (
 from tools import SearchWikipediaTool
 from .callback import MetadataExtractorCallback
 
-from db import db_integration
+if TYPE_CHECKING:
+    from db import AgentDatabaseIntegration
 
 
 class MetadataExtractAgentGraph(BaseAgent[ChatQwen]):
     def __init__(
         self, 
         model: ChatQwen,
+        db_integration: Optional["AgentDatabaseIntegration"] = None
     ):
         super().__init__(
             model=model, 
-            default_config={"callbacks": [MetadataExtractorCallback()]}
+            default_config={"callbacks": [MetadataExtractorCallback()]},
+            db_integration=db_integration
         )
 
         self.tools = [SearchWikipediaTool()]
         self.model_with_tools = self.model.bind_tools(tools=self.tools)
         
-        self.db_integration = db_integration
-
     def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(MetadataState)
         

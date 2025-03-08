@@ -18,7 +18,8 @@ from ..searcher.graph import SearchAgentGraph
 from ..metadata_extractor.graph import MetadataExtractAgentGraph
 from ..metadata_extractor.states import MetadataState
 
-from db import db_integration
+if TYPE_CHECKING:
+    from db import AgentDatabaseIntegration
 
 
 class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
@@ -28,19 +29,19 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         metadata_extract_model: ChatQwen,
         search_model: ChatQwen,
         cli_mode: bool = True,
+        db_integration: Optional["AgentDatabaseIntegration"] = None
     ):
         """初始化 plan agent 参数"""
         super().__init__(
             model=model,
             default_config={"callbacks": [MainAgentCallback()]},
-            cli_mode=cli_mode
+            cli_mode=cli_mode,
+            db_integration=db_integration
         )
 
         """初始化子 agent 模型"""
         self.metadata_extract_model = metadata_extract_model
         self.search_model = search_model
-        
-        self.db_integration = db_integration
         
     def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(FactCheckPlanState)
@@ -74,7 +75,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
     
     # nodes
     def store_news_text_to_db(self, state: FactCheckPlanState):
-        db_integration.initialize_with_news_text(state.news_text)
+        self.db_integration.initialize_with_news_text(state.news_text)
         return state
 
     def invoke_metadata_extract_agent(self, state: FactCheckPlanState):

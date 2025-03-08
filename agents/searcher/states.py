@@ -60,7 +60,7 @@ class SearchResult(BaseModel):
 
 
 class SearchAgentState(BaseModel):
-    basic_metadata: BasicMetadata
+    basic_metadata: Optional[BasicMetadata]
     content: str = Field(description="从新闻中提取的事实陈述")
     purpose: str = Field(description="你的检索目标")
     expected_sources: List[str] = Field(
