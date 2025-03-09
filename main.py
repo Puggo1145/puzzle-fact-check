@@ -1,13 +1,14 @@
 from dotenv import load_dotenv
 from agents import MainAgent
 from models import ChatQwen
+from langchain_openai import ChatOpenAI
 
 load_dotenv()
 
 def main():
     model = ChatQwen(model="qwq-32b", streaming=True)
-    search_model = ChatQwen(model="qwq-32b", streaming=True)
-    metadata_extract_model = ChatQwen(model="qwen-turbo")
+    search_model = ChatQwen(model="qwq-plus-latest", streaming=True)
+    metadata_extract_model = ChatOpenAI(model="gpt-4o-mini")
     
     agent = MainAgent(
         model=model,

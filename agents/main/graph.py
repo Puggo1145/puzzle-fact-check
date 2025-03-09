@@ -1,9 +1,5 @@
-from typing import List, Optional, Any, cast, TYPE_CHECKING
 from agents.base import BaseAgent
-from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import AIMessage, BaseMessage
-from models import ChatQwen
-from langchain_deepseek import ChatDeepSeek
 from langgraph.graph.state import CompiledStateGraph, StateGraph, END
 from langgraph.types import interrupt, Command, Send
 from .states import FactCheckPlanState
@@ -16,30 +12,27 @@ from .callback import MainAgentCallback
 from ..searcher.states import SearchAgentState
 from ..searcher.graph import SearchAgentGraph
 from ..metadata_extractor.graph import MetadataExtractAgentGraph
-from ..metadata_extractor.states import MetadataState
 
-if TYPE_CHECKING:
-    from db import AgentDatabaseIntegration
-
+from typing import List, Optional, Any
+from models import ChatQwen
+from langchain_deepseek import ChatDeepSeek
+from langchain_core.runnables import RunnableConfig
+from langchain_openai import ChatOpenAI
 
 class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
     def __init__(
         self,
         model: ChatDeepSeek | ChatQwen,
-        metadata_extract_model: ChatQwen,
+        metadata_extract_model: ChatOpenAI | ChatQwen,
         search_model: ChatQwen,
         cli_mode: bool = True,
-        db_integration: Optional["AgentDatabaseIntegration"] = None
     ):
-        """初始化 plan agent 参数"""
         super().__init__(
             model=model,
             default_config={"callbacks": [MainAgentCallback()]},
             cli_mode=cli_mode,
-            db_integration=db_integration
         )
 
-        """初始化子 agent 模型"""
         self.metadata_extract_model = metadata_extract_model
         self.search_model = search_model
         
@@ -48,7 +41,6 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
 
         graph_builder.add_node("store_news_text_to_db", self.store_news_text_to_db)
         graph_builder.add_node("invoke_metadata_extract_agent", self.invoke_metadata_extract_agent)
-        graph_builder.add_node("store_metadata_state_to_db", self.store_metadata_state_to_db)
         graph_builder.add_node("extract_check_point", self.extract_check_point)
         graph_builder.add_node("invoke_search_agent", self.invoke_search_agent)
         graph_builder.add_node("human_verification", self.human_verification)
@@ -56,8 +48,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
 
         graph_builder.set_entry_point("store_news_text_to_db")
         graph_builder.add_edge("store_news_text_to_db", "invoke_metadata_extract_agent")
-        graph_builder.add_edge("invoke_metadata_extract_agent", "store_metadata_state_to_db")
-        graph_builder.add_edge("store_metadata_state_to_db", "extract_check_point")
+        graph_builder.add_edge("invoke_metadata_extract_agent", "extract_check_point")
         graph_builder.add_edge("extract_check_point", "human_verification")
         graph_builder.add_edge("human_verification", "store_check_points_to_db")
         
@@ -84,12 +75,6 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
 
         return {"metadata": result}
     
-    def store_metadata_state_to_db(self, state: FactCheckPlanState):
-        if state.metadata:
-            self.db_integration.store_metadata_state(state.metadata)
-
-        return state            
-    
     def extract_check_point(self, state: FactCheckPlanState):
         """
         对新闻文本进行核查前规划：
@@ -115,7 +100,10 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         response = self.model.invoke(messages)
         check_points = fact_check_plan_output_parser.invoke(response)
         
-        return {"check_points": check_points["items"], "human_feedback": ""}
+        # 只保存需要核查的 check_point
+        verification_points = [check_point for check_point in check_points["items"] if check_point.is_verification_point]
+        
+        return {"check_points": verification_points, "human_feedback": ""}
 
     def human_verification(self, state: FactCheckPlanState):
         """

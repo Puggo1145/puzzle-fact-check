@@ -62,7 +62,6 @@ def test_search_agent():
     search_agent = SearchAgentGraph(
         model=model,
         max_tokens=5000,
-        db_integration=db_integration
     )
     search_agent.invoke(example_input)
 

@@ -6,7 +6,6 @@ PASSWORD = get_env("NEO4J_PASSWORD")
 
 config.DATABASE_URL = f"bolt://{USERNAME}:{PASSWORD}@localhost:7687"
 
-from neomodel import db as neo4j
 from .integrations import AgentDatabaseIntegration
 from .repository import (
     NewsTextRepository,
@@ -16,9 +15,11 @@ from .repository import (
 )
 from .services import DatabaseService
 
+# 初始化一个全局共享的 integration
+db_integration = AgentDatabaseIntegration()
+
 __all__ = [
-    "neo4j",
-    "AgentDatabaseIntegration",
+    "db_integration",
     "NewsTextRepository",
     "SearchRepository",
     "MetadataRepository",

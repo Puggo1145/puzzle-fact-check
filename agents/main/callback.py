@@ -185,12 +185,7 @@ class MainAgentCallback(BaseCallbackHandler):
                 response.generations[0][0].text
             )
             check_points = parsed_result["items"]
-            selected_check_points = [
-                check_point
-                for check_point in check_points
-                if check_point["is_verification_point"]
-            ]
-            for idx, check_point in enumerate(selected_check_points):
+            for idx, check_point in enumerate(check_points):
                 print(f"\n第 {idx+1} 条陈述")
                 print(f"陈述内容：{check_point['content']}")
                 print(f"核查理由：{check_point['importance']}")

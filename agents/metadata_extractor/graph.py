@@ -1,9 +1,7 @@
-from typing import cast, Optional, TYPE_CHECKING
 from agents.base import BaseAgent
-from langgraph.graph.state import CompiledStateGraph, StateGraph
+from langgraph.graph.state import StateGraph
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import Send
-from models import ChatQwen
 from .states import MetadataState, Knowledge
 from .prompts import (
     basic_metadata_extractor_prompt_template,
@@ -15,20 +13,23 @@ from .prompts import (
 from tools import SearchWikipediaTool
 from .callback import MetadataExtractorCallback
 
-if TYPE_CHECKING:
-    from db import AgentDatabaseIntegration
+from typing import cast
+from models import ChatQwen
+from langchain_openai import ChatOpenAI
+from langgraph.graph.state import CompiledStateGraph
 
 
-class MetadataExtractAgentGraph(BaseAgent[ChatQwen]):
+class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
+    """
+    Metadata Extrct Agent: 负责提取新闻文本的类型和要素
+    """
     def __init__(
         self, 
-        model: ChatQwen,
-        db_integration: Optional["AgentDatabaseIntegration"] = None
+        model: ChatQwen | ChatOpenAI,
     ):
         super().__init__(
             model=model, 
             default_config={"callbacks": [MetadataExtractorCallback()]},
-            db_integration=db_integration
         )
 
         self.tools = [SearchWikipediaTool()]

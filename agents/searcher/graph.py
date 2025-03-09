@@ -1,7 +1,5 @@
 import json
-from typing import cast, List, Optional, TYPE_CHECKING
 from agents.base import BaseAgent
-from langchain_core.messages import ToolCall
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from utils import count_tokens
 from .states import SearchAgentState, Status
@@ -22,27 +20,25 @@ from tools import (
 from langgraph.graph.state import StateGraph
 from .callback import AgentStateCallback
 
-if TYPE_CHECKING:
-    from db import AgentDatabaseIntegration
+from typing import cast, List
+from langchain_core.messages import ToolCall
 
 
 class SearchAgentGraph(BaseAgent[ChatQwen]):
+    """
+    Search Agent: 负责执行具体的检索计划
+        
+    Args:
+        max_tokens：子 agent 检索时允许消耗的最大 token 数
+    """
     def __init__(
         self,
         model: ChatQwen,
         max_tokens: int,
-        db_integration: Optional["AgentDatabaseIntegration"] = None
     ):
-        """
-        初始化 search agent 参数
-        
-        Args:
-            config: 配置参数，包含max_tokens、model等
-        """
         super().__init__(
             model=model,
             default_config={"callbacks": [AgentStateCallback()]},
-            db_integration=db_integration
         )
         
         self.max_tokens = max_tokens
@@ -57,7 +53,6 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         self.tool_calling_schema = [convert_to_openai_tool(tool) for tool in self.tools]
         
     def _build_graph(self):
-        """构建搜索代理图"""
         graph_builder = StateGraph(SearchAgentState)
         
         graph_builder.add_node("check_token_usage", self.check_token_usage)
@@ -103,7 +98,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
                 action="answer",
             )
             return {"statuses": [forced_answer_status]}
-        # 没有超出，继续
+        # 没有超出，继续检索
         else:
             return state
     
