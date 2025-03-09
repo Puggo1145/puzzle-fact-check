@@ -174,7 +174,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
 
         return {
             "statuses": [new_status],
-            "evidences": new_status["new_evidence"] if new_status["new_evidence"] else [],
+            "evidences": new_status.get("new_evidence", []),
             "token_usage": state.token_usage
         }
     

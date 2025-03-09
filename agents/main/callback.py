@@ -187,9 +187,10 @@ class MainAgentCallback(BaseCallbackHandler):
             check_points = parsed_result["items"]
             for idx, check_point in enumerate(check_points):
                 print(f"\n第 {idx+1} 条陈述")
-                print(f"陈述内容：{check_point['content']}")
-                print(f"核查理由：{check_point['importance']}")
-                if isinstance(check_point["retrieval_step"], list):
+                print(f"陈述内容：{check_point.get('content', '无内容')}")
+                print(f"是否需要核查：{check_point.get('is_verification_point', False)}")
+                print(f"核查理由：{check_point.get('importance', '无理由')}")
+                if check_point.get("retrieval_step", None):
                     for idx, plan in enumerate(check_point["retrieval_step"]):
                         print(f"核查计划 {idx+1}：")
                         print(f"- 核查目标：{plan['purpose']}")

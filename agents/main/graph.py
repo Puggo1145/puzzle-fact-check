@@ -45,7 +45,8 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         graph_builder.add_node("invoke_search_agent", self.invoke_search_agent)
         graph_builder.add_node("human_verification", self.human_verification)
         graph_builder.add_node("store_check_points_to_db", self.store_check_points_to_db)
-
+        graph_builder.add_node("evaluate_search_result", self.evaluate_search_result)
+        
         graph_builder.set_entry_point("store_news_text_to_db")
         graph_builder.add_edge("store_news_text_to_db", "invoke_metadata_extract_agent")
         graph_builder.add_edge("invoke_metadata_extract_agent", "extract_check_point")
@@ -58,7 +59,8 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
             ["extract_check_point", END, "invoke_search_agent"]
         )
         
-        graph_builder.set_finish_point("invoke_search_agent")
+        graph_builder.add_edge("invoke_search_agent", "evaluate_search_result")
+        graph_builder.set_finish_point("evaluate_search_result")
 
         return graph_builder.compile(
             checkpointer=self.memory_saver,
@@ -101,7 +103,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         check_points = fact_check_plan_output_parser.invoke(response)
         
         # 只保存需要核查的 check_point
-        verification_points = [check_point for check_point in check_points["items"] if check_point.is_verification_point]
+        verification_points = [check_point for check_point in check_points["items"] if check_point["is_verification_point"]]
         
         return {"check_points": verification_points, "human_feedback": ""}
 
@@ -182,7 +184,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         
     def evaluate_search_result(self, state: SearchAgentState):
         """主模型对 search agent 的检索结论进行复核推理"""
-        pass
+        return state
 
     # 重写 invoke 方法以支持 CLI 模式，令 Main Agent 能够在内部处理 human-in-the-loop 流程
     def invoke(
