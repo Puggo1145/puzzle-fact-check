@@ -50,13 +50,9 @@ class Status(BaseModel):
 
 class SearchResult(BaseModel):
     """ search 的核查结论"""
-    summary: str = Field(description="对所有检索到的信息的总结")
-    conclusion: str = Field(description="基于检索到的信息对核查点的结论")
+    summary: str = Field(description="对检索到的信息的总结")
+    conclusion: str = Field(description="基于检索到的信息得出的核查点真实性的结论")
     confidence: str = Field(description="对结论的置信度评估")
-    sources: List[str] = Field(
-        description="支持结论的信息来源列表",
-        examples=[{"xx新闻": "https://www.example_news.com"}]
-    )
 
 
 class SearchAgentState(BaseModel):

@@ -87,26 +87,38 @@ class SearchGoogleTool(BaseTool):
                 lang=lang_param,
                 region=region,
                 unique=unique,
-                sleep_interval=self._sleep_interval,  # 使用内部控制参数
+                sleep_interval=int(self._sleep_interval),  # 使用内部控制参数，转换为int
                 advanced=True,  # 启用高级搜索
                 timeout=self._timeout,  # 使用内部控制参数
             )
 
             # 结构化搜索结果
-            results = [
-                {
-                    "title": result.title,
-                    "url": result.url,
-                    "description": result.description,
-                }
-                for result in search_results if result.title and result.description
-            ]
+            results = []
+            for result in search_results:
+                try:
+                    # 使用字典访问方式，避免属性访问的类型检查问题
+                    result_dict = {
+                        "title": getattr(result, "title", ""),
+                        "url": getattr(result, "url", ""),
+                        "description": getattr(result, "description", "")
+                    }
+                    if result_dict["title"] and result_dict["description"]:
+                        results.append(result_dict)
+                except Exception:
+                    # 忽略无法处理的结果
+                    continue
 
             return results
 
         except Exception as e:
-            print(f"Google搜索出错: {str(e)}")
-            return None
+            error_message = f"Google搜索出错: {str(e)}"
+            print(error_message)
+            # 返回一个包含错误信息的字典列表，而不是字符串列表
+            return [{
+                "title": "搜索错误",
+                "url": "",
+                "description": error_message
+            }]
         
     def _run(
         self, 
@@ -136,6 +148,15 @@ class SearchGoogleTool(BaseTool):
                 region=region,
                 unique=unique,
             )
+            # 确保即使搜索返回None也能返回一个空列表
+            if result is None:
+                return json.dumps([], ensure_ascii=False)
             return json.dumps(result, ensure_ascii=False)
         except Exception as e:
-            return json.dumps({"error": f"操作执行失败: {str(e)}"}, ensure_ascii=False)
+            # 返回一个包含错误信息的结果，确保LLM能够理解搜索失败
+            error_result = [{
+                "title": "搜索错误",
+                "url": "",
+                "description": f"Google搜索执行失败: {str(e)}"
+            }]
+            return json.dumps(error_result, ensure_ascii=False)

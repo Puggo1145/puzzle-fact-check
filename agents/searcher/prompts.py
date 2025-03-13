@@ -24,6 +24,7 @@ system_prompt_template = SystemMessagePromptTemplate.from_template(
 {expected_sources}
 
 # 可用工具：
+在输出工具调用信息时，严格遵循 JSON 响应格式，禁止混杂 Python 字面量，例如: True, False, None 等
 {tools_schema}
 
 # 我的任务：
@@ -92,10 +93,7 @@ generate_answer_output_parser = JsonOutputParser(pydantic_object=SearchResult)
 # 添加回答生成的提示模板
 generate_answer_prompt_template = AIMessagePromptTemplate.from_template(
     template="""
-现在我已经收集了足够的信息，我需要基于检索到的信息，给出该核查点的核查结论。
-
-# 最后一次工具调用结果：
-{retrieved_information}
+我已经收集了足够的信息，我需要基于检索到的信息，给出核查结论。
 
 # 我的检索历史记录：
 {statuses}
@@ -104,8 +102,8 @@ generate_answer_prompt_template = AIMessagePromptTemplate.from_template(
 {evidences}
 
 # 任务：
-请提供一个全面的总结，明确的结论，支持你结论的信息来源，以及你对结论的置信度评估
-在回答中，请充分利用收集到的证据片段，确保你的结论有坚实的事实基础
+我需要提供一个全面、充分的核查结论
+在回答中，我要充分利用收集到的证据片段，确保我的结论有坚实的事实基础
 
 # 响应格式：
 {format_instructions}

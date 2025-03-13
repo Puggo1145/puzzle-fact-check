@@ -14,6 +14,7 @@ from .schema import (
     SearchResult as SearchResultNode,
 )
 from utils import singleton
+from utils.exceptions import AgentExecutionException
 
 from typing import Dict, List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
@@ -36,7 +37,7 @@ class AgentDatabaseIntegration:
         self.retrieval_step_nodes: Dict[str, RetrievalStepNode] = {}
     
     def initialize_with_news_text(self, news_text: str) -> NewsTextNode:
-        self.news_text_node = NewsTextRepository.create_or_find(news_text)
+        self.news_text_node = NewsTextRepository.create(news_text)
         return self.news_text_node
     
     def store_metadata_state(
@@ -68,13 +69,28 @@ class AgentDatabaseIntegration:
         self, 
         search_state: SearchAgentState
     ) -> Optional[SearchResultNode]:
+        if not search_state.result:
+            raise AgentExecutionException(
+                agent_type="searcher",
+                purpose=search_state.purpose,
+                message="No results from search agent."
+            )
+        
         if not self.retrieval_step_nodes:
-            raise ValueError("No retrieval steps found. Store check points first.")
+            raise AgentExecutionException(
+                agent_type="searcher",
+                purpose=search_state.purpose,
+                message="No retrieval steps found. Store check points first."
+            )
         
         # 找到对应的 retrieval step node
         retrieval_step_node = self.get_retrieval_step_node(search_state.purpose)
         if not retrieval_step_node:
-            raise ValueError(f"Retrieval step with purpose '{search_state.purpose}' not found.")
+            raise AgentExecutionException(
+                agent_type="searcher",
+                purpose=search_state.purpose,
+                message=f"Retrieval step with purpose '{search_state.purpose}' not found."
+            )
         
         return SearchRepository.store_search_results_from_state(retrieval_step_node, search_state)
     

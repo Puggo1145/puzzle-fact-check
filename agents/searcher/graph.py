@@ -168,13 +168,14 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
 
         response = self.model.invoke(input=messages)
         new_status = evaluate_current_status_output_parser.parse(str(response.content))
+        new_evidence = new_status.get("new_evidence", [])
         
         # 计算 token 消耗
         state.token_usage += count_tokens(messages + [response])
 
         return {
             "statuses": [new_status],
-            "evidences": new_status.get("new_evidence", []),
+            "evidences": new_evidence,
             "token_usage": state.token_usage
         }
     
@@ -218,7 +219,6 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         )
 
         generate_answer_prompt = generate_answer_prompt_template.format(
-            retrieved_information=state.latest_tool_messages,
             statuses=state.statuses,
             evidences=state.evidences,
         )
@@ -235,9 +235,4 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         }
     
     def store_search_result_to_db(self, state: SearchAgentState):
-        if not state.result:
-            raise RuntimeWarning(
-                f"[Agent Execution Error]: No results from search agent for purpose: {state.purpose}."
-            )
-        
         self.db_integration.store_search_results(state)

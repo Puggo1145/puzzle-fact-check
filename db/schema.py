@@ -62,7 +62,6 @@ class SearchResult(StructuredNode):
     summary = StringProperty(required=True)
     conclusion = StringProperty(required=True)
     confidence = StringProperty(required=True)
-    sources = ArrayProperty(StringProperty(), required=True)
 
 
 class Evidence(StructuredNode):

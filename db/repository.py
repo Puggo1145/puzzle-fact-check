@@ -16,15 +16,8 @@ if TYPE_CHECKING:
 
 class NewsTextRepository:
     @staticmethod
-    def create_or_find(content: str) -> NewsTextNode:
-        """创建一个 NewsText node, 如果存在则返回该 node."""
-        try:
-            news_text = DatabaseService.find_news_text_by_content(content)
-            if news_text:
-                return news_text
-        except Exception:
-            pass
-        
+    def create(content: str) -> NewsTextNode:
+        """创建一个 NewsText node"""
         return DatabaseService.create_news_text(content)
 
 

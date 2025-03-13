@@ -45,3 +45,10 @@ human_feedback_prompt_template = HumanMessagePromptTemplate.from_template("""
 {human_feedback}
 """
 )
+
+evaluate_search_result_prompt_template = HumanMessagePromptTemplate.from_template("""
+你已经获取了核查点对应的检索结果，请根据检索结果对核查点进行评估，并给出评估结论：
+{search_result}
+"""
+)
+

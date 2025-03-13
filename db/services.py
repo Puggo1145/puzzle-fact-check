@@ -95,7 +95,6 @@ class DatabaseService:
             summary=search_state.result.summary,
             conclusion=search_state.result.conclusion,
             confidence=search_state.result.confidence,
-            sources=search_state.result.sources
         ).save()
         
         retrieval_step_node.has_result.connect(search_result_node)
