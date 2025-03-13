@@ -49,9 +49,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         graph_builder = StateGraph(FactCheckPlanState)
 
         graph_builder.add_node("store_news_text_to_db", self.store_news_text_to_db)
-        graph_builder.add_node(
-            "invoke_metadata_extract_agent", self.invoke_metadata_extract_agent
-        )
+        graph_builder.add_node("invoke_metadata_extract_agent", self.invoke_metadata_extract_agent)
         graph_builder.add_node("extract_check_point", self.extract_check_point)
         graph_builder.add_node("invoke_search_agent", self.invoke_search_agent)
         graph_builder.add_node("human_verification", self.human_verification)
@@ -168,15 +166,14 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
             print("无法从文本中提取核查点或元数据，请检查文本")
             return END
 
+        print(f"state.check_points: {state.check_points}")
+
         # 提取 retireval step 分配检索任务
         retrieval_tasks = []
         for check_point in state.check_points:
-            if not check_point.retrieval_step:
-                continue
-
-            for retrieval_step in check_point.retrieval_step:
-                retrieval_tasks.append(
-                    Send(
+            if check_point.retrieval_step:
+                for retrieval_step in check_point.retrieval_step:
+                    retrieval_tasks.append(Send(
                         "invoke_search_agent",
                         {
                             "state": SearchAgentState(
@@ -188,8 +185,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
                             "check_point_id": check_point.id,
                             "retrieval_step_id": retrieval_step.id,
                         },
-                    )
-                )
+                    ))
 
         # 如果有检索任务，开始检索
         if retrieval_tasks:
@@ -199,41 +195,43 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
 
     def invoke_search_agent(self, args: Dict[str, Any]):
         """根据检索规划调用子检索模型执行深度检索"""
-        search_agent = SearchAgentGraph(
-            model=self.search_model,
-            max_tokens=self.max_search_tokens,
-        )
-        result = search_agent.invoke(args["state"])
+        return Command(goto=END)
+        
+        # search_agent = SearchAgentGraph(
+        #     model=self.search_model,
+        #     max_tokens=self.max_search_tokens,
+        # )
+        # result = search_agent.invoke(args["state"])
 
-        # 将结论合并到 main state 中对应的 retrieval step 中
-        state = self.graph.get_state({"configurable": args["thread_config"]})
-        if not isinstance(state, FactCheckPlanState):
-            raise AgentExecutionException(
-                agent_type="main",
-                message="无法获取到 Main Agent 的状态",
-            )
+        # # 将结论合并到 main state 中对应的 retrieval step 中
+        # state = self.graph.get_state(config=self.default_config)
+        # if not isinstance(state, FactCheckPlanState):
+        #     raise AgentExecutionException(
+        #         agent_type="main",
+        #         message="无法获取到 Main Agent 的状态",
+        #     )
 
-        updated_check_points = [
-            (
-                cp
-                if cp.id != args["check_point_id"]
-                else cp.model_copy(
-                    update={
-                        "retrieval_step": [
-                            (
-                                step
-                                if step.id != args["retrieval_step_id"]
-                                else step.model_copy(update={"result": result})
-                            )
-                            for step in cp.retrieval_step # type: ignore 此处的 retrieval step 必然存在
-                        ]
-                    }
-                )
-            )
-            for cp in state.check_points
-        ]
+        # updated_check_points = [
+        #     (
+        #         cp
+        #         if cp.id != args["check_point_id"]
+        #         else cp.model_copy(
+        #             update={
+        #                 "retrieval_step": [
+        #                     (
+        #                         step
+        #                         if step.id != args["retrieval_step_id"]
+        #                         else step.model_copy(update={"result": result})
+        #                     )
+        #                     for step in cp.retrieval_step # type: ignore 此处的 retrieval step 必然存在
+        #                 ]
+        #             }
+        #         )
+        #     )
+        #     for cp in state.check_points
+        # ]
 
-        return {"check_points": updated_check_points}
+        # return {"check_points": updated_check_points}
 
     def evaluate_search_result(self, state: SearchAgentState):
         """主模型对 search agent 的检索结论进行复核推理"""
@@ -243,12 +241,6 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
     def invoke(self, initial_state: Any, config: Optional[RunnableConfig] = None):
         if not config or not config.get("configurable"):
             raise ValueError("Agent 缺少 thread_id 配置")
-
-        # Initialize database integration with news text if not already initialized
-        if isinstance(initial_state, dict) and "news_text" in initial_state:
-            self.db_integration.initialize_with_news_text(initial_state["news_text"])
-        elif isinstance(initial_state, FactCheckPlanState):
-            self.db_integration.initialize_with_news_text(initial_state.news_text)
 
         result = super().invoke(initial_state, config)
 
@@ -329,18 +321,20 @@ def get_user_feedback():
 
 def get_formatted_check_points(check_points: Dict[str, Any]):
     """格式化 check points"""
-    return [
+    formatted_check_points = [
         {
+            **check_point,
             "id": str(uuid.uuid4()),  # 为每个 check point 生成唯一 id
             "retrieval_step": [
                 {
-                    "id": str(uuid.uuid4()),  # 为每个 retrieval step 生成唯一 id
                     **retrieval_step,
+                    "id": str(uuid.uuid4()),  # 为每个 retrieval step 生成唯一 id
                 }
                 for retrieval_step in check_point["retrieval_step"]
             ],
-            **check_point,
         }
         for check_point in check_points["items"]
         if check_point["is_verification_point"]
     ]
+    
+    return formatted_check_points

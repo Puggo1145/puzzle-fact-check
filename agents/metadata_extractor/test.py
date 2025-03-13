@@ -26,7 +26,6 @@ def test_metadata_extractor():
     
     metadata_extractor_agent = MetadataExtractAgentGraph(
         model,
-        db_integration=db_integration
     )
     metadata_extractor_agent.invoke(example_initial_state)
 

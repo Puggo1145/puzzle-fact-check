@@ -50,7 +50,7 @@ class CheckPoints(BaseModel):
 class FactCheckPlanState(BaseModel):
     news_text: str = Field(description="待核查的新闻文本")
     metadata: Optional[MetadataState] = Field(description="新闻元数据", default=None)
-    check_points: Annotated[List[CheckPoint], operator.add]
+    check_points: List[CheckPoint] = Field(default_factory=list)
     human_feedback: Optional[str] = Field(
         description="人类对于核查方案的评估结果",
         default=None

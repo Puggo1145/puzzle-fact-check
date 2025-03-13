@@ -167,17 +167,19 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         messages = [system_prompt, evaluate_current_status_prompt]
 
         response = self.model.invoke(input=messages)
+        state.token_usage += count_tokens(messages + [response])
+        
         new_status = evaluate_current_status_output_parser.parse(str(response.content))
         new_evidence = new_status.get("new_evidence", [])
-        
-        # 计算 token 消耗
-        state.token_usage += count_tokens(messages + [response])
 
-        return {
+        updated_state = {
             "statuses": [new_status],
-            "evidences": new_evidence,
             "token_usage": state.token_usage
         }
+        if new_evidence:
+            updated_state["evidences"] = new_evidence
+        
+        return updated_state
     
     def tool_node(self, state: SearchAgentState):
         """执行工具调用"""
