@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Union, cast
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
 from langchain_core.outputs import ChatGenerationChunk, GenerationChunk
-from .prompts import fact_check_plan_output_parser
+from .prompts import fact_check_plan_output_parser, evaluate_search_result_output_parser
 
 
 class MainAgentCallback(BaseCallbackHandler):
@@ -28,6 +28,8 @@ class MainAgentCallback(BaseCallbackHandler):
         self.has_content_started = False
         # 跟踪当前是否在 planner graph 内部
         self.is_in_planner_graph = False
+        # 跟踪当前正在执行的节点
+        self.current_node = None
 
         # ANSI color codes
         self.colors = {
@@ -85,6 +87,19 @@ class MainAgentCallback(BaseCallbackHandler):
                 self.is_in_planner_graph = False
             else:
                 self.is_in_planner_graph = True
+                
+            # 检查当前节点
+            if "evaluate_search_result" in chain_name.lower():
+                self.current_node = "evaluate_search_result"
+                self._print_colored("\n🔍 开始评估检索结果...", "yellow", True)
+            elif "write_fact_checking_report" in chain_name.lower():
+                self.current_node = "write_fact_checking_report"
+                self._print_colored("\n📝 开始生成事实核查报告...", "green", True)
+            elif "extract_check_point" in chain_name.lower():
+                self.current_node = "extract_check_point"
+            else:
+                self.current_node = None
+                
         except Exception as e:
             # 出错时保持在 planner graph 内
             self.is_in_planner_graph = True
@@ -95,6 +110,7 @@ class MainAgentCallback(BaseCallbackHandler):
         """Called when a chain ends, reset to planner graph context"""
         # 链结束后重置为 planner 上下文
         self.is_in_planner_graph = True
+        self.current_node = None
 
     def on_llm_start(
         self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
@@ -113,11 +129,25 @@ class MainAgentCallback(BaseCallbackHandler):
             if serialized is not None and isinstance(serialized, dict):
                 model_name = serialized.get("name", "Unknown Model")
 
-            self._print_colored(
-                f"\n🧠 LLM 开始推理 (调用 #{self.llm_call_count}, {model_name})",
-                "purple",
-                True,
-            )
+            # 根据当前节点显示不同的开始信息
+            if self.current_node == "evaluate_search_result":
+                self._print_colored(
+                    f"\n🧠 LLM 开始评估检索结果 (调用 #{self.llm_call_count}, {model_name})",
+                    "yellow",
+                    True,
+                )
+            elif self.current_node == "write_fact_checking_report":
+                self._print_colored(
+                    f"\n🧠 LLM 开始撰写核查报告 (调用 #{self.llm_call_count}, {model_name})",
+                    "green",
+                    True,
+                )
+            else:
+                self._print_colored(
+                    f"\n🧠 LLM 开始推理 (调用 #{self.llm_call_count}, {model_name})",
+                    "purple",
+                    True,
+                )
         except Exception as e:
             self._print_colored(f"Error in on_llm_start: {str(e)}", "red")
 
@@ -157,9 +187,18 @@ class MainAgentCallback(BaseCallbackHandler):
                 # Handle regular content (final output)
                 elif hasattr(chunk_message, "content") and chunk_message.content:
                     if not self.has_content_started:
-                        self._print_colored(
-                            "\n🔄 思考完成，LLM 正在规划核查方案...", "cyan", True
-                        )
+                        if self.current_node == "evaluate_search_result":
+                            self._print_colored(
+                                "\n🔄 思考完成，LLM 正在评估检索结果...", "yellow", True
+                            )
+                        elif self.current_node == "write_fact_checking_report":
+                            self._print_colored(
+                                "\n🔄 思考完成，LLM 正在撰写核查报告...", "green", True
+                            )
+                        else:
+                            self._print_colored(
+                                "\n🔄 思考完成，LLM 正在规划核查方案...", "cyan", True
+                            )
                         self.has_content_started = True
             else:
                 # Fallback for simple token streaming
@@ -179,25 +218,66 @@ class MainAgentCallback(BaseCallbackHandler):
                 self._print_colored(f"\n⏱️ 推理耗时: {generation_time:.2f}秒", "blue")
 
             # 控制台格式化输出
-            self._print_colored("\n📋 规划结果:", "cyan", True)
+            self._print_colored("\n📋 输出:", "cyan", True)
 
-            parsed_result = fact_check_plan_output_parser.parse(
-                response.generations[0][0].text
-            )
-            check_points = parsed_result["items"]
-            for idx, check_point in enumerate(check_points):
-                print(f"\n第 {idx+1} 条陈述")
-                print(f"陈述内容：{check_point.get('content', '无内容')}")
-                print(f"是否需要核查：{check_point.get('is_verification_point', False)}")
-                print(f"核查理由：{check_point.get('importance', '无理由')}")
-                if check_point.get("retrieval_step", None):
-                    for idx, plan in enumerate(check_point["retrieval_step"]):
-                        print(f"核查计划 {idx+1}：")
-                        print(f"- 核查目标：{plan['purpose']}")
-                        print(f"- 目标信源类型：{plan['expected_sources']}")
+            # 根据当前节点处理不同的输出
+            if self.current_node == "evaluate_search_result":
+                try:
+                    parsed_result = evaluate_search_result_output_parser.parse(
+                        response.generations[0][0].text
+                    )
+                    self._print_verification_results(parsed_result)
+                except Exception as e:
+                    self._print_colored(f"解析评估结果失败: {str(e)}", "red")
+                    print(response.generations[0][0].text)
+            elif self.current_node == "write_fact_checking_report":
+                # 直接打印报告内容，不尝试解析为JSON
+                report_text = response.generations[0][0].text
+                self._print_colored("\n📊 事实核查报告:", "green", True)
+                print(report_text)
+            else:
+                # 默认处理核查计划
+                try:
+                    parsed_result = fact_check_plan_output_parser.parse(
+                        response.generations[0][0].text
+                    )
+                    check_points = parsed_result["items"]
+                    for idx, check_point in enumerate(check_points):
+                        print(f"\n第 {idx+1} 条陈述")
+                        print(f"陈述内容：{check_point.get('content', '无内容')}")
+                        print(f"是否需要核查：{check_point.get('is_verification_point', False)}")
+                        print(f"核查理由：{check_point.get('importance', '无理由')}")
+                        if check_point.get("retrieval_step", None):
+                            for idx, plan in enumerate(check_point["retrieval_step"]):
+                                print(f"核查计划 {idx+1}：")
+                                print(f"- 核查目标：{plan['purpose']}")
+                                print(f"- 目标信源类型：{plan['expected_sources']}")
+                except Exception as e:
+                    self._print_colored(f"解析核查计划失败: {str(e)}", "red")
+                    print(response.generations[0][0].text)
 
         except Exception as e:
             self._print_colored(f"Error in on_llm_end: {str(e)}", "red")
+
+    def _print_verification_results(self, verification_results):
+        """打印检索结果评估信息"""
+        if not isinstance(verification_results, dict) or "items" not in verification_results:
+            self._print_colored("无法解析评估结果", "red")
+            return
+            
+        self._print_colored("\n🔍 检索结果评估:", "yellow", True)
+        
+        for item in verification_results["items"]:
+            retrieval_step_id = item.get("retrieval_step_id", "未知ID")
+            verified = item.get("verified", False)
+            reasoning = item.get("reasoning", "无推理过程")
+            
+            status_emoji = "✅" if verified else "❌"
+            status_color = "green" if verified else "red"
+            
+            self._print_colored(f"\n{status_emoji} 检索步骤 ID: {retrieval_step_id}", status_color, True)
+            self._print_colored(f"📝 评估推理: {reasoning}", "yellow")
+            self._print_colored(f"🔍 结论: {'认可' if verified else '不认可'}", status_color, True)
 
     def _print_formatted_plan(self, plan_data):
         """Format and print the planning results with appropriate emojis"""
@@ -244,6 +324,27 @@ class MainAgentCallback(BaseCallbackHandler):
                                     self._print_colored(
                                         f"     预期来源: {sources}", "cyan"
                                     )
+                                
+                                # 显示检索结果和验证结果（如果有）
+                                if "result" in step and step["result"]:
+                                    result = step["result"]
+                                    self._print_colored(
+                                        f"     📊 检索结论: {result.get('conclusion', '无结论')}",
+                                        "yellow"
+                                    )
+                                    self._print_colored(
+                                        f"     🔍 置信度: {result.get('confidence', '未知')}",
+                                        "yellow"
+                                    )
+                                
+                                if "verification" in step and step["verification"]:
+                                    verification = step["verification"]
+                                    status_emoji = "✅" if verification.get("verified", False) else "❌"
+                                    status_color = "green" if verification.get("verified", False) else "red"
+                                    self._print_colored(
+                                        f"     {status_emoji} 主模型评估: {'认可' if verification.get('verified', False) else '不认可'}",
+                                        status_color
+                                    )
         except Exception as e:
             self._print_colored(f"Error in _print_formatted_plan: {str(e)}", "red")
 
@@ -262,6 +363,15 @@ class MainAgentCallback(BaseCallbackHandler):
                 
             self._print_colored(f"\n🛠️ 执行动作: {action.tool}", "purple", True)
             self._print_colored(f"📥 输入: {action.tool_input}", "purple")
+            
+            # 设置当前节点
+            if "evaluate_search_result" in tool_name:
+                self.current_node = "evaluate_search_result"
+            elif "write_fact_checking_report" in tool_name:
+                self.current_node = "write_fact_checking_report"
+            elif "extract_check_point" in tool_name:
+                self.current_node = "extract_check_point"
+            
         except Exception as e:
             self._print_colored(f"Error in on_agent_action: {str(e)}", "red")
 
@@ -271,7 +381,15 @@ class MainAgentCallback(BaseCallbackHandler):
             return
 
         try:
-            self._print_colored(f"\n✅ 代理完成: {finish.return_values}", "green", True)
+            if self.current_node == "evaluate_search_result":
+                self._print_colored(f"\n✅ 检索结果评估完成", "green", True)
+            elif self.current_node == "write_fact_checking_report":
+                self._print_colored(f"\n✅ 事实核查报告生成完成", "green", True)
+            else:
+                self._print_colored(f"\n✅ 代理完成: {finish.return_values}", "green", True)
+                
+            # 重置当前节点
+            self.current_node = None
         except Exception as e:
             self._print_colored(f"Error in on_agent_finish: {str(e)}", "red")
 
@@ -301,6 +419,15 @@ class MainAgentCallback(BaseCallbackHandler):
                 self.is_in_planner_graph = False
             else:
                 self.is_in_planner_graph = True
+                
+            # 设置当前节点
+            if "evaluate_search_result" in tool_name:
+                self.current_node = "evaluate_search_result"
+            elif "write_fact_checking_report" in tool_name:
+                self.current_node = "write_fact_checking_report"
+            elif "extract_check_point" in tool_name:
+                self.current_node = "extract_check_point"
+                
         except Exception as e:
             # 出错时保持在 planner graph 内
             self.is_in_planner_graph = True

@@ -5,6 +5,22 @@ from ..metadata_extractor.states import MetadataState
 from ..searcher.states import SearchResult, Evidence
 
 
+class RetrievalResultVerification(BaseModel):
+    retrieval_step_id: str = Field(
+        description="对应检索步骤的 id",
+    )
+    reasoning: str = Field(
+        description="对该检索步骤结论的推理",
+    )
+    verified: bool = Field(
+        description="是否认可该检索步骤的结论",
+        default=False
+    )
+
+
+class RetrievalResultVerifications(BaseModel):
+    items: List[RetrievalResultVerification] = Field(description="检索步骤的核查结论", default_factory=list)
+
 # 合并了 SearchResult 和 Evidence 的核查结论
 class RetrievalResult(SearchResult):
     check_point_id: str
@@ -26,6 +42,10 @@ class RetrievalStep(BaseModel):
     )
     result: Optional[RetrievalResult] = Field(
         description="由 search agent 执行检索后返回的核查结论",
+        default=None
+    )
+    verification: Optional[RetrievalResultVerification] = Field(
+        description="主模型对 search agent 检索结果的复核",
         default=None
     )
 
