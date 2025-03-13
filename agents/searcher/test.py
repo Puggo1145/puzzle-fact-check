@@ -9,6 +9,8 @@ from db import AgentDatabaseIntegration
 
 def test_search_agent():
     example_input = SearchAgentState(
+        check_point_id="1",
+        retrieval_step_id="1",
         basic_metadata=BasicMetadata(
             news_type="体育新闻",
             who=["挪威选手 Kristian Blummenfelt", "其他铁人三项选手"],
@@ -47,11 +49,13 @@ def test_search_agent():
 )
     db_integration.store_check_points(check_points=[
         CheckPoint(
+            id="1",
             content=example_input.content,
             is_verification_point=True,
             importance="test",
             retrieval_step=[
                 RetrievalStep(
+                    id="1",
                     purpose=example_input.purpose,
                     expected_sources=example_input.expected_sources,
                 )

@@ -7,6 +7,8 @@ from ..searcher.states import SearchResult, Evidence
 
 # 合并了 SearchResult 和 Evidence 的核查结论
 class RetrievalResult(SearchResult):
+    check_point_id: str
+    retrieval_step_id: str
     evidences: Annotated[List[Evidence], operator.add] = Field(
         description="检索中收集的，与核查目标构成重要关系的证据片段",
         default_factory=list
@@ -42,7 +44,6 @@ class CheckPoint(BaseModel):
     )
 
     
-
 class CheckPoints(BaseModel):
     items: List[CheckPoint] = Field(description="从新闻文本中提取的核查点", default_factory=list)
 
@@ -55,3 +56,4 @@ class FactCheckPlanState(BaseModel):
         description="人类对于核查方案的评估结果",
         default=None
     )
+    aggregated_retrieved_results: Annotated[List[RetrievalResult], operator.add] = Field(default_factory=list)

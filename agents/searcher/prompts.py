@@ -24,7 +24,7 @@ system_prompt_template = SystemMessagePromptTemplate.from_template(
 {expected_sources}
 
 # 可用工具：
-在输出工具调用信息时，严格遵循 JSON 响应格式，禁止混杂 Python 字面量，例如: True, False, None 等
+在输出工具调用信息时，你只能使用 JSON 的合法字符！
 {tools_schema}
 
 # 我的任务：
@@ -54,7 +54,7 @@ system_prompt_template = SystemMessagePromptTemplate.from_template(
 
 # 限制条件：
 在检索时，你必！须！遵守以下策略：
-1. ！严格遵循 JSON 响应格式，禁止混杂 Python 字面量，例如: True, False, None！
+1. 在输出工具调用信息时，你只能使用 JSON 的合法字符！
 2. 禁止重复检索：如果连续 2 次使用相同的检索方法和 query 都没有获得新信息，请尝试:
  - 更换搜索引擎
  - 修改搜索关键词

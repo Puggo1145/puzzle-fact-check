@@ -3,7 +3,7 @@ from agents.base import BaseAgent
 from langchain_core.messages import AIMessage, BaseMessage
 from langgraph.graph.state import CompiledStateGraph, StateGraph, END
 from langgraph.types import interrupt, Command, Send
-from .states import FactCheckPlanState
+from .states import FactCheckPlanState, RetrievalResult
 from .prompts import (
     fact_check_plan_prompt_template,
     fact_check_plan_output_parser,
@@ -56,6 +56,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         graph_builder.add_node(
             "store_check_points_to_db", self.store_check_points_to_db
         )
+        graph_builder.add_node("merge_retrieved_results", self.merge_retrieved_results)
         graph_builder.add_node("evaluate_search_result", self.evaluate_search_result)
 
         graph_builder.set_entry_point("store_news_text_to_db")
@@ -70,7 +71,8 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
             ["extract_check_point", END, "invoke_search_agent"],
         )
 
-        graph_builder.add_edge("invoke_search_agent", "evaluate_search_result")
+        graph_builder.add_edge(["invoke_search_agent"], "merge_retrieved_results")
+        graph_builder.add_edge("merge_retrieved_results", "evaluate_search_result")
         graph_builder.set_finish_point("evaluate_search_result")
 
         return graph_builder.compile(
@@ -163,10 +165,10 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
             or not state.metadata
             or not state.metadata.basic_metadata
         ):
-            print("无法从文本中提取核查点或元数据，请检查文本")
-            return END
-
-        print(f"state.check_points: {state.check_points}")
+            raise AgentExecutionException(
+                agent_type="main",
+                message="无法从文本中提取核查点或元数据，请检查文本",
+            )
 
         # 提取 retireval step 分配检索任务
         retrieval_tasks = []
@@ -175,16 +177,14 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
                 for retrieval_step in check_point.retrieval_step:
                     retrieval_tasks.append(Send(
                         "invoke_search_agent",
-                        {
-                            "state": SearchAgentState(
-                                basic_metadata=state.metadata.basic_metadata,
-                                content=check_point.content,
-                                purpose=retrieval_step.purpose,
-                                expected_sources=retrieval_step.expected_sources,
-                            ),
-                            "check_point_id": check_point.id,
-                            "retrieval_step_id": retrieval_step.id,
-                        },
+                        SearchAgentState(
+                            check_point_id=check_point.id,
+                            retrieval_step_id=retrieval_step.id,
+                            basic_metadata=state.metadata.basic_metadata,
+                            content=check_point.content,
+                            purpose=retrieval_step.purpose,
+                            expected_sources=retrieval_step.expected_sources,
+                        ),
                     ))
 
         # 如果有检索任务，开始检索
@@ -193,46 +193,51 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
 
         return END
 
-    def invoke_search_agent(self, args: Dict[str, Any]):
+    def invoke_search_agent(self, state: FactCheckPlanState):
         """根据检索规划调用子检索模型执行深度检索"""
         search_agent = SearchAgentGraph(
             model=self.search_model,
             max_tokens=self.max_search_tokens,
         )
-        result = search_agent.invoke(args["state"])
-
-        # 将结论合并到 main state 中对应的 retrieval step 中
-        state = self.graph.get_state(config=self.default_config)
-        if not isinstance(state, FactCheckPlanState):
-            raise AgentExecutionException(
-                agent_type="main",
-                message="无法获取到 Main Agent 的状态",
-            )
-
-        updated_check_points = [
-            (
-                cp
-                if cp.id != args["check_point_id"]
-                else cp.model_copy(
-                    update={
-                        "retrieval_step": [
-                            (
-                                step
-                                if step.id != args["retrieval_step_id"]
-                                else step.model_copy(update={"result": result})
-                            )
-                            for step in cp.retrieval_step # type: ignore 此处的 retrieval step 必然存在
-                        ]
-                    }
-                )
-            )
-            for cp in state.check_points
-        ]
-
-        return {"check_points": updated_check_points}
-
-    def evaluate_search_result(self, state: SearchAgentState):
+        search_state = search_agent.invoke(state)
+        
+        retrieval_result = RetrievalResult(
+            check_point_id=search_state["check_point_id"],
+            retrieval_step_id=search_state["retrieval_step_id"],
+            summary=search_state["result"]["summary"],
+            conclusion=search_state["result"]["conclusion"],
+            confidence=search_state["result"]["confidence"],
+            evidences=search_state["evidences"],
+        )
+        
+        return {"aggregated_retrieved_results": [retrieval_result]}
+    
+    def merge_retrieved_results(self, state: FactCheckPlanState):
+        """将检索结果合并到 main state 中对应的 retrieval step 中"""
+        check_point_map = {cp.id: cp for cp in state.check_points}
+        
+        for retrieval_result in state.aggregated_retrieved_results:
+            check_point = check_point_map.get(retrieval_result.check_point_id)
+            if check_point and check_point.retrieval_step:
+                step_map = {step.id: step for step in check_point.retrieval_step}
+                step = step_map.get(retrieval_result.retrieval_step_id)
+                if step:
+                    step.result = retrieval_result
+                    
+        return {"check_points": list(check_point_map.values())}
+    
+    def evaluate_search_result(self, state: FactCheckPlanState):
         """主模型对 search agent 的检索结论进行复核推理"""
+        print(f"检查点数量: {len(state.check_points)}")
+        
+        # 详细打印每个检查点及其检索步骤的结果
+        for i, cp in enumerate(state.check_points):
+            print(f"检查点 {i+1}: {cp.content[:50]}...")
+            if cp.retrieval_step:
+                for j, step in enumerate(cp.retrieval_step):
+                    result_status = "有结果" if step.result else "无结果"
+                    print(f"  - 检索步骤 {j+1}: {step.purpose[:30]}... ({result_status})")
+        
         return state
 
     # 重写 invoke 方法以支持 CLI 模式，令 Main Agent 能够在内部处理 human-in-the-loop 流程

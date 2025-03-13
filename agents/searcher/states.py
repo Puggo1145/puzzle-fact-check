@@ -56,6 +56,8 @@ class SearchResult(BaseModel):
 
 
 class SearchAgentState(BaseModel):
+    check_point_id: str
+    retrieval_step_id: str
     basic_metadata: BasicMetadata
     content: str = Field(description="从新闻中提取的事实陈述")
     purpose: str = Field(description="你的检索目标")
