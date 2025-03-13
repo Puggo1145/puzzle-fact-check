@@ -195,43 +195,41 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
 
     def invoke_search_agent(self, args: Dict[str, Any]):
         """根据检索规划调用子检索模型执行深度检索"""
-        return Command(goto=END)
-        
-        # search_agent = SearchAgentGraph(
-        #     model=self.search_model,
-        #     max_tokens=self.max_search_tokens,
-        # )
-        # result = search_agent.invoke(args["state"])
+        search_agent = SearchAgentGraph(
+            model=self.search_model,
+            max_tokens=self.max_search_tokens,
+        )
+        result = search_agent.invoke(args["state"])
 
-        # # 将结论合并到 main state 中对应的 retrieval step 中
-        # state = self.graph.get_state(config=self.default_config)
-        # if not isinstance(state, FactCheckPlanState):
-        #     raise AgentExecutionException(
-        #         agent_type="main",
-        #         message="无法获取到 Main Agent 的状态",
-        #     )
+        # 将结论合并到 main state 中对应的 retrieval step 中
+        state = self.graph.get_state(config=self.default_config)
+        if not isinstance(state, FactCheckPlanState):
+            raise AgentExecutionException(
+                agent_type="main",
+                message="无法获取到 Main Agent 的状态",
+            )
 
-        # updated_check_points = [
-        #     (
-        #         cp
-        #         if cp.id != args["check_point_id"]
-        #         else cp.model_copy(
-        #             update={
-        #                 "retrieval_step": [
-        #                     (
-        #                         step
-        #                         if step.id != args["retrieval_step_id"]
-        #                         else step.model_copy(update={"result": result})
-        #                     )
-        #                     for step in cp.retrieval_step # type: ignore 此处的 retrieval step 必然存在
-        #                 ]
-        #             }
-        #         )
-        #     )
-        #     for cp in state.check_points
-        # ]
+        updated_check_points = [
+            (
+                cp
+                if cp.id != args["check_point_id"]
+                else cp.model_copy(
+                    update={
+                        "retrieval_step": [
+                            (
+                                step
+                                if step.id != args["retrieval_step_id"]
+                                else step.model_copy(update={"result": result})
+                            )
+                            for step in cp.retrieval_step # type: ignore 此处的 retrieval step 必然存在
+                        ]
+                    }
+                )
+            )
+            for cp in state.check_points
+        ]
 
-        # return {"check_points": updated_check_points}
+        return {"check_points": updated_check_points}
 
     def evaluate_search_result(self, state: SearchAgentState):
         """主模型对 search agent 的检索结论进行复核推理"""
