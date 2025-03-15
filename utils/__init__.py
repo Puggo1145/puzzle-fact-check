@@ -5,6 +5,7 @@ from .print_streaming_message import print_streaming_message
 from .count_tokens import count_tokens
 from .view_graph import view_graph
 from .singleton import singleton
+from .safe_parse import SafeParse
 
 __all__ = [
     "get_env",
@@ -14,5 +15,6 @@ __all__ = [
     "print_streaming_message",
     "count_tokens",
     "view_graph",
-    "singleton"
+    "singleton",
+    "SafeParse",
 ]

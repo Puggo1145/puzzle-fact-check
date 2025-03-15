@@ -7,7 +7,6 @@ from .prompts import (
     system_prompt_template,
     evaluate_current_status_prompt_template,
     evaluate_current_status_output_parser,
-    evaluate_current_status_output_fixing_parser,
     generate_answer_prompt_template,
     generate_answer_output_parser,
 )
@@ -170,12 +169,8 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         response = self.model.invoke(input=messages)
         state.token_usage += count_tokens(messages + [response])
         
-        try:
-            new_status: Status = evaluate_current_status_output_parser.parse(str(response.content))
-        except Exception:
-            print("❌ 模型输出解析失败，正在尝试修复")
-            new_status: Status = evaluate_current_status_output_fixing_parser.parse(str(response.content))
-
+        new_status: Status = evaluate_current_status_output_parser.parse(str(response.content))
+        
         updated_state = {
             "statuses": [new_status],
             "token_usage": state.token_usage

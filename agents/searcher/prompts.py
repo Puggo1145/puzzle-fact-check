@@ -1,15 +1,9 @@
 from .states import Status, SearchResult
 from langchain_core.prompts import HumanMessagePromptTemplate, AIMessagePromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
-from langchain.output_parsers import OutputFixingParser
-from langchain_openai import ChatOpenAI
+from utils import SafeParse
 
-evaluate_current_status_output_parser = PydanticOutputParser(pydantic_object=Status)
-evaluate_current_status_output_fixing_parser = OutputFixingParser.from_llm(
-    parser=evaluate_current_status_output_parser,
-    llm=ChatOpenAI(model="gpt-4o-mini", temperature=0),
-    max_retries=3,
-)
+evaluate_current_status_output_parser = SafeParse(parser=PydanticOutputParser(pydantic_object=Status))
 
 system_prompt_template = HumanMessagePromptTemplate.from_template(
     """
@@ -93,7 +87,7 @@ evaluate_current_status_prompt_template = AIMessagePromptTemplate.from_template(
 """
 )
 
-generate_answer_output_parser = PydanticOutputParser(pydantic_object=SearchResult)
+generate_answer_output_parser = SafeParse(parser=PydanticOutputParser(pydantic_object=SearchResult))
 generate_answer_prompt_template = AIMessagePromptTemplate.from_template(
     template="""
 我已经收集了足够的信息，我需要基于检索到的信息，给出核查结论。

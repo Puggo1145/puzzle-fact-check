@@ -186,37 +186,6 @@ class MetadataExtractorCallback(BaseCallbackHandler):
                         else:
                             self._print_colored(str(content), "cyan")
     
-    def on_retriever_start(
-        self, 
-        serialized: Dict[str, Any], 
-        query: str, 
-        *, 
-        run_id: UUID, 
-        parent_run_id: Optional[UUID] = None, 
-        tags: Optional[List[str]] = None, 
-        metadata: Optional[Dict[str, Any]] = None, 
-        **kwargs: Any
-    ) -> None:
-        """当检索开始时调用"""
-        self._print_colored(f"\n🔍 开始检索知识元", "yellow", True)
-        self._print_colored(f"查询: {query}", "yellow")
-    
-    def on_retriever_end(
-        self, 
-        documents: Sequence[Document], 
-        *, 
-        run_id: UUID, 
-        parent_run_id: Optional[UUID] = None, 
-        **kwargs: Any
-    ) -> None:
-        """当检索结束时调用"""
-        self._print_colored(f"📚 检索到 {len(documents)} 条知识元", "green", True)
-        for i, doc in enumerate(documents[:3]):  # 只显示前3条
-            self._print_colored(f"知识元 #{i+1}: {str(doc)[:100]}...", "green")
-        
-        if len(documents) > 3:
-            self._print_colored(f"... 还有 {len(documents)-3} 条知识元", "green")
-
     def _print_formatted_output(self, content):
         """优化打印格式，使用emoji分行"""
         if isinstance(content, dict):
