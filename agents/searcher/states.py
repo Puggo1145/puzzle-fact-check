@@ -52,7 +52,14 @@ class SearchResult(BaseModel):
     """ search 的核查结论"""
     summary: str = Field(description="对检索到的信息的总结")
     conclusion: str = Field(description="基于检索到的信息得出的核查点真实性的结论")
-    confidence: str = Field(description="对结论的置信度评估")
+    confidence: str = Field(
+        description="对结论的置信度评估",
+        examples=[
+            "高",
+            "不确定",
+            "低",
+        ]
+    )
 
 
 class SearchAgentState(BaseModel):

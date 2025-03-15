@@ -1,7 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 from langchain_core.messages import SystemMessage
 from langchain_core.output_parsers import PydanticOutputParser
-from .states import BasicMetadata, Knowledges
+from .states import BasicMetadata, Knowledges, Knowledge
 
 
 # Define metadata extractor model role and ability
@@ -105,10 +105,16 @@ knowledge_extraction_prompt_template = ChatPromptTemplate.from_messages(
     ]
 )
 
-knowledge_retrieve_prompt = """
+knowledge_retrieve_output_parser = PydanticOutputParser(pydantic_object=Knowledge)
+knowledge_retrieve_prompt = f"""
 你是一个精通多语言的知识检索专家，用户会提供一个知识元，你需要检索维基百科找到该知识元的定义。
-- 注意，检索到的词条名称可能是知识元的同义词，这时你需要在 description 中增加该同义关系的标识
-- 如果无法精确匹配到该知识元，请尝试更换检索语言和知识元的语言，或更换检索方式等尝试检索。
-- 如果多次检索后无法找到精确定义，请在 description 字段中输出 "未找到定义"，请不要自主生成定义。
-- 确定知识元的定义后，请按用户提供的知识元的源语言将解释输出到 description 字段中
+
+# 检索要求：
+- 如果检索到的词条名称是知识元的同义词，请在description中说明该同义关系
+- 如果无法精确匹配到该知识元，请尝试更换检索语言和知识元的语言，或更换检索方式
+- 如果多次检索后无法找到精确定义，请在description字段中输出"未找到定义"，请不要自主生成定义
+- 确定知识元的定义后，请按用户提供的知识元的源语言将解释输出到description字段中
+
+# 输出格式：
+{knowledge_retrieve_output_parser.get_format_instructions()}
 """

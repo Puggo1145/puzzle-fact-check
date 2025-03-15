@@ -6,8 +6,8 @@ from langchain_openai import ChatOpenAI
 load_dotenv()
 
 def main():
-    model = ChatQwen(model="qwq-plus-2025-03-05", streaming=True)
-    search_model = ChatQwen(model="qwq-plus", streaming=True)
+    model = ChatQwen(model="qwq-plus-latest", streaming=True)
+    search_model = ChatQwen(model="qwq-plus-latest", streaming=True)
     metadata_extract_model = ChatOpenAI(model="gpt-4o-mini")
     
     agent = MainAgent(

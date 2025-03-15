@@ -1,13 +1,10 @@
 import json
-from models import ChatQwen
+from langchain_openai import ChatOpenAI
 from .graph import MetadataExtractAgentGraph
 from db import AgentDatabaseIntegration
 
 def test_metadata_extractor():
-    model = ChatQwen(
-        model="qwen-turbo",
-        temperature=0,
-    )
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     
     example_initial_state = {
         "news_text": """

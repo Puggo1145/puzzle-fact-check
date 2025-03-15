@@ -80,7 +80,8 @@ class MainAgentCallback(BaseCallbackHandler):
             # 从 kwargs 中读取 node 名称
             node_name = None
             if kwargs and "metadata" in kwargs and isinstance(kwargs["metadata"], dict):
-                node_name = kwargs["metadata"].get("langgraph_node", "")
+                node_name = kwargs["metadata"].get("langgraph_node", None)
+                self.current_node = node_name
             
             # 检查是否进入了其他 graph 节点
             if node_name and ("metadata_extractor" in node_name.lower() or "search_agent" in node_name.lower()):
@@ -347,55 +348,6 @@ class MainAgentCallback(BaseCallbackHandler):
                                     )
         except Exception as e:
             self._print_colored(f"Error in _print_formatted_plan: {str(e)}", "red")
-
-    def on_agent_action(self, action, **kwargs: Any) -> Any:
-        """Called when agent takes an action"""
-        if not self.is_in_planner_graph:
-            return
-
-        try:
-            # 检查是否是调用其他 agent 的动作
-            tool_name = action.tool.lower() if hasattr(action, "tool") else ""
-            if "metadata_extractor" in tool_name or "search" in tool_name:
-                self.is_in_planner_graph = False
-                self._print_colored(f"\n🔄 调用外部工具: {action.tool}", "purple", True)
-                return
-                
-            self._print_colored(f"\n🛠️ 执行动作: {action.tool}", "purple", True)
-            self._print_colored(f"📥 输入: {action.tool_input}", "purple")
-            
-            # 从 kwargs 中读取 node 名称
-            node_name = None
-            if kwargs and "metadata" in kwargs and isinstance(kwargs["metadata"], dict):
-                node_name = kwargs["metadata"].get("langgraph_node", "")
-            
-            # 设置当前节点
-            if node_name == "evaluate_search_result":
-                self.current_node = "evaluate_search_result"
-            elif node_name == "write_fact_checking_report":
-                self.current_node = "write_fact_checking_report"
-            elif node_name == "extract_check_point":
-                self.current_node = "extract_check_point"
-            
-        except Exception as e:
-            self._print_colored(f"Error in on_agent_action: {str(e)}", "red")
-
-    def on_agent_finish(self, finish, **kwargs: Any) -> None:
-        """Called when agent finishes"""
-        if not self.is_in_planner_graph:
-            return
-
-        try:
-            if self.current_node == "evaluate_search_result":
-                self._print_colored(f"\n✅ 检索结果评估完成", "green", True)
-            elif self.current_node == "write_fact_checking_report":
-                self._print_colored(f"\n✅ 事实核查报告生成完成", "green", True)
-            elif self.current_node == "extract_check_point":
-                self._print_colored(f"\n✅ 核查点提取完成", "green", True)
-            else:
-                self._print_colored(f"\n✅ 代理完成: {finish.return_values}", "green", True)
-        except Exception as e:
-            self._print_colored(f"Error in on_agent_finish: {str(e)}", "red")
 
     def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
         """Called when a tool errors"""
