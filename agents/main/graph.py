@@ -3,7 +3,6 @@ from agents.base import BaseAgent
 from langchain_core.messages import AIMessage, BaseMessage
 from langgraph.graph.state import CompiledStateGraph, StateGraph, END
 from langgraph.types import interrupt, Command, Send
-from .states import FactCheckPlanState, RetrievalResult, RetrievalResultVerification, CheckPoint
 from .prompts import (
     fact_check_plan_prompt_template,
     fact_check_plan_output_parser,
@@ -20,6 +19,8 @@ from ..metadata_extractor.graph import MetadataExtractAgentGraph
 from typing import List, Optional, Any, Dict, TypedDict
 from models import ChatQwen
 from langchain_deepseek import ChatDeepSeek
+from .states import FactCheckPlanState, RetrievalResult, RetrievalResultVerifications, CheckPoint, CheckPoints
+from ..metadata_extractor.states import MetadataState
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from utils.exceptions import AgentExecutionException
@@ -93,7 +94,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         metadata_extract_agent = MetadataExtractAgentGraph(
             model=self.metadata_extract_model
         )
-        result = metadata_extract_agent.invoke({"news_text": state.news_text})
+        result = MetadataState(**metadata_extract_agent.invoke({"news_text": state.news_text}))
 
         return {"metadata": result}
 
@@ -120,10 +121,8 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
             messages.extend(messages_with_feedback)
 
         response = self.model.invoke(messages)
-        check_points = fact_check_plan_output_parser.invoke(response)
-
-        # 只保存需要核查的 check_point
-        formatted_check_points = get_formatted_check_points(check_points)
+        check_points: CheckPoints = fact_check_plan_output_parser.invoke(response)
+        formatted_check_points = get_formatted_check_points(check_points) # 只保存需要核查的 check_point
 
         return {
             "check_points": formatted_check_points,
@@ -198,21 +197,26 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
 
         return END
 
-    def invoke_search_agent(self, state: FactCheckPlanState):
+    def invoke_search_agent(self, state: SearchAgentState):
         """根据检索规划调用子检索模型执行深度检索"""
         search_agent = SearchAgentGraph(
             model=self.search_model,
             max_tokens=self.max_search_tokens,
         )
-        search_state = search_agent.invoke(state)
+        search_state = SearchAgentState(**search_agent.invoke(state))
+        if not search_state.result:
+            raise AgentExecutionException(
+                agent_type="searcher",
+                message="检索模型未返回结果",
+            )
         
         retrieval_result = RetrievalResult(
-            check_point_id=search_state["check_point_id"],
-            retrieval_step_id=search_state["retrieval_step_id"],
-            summary=search_state["result"]["summary"],
-            conclusion=search_state["result"]["conclusion"],
-            confidence=search_state["result"]["confidence"],
-            evidences=search_state["evidences"],
+            check_point_id=search_state.check_point_id,
+            retrieval_step_id=search_state.retrieval_step_id,
+            summary=search_state.result.summary,
+            conclusion=search_state.result.conclusion,
+            confidence=search_state.result.confidence,
+            evidences=search_state.evidences,
         )
         
         return {"aggregated_retrieved_results": [retrieval_result]}
@@ -239,14 +243,14 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
                 check_points=state.check_points
             )
         ])
-        verification_results = evaluate_search_result_output_parser.invoke(response)
+        verification_results: RetrievalResultVerifications = evaluate_search_result_output_parser.invoke(response)
         
         updates = [
             {
-                "id": verification_result["retrieval_step_id"],
+                "id": verification_result.retrieval_step_id,
                 "data": {"verification": verification_result}
             }
-            for verification_result in verification_results["items"]
+            for verification_result in verification_results.items
         ]
         
         updated_check_points = self._batch_update_retrieval_steps(state, updates)
@@ -397,22 +401,22 @@ def get_user_feedback():
         return {"action": "revise", "feedback": feedback}
 
 
-def get_formatted_check_points(check_points: Dict[str, List]):
+def get_formatted_check_points(check_points: CheckPoints):
     """格式化 check points"""
     formatted_check_points = [
         {
-            **check_point,
+            **check_point.model_dump(),
             "id": str(uuid.uuid4()),  # 为每个 check point 生成唯一 id
             "retrieval_step": [
                 {
-                    **retrieval_step,
+                    **retrieval_step.model_dump(),
                     "id": str(uuid.uuid4()),  # 为每个 retrieval step 生成唯一 id
                 }
-                for retrieval_step in check_point["retrieval_step"]
+                for retrieval_step in check_point.retrieval_step # type: ignore 是核查点必存在
             ],
         }
-        for check_point in check_points["items"]
-        if check_point["is_verification_point"]
+        for check_point in check_points.items
+        if check_point.is_verification_point
     ]
     
     return formatted_check_points

@@ -67,8 +67,7 @@ def test_search_agent():
         model=model,
         max_tokens=5000,
     )
-    search_agent.invoke(example_input)
-
+    res = search_agent.invoke(example_input)
 
 if __name__ == "__main__":
     test_search_agent()

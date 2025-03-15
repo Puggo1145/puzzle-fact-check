@@ -241,17 +241,17 @@ class MainAgentCallback(BaseCallbackHandler):
                     parsed_result = fact_check_plan_output_parser.parse(
                         response.generations[0][0].text
                     )
-                    check_points = parsed_result["items"]
+                    check_points = parsed_result.items
                     for idx, check_point in enumerate(check_points):
                         print(f"\n第 {idx+1} 条陈述")
-                        print(f"陈述内容：{check_point.get('content', '无内容')}")
-                        print(f"是否需要核查：{check_point.get('is_verification_point', False)}")
-                        print(f"核查理由：{check_point.get('importance', '无理由')}")
-                        if check_point.get("retrieval_step", None):
-                            for idx, plan in enumerate(check_point["retrieval_step"]):
+                        print(f"陈述内容：{check_point.content}")
+                        print(f"是否需要核查：{check_point.is_verification_point}")
+                        print(f"核查理由：{check_point.importance}")
+                        if check_point.retrieval_step:
+                            for idx, plan in enumerate(check_point.retrieval_step):
                                 print(f"核查计划 {idx+1}：")
-                                print(f"- 核查目标：{plan['purpose']}")
-                                print(f"- 目标信源类型：{plan['expected_sources']}")
+                                print(f"- 核查目标：{plan.purpose}")
+                                print(f"- 目标信源类型：{plan.expected_sources}")
                 except Exception as e:
                     self._print_colored(f"解析核查计划失败: {str(e)}", "red")
                     print(response.generations[0][0].text)

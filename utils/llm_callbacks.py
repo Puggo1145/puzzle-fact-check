@@ -23,7 +23,7 @@ class ReasonerStreamingCallback(BaseCallbackHandler):
         if "reasoning_content" in chunk.message.additional_kwargs:  # type: ignore
             # Reasoning Content Flag
             if not self.has_thinking_started:
-                print("THINKING: \n")
+                print("💭 思考: \n")
                 self.has_thinking_started = True
 
             print(f"{self.gray_color}{chunk.message.additional_kwargs['reasoning_content']}{self.reset_color}", end="", flush=True)  # type: ignore

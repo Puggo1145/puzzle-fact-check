@@ -2,7 +2,6 @@ from agents.base import BaseAgent
 from langgraph.graph.state import StateGraph
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import Send
-from .states import MetadataState, Knowledge
 from .prompts import (
     basic_metadata_extractor_prompt_template,
     basic_metadata_extractor_output_parser,
@@ -13,7 +12,7 @@ from .prompts import (
 from tools import SearchWikipediaTool
 from .callback import MetadataExtractorCallback
 
-from typing import cast
+from .states import MetadataState, BasicMetadata, Knowledge, Knowledges
 from models import ChatQwen
 from langchain_openai import ChatOpenAI
 from langgraph.graph.state import CompiledStateGraph
@@ -68,7 +67,7 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
             | self.model
             | basic_metadata_extractor_output_parser
         )
-        basic_metadata = chain.invoke({"news_text": state.news_text})
+        basic_metadata: BasicMetadata = chain.invoke({"news_text": state.news_text})
 
         return {"basic_metadata": basic_metadata}
 
@@ -84,9 +83,9 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
             | self.model
             | knowledge_extraction_output_parser
         )
-        knowledges = chain.invoke({"news_text": state.news_text})
+        knowledges: Knowledges = chain.invoke({"news_text": state.news_text})
         
-        return {"knowledges": knowledges["items"]}
+        return {"knowledges": knowledges.items}
 
     # 并行执行知识元检索：使用 Send 一次性拓展出多个并发的边，每个边复制一份独立的 state
     def should_continue_to_retrieval(self, state: MetadataState):
@@ -113,7 +112,7 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
             f"你需要检索的知识元是：{sub_state.term}。该知识元的类别是：{sub_state.category}"
         )
         response = sub_graph.invoke({"messages": [retrieve_message]})
-        retrieved_knowledge = cast(Knowledge, response["structured_response"]).model_dump()
+        retrieved_knowledge: Knowledge = response["structured_response"]
         
         # 返回检索到的知识元
         return {"retrieved_knowledges": [retrieved_knowledge]}

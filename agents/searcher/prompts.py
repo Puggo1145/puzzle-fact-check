@@ -1,11 +1,17 @@
 from .states import Status, SearchResult
-from langchain_core.prompts import SystemMessagePromptTemplate, AIMessagePromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.prompts import HumanMessagePromptTemplate, AIMessagePromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain.output_parsers import OutputFixingParser
+from langchain_openai import ChatOpenAI
 
-evaluate_current_status_output_parser = JsonOutputParser(pydantic_object=Status)
+evaluate_current_status_output_parser = PydanticOutputParser(pydantic_object=Status)
+evaluate_current_status_output_fixing_parser = OutputFixingParser.from_llm(
+    parser=evaluate_current_status_output_parser,
+    llm=ChatOpenAI(model="gpt-4o-mini", temperature=0),
+    max_retries=3,
+)
 
-# TODO：考虑根据 model 类型选择是否使用 System Prompt。官方建议推理模型不实用 System Prompt
-system_prompt_template = SystemMessagePromptTemplate.from_template(
+system_prompt_template = HumanMessagePromptTemplate.from_template(
     """
 你正在执行一个新闻事实核查任务，你被分配到一个核查点，你需要检索互联网，对核查点进行事实核查
 
@@ -87,10 +93,7 @@ evaluate_current_status_prompt_template = AIMessagePromptTemplate.from_template(
 """
 )
 
-# 添加回答生成的输出解析器
-generate_answer_output_parser = JsonOutputParser(pydantic_object=SearchResult)
-
-# 添加回答生成的提示模板
+generate_answer_output_parser = PydanticOutputParser(pydantic_object=SearchResult)
 generate_answer_prompt_template = AIMessagePromptTemplate.from_template(
     template="""
 我已经收集了足够的信息，我需要基于检索到的信息，给出核查结论。

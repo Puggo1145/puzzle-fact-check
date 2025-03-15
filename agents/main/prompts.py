@@ -1,9 +1,8 @@
-from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import HumanMessagePromptTemplate
 from .states import CheckPoints, RetrievalResultVerifications
-from typing import List
 
-fact_check_plan_output_parser = JsonOutputParser(pydantic_object=CheckPoints)
+fact_check_plan_output_parser = PydanticOutputParser(pydantic_object=CheckPoints)
 
 # 根据 DeepSeek 官方说法，不建议使用 SystemPrompt，这可能会限制模型的推理表现，这里替换为常规的 HumanMessage
 fact_check_plan_prompt_template = HumanMessagePromptTemplate.from_template(
@@ -45,7 +44,7 @@ human_feedback_prompt_template = HumanMessagePromptTemplate.from_template("""
 """
 )
 
-evaluate_search_result_output_parser = JsonOutputParser(pydantic_object=RetrievalResultVerifications)
+evaluate_search_result_output_parser = PydanticOutputParser(pydantic_object=RetrievalResultVerifications)
 evaluate_search_result_prompt_template = HumanMessagePromptTemplate.from_template("""
 你是一名专业的新闻事实核查员，你的任务是对下面的新闻文本进行事实核查：
 {news_text}

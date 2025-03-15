@@ -1,6 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 from langchain_core.messages import SystemMessage
-from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.output_parsers import PydanticOutputParser
 from .states import BasicMetadata, Knowledges
 
 
@@ -16,7 +16,7 @@ METADATA_EXTRACTOR_SYSTEM_PROMPT = SystemMessage(
 )
 
 # basic metadata prompts
-basic_metadata_extractor_output_parser = JsonOutputParser(pydantic_object=BasicMetadata)
+basic_metadata_extractor_output_parser = PydanticOutputParser(pydantic_object=BasicMetadata)
 basic_metadata_extractor_prompt_template_string = """
 请对以下新闻文本进行分析，提取基本元数据：
 
@@ -58,7 +58,7 @@ basic_metadata_extractor_prompt_template = ChatPromptTemplate.from_messages(
 )
 
 # knowledge prompts
-knowledge_extraction_output_parser = JsonOutputParser(pydantic_object=Knowledges)
+knowledge_extraction_output_parser = PydanticOutputParser(pydantic_object=Knowledges)
 knowledge_extraction_prompt_template_string = """
 # 定位
 名称：专业的知识元提取专家

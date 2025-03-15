@@ -22,6 +22,7 @@ dependencies = [
     "readchar (>=4.2.1,<5.0.0)",
     "ipython (>=9.0.1,<10.0.0)",
     "neomodel (>=5.4.4,<6.0.0)",
+    "tenacity (>=9.0.0,<10.0.0)",
 ]
 
 
