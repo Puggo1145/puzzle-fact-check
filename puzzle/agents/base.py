@@ -32,21 +32,23 @@ class BaseAgent(Generic[ModelT]):
     def __init__(
         self,
         model: ModelT,
-        api_callbacks: List[BaseCallbackHandler],
-        cli_callbacks: List[BaseCallbackHandler],
+        callbacks: List[BaseCallbackHandler] = [],
+        api_callbacks: List[BaseCallbackHandler] = [],
+        cli_callbacks: List[BaseCallbackHandler] = [],
         default_config: RunnableConfig = {},
         mode: Literal["CLI", "API"] = "CLI",
     ) -> None:
         self.default_config = default_config
+        self.default_config["callbacks"] = callbacks
         if mode == "API":
-            self.default_config["callbacks"] = api_callbacks
+            self.default_config["callbacks"].extend(api_callbacks)
         elif mode == "CLI":
-            self.default_config["callbacks"] = cli_callbacks
+            self.default_config["callbacks"].extend(cli_callbacks)
         
+        self.mode = mode
         self.model = model
         self.memory_saver = MemorySaver()
         self.graph = self._build_graph()
-        self.mode = mode
         self.db_integration = db_integration
         
         view_graph(self.graph) # 运行时携带参数 --view-graph 输出 agent 的 graph 并停止运行
@@ -379,6 +381,41 @@ class BaseAgentCallback(BaseCallbackHandler):
                 context
             )
     
+    def node_event(
+        self,
+        node_name: Optional[str] = None,
+        timing: Union[NodeEventTiming, str] = NodeEventTiming.ON_CHAIN_END,
+        condition: Optional[Callable] = None
+    ) -> Callable:
+        """
+        装饰器方法，用于注册节点事件回调
+        
+        Args:
+            node_name: 节点名称，如果为None则对所有节点生效
+            timing: 触发时机，默认为节点结束时
+            condition: 可选的条件函数，返回True时才执行回调
+            
+        Returns:
+            装饰器函数
+        
+        Example:
+            ```python
+            @self.node_event(node_name="extract_basic_metadata", timing=NodeEventTiming.ON_CHAIN_END)
+            def handle_basic_metadata(context):
+                # 处理基本元数据
+                pass
+            ```
+        """
+        def decorator(callback_fn: Callable) -> Callable:
+            # 如果timing是字符串，转换为枚举
+            nonlocal timing
+            if isinstance(timing, str):
+                timing = NodeEventTiming(timing)
+                
+            self.event_manager.register(node_name, callback_fn, timing, condition)
+            return callback_fn
+        return decorator
+    
     def register_node_event(
         self,
         callback: Callable,
@@ -387,13 +424,29 @@ class BaseAgentCallback(BaseCallbackHandler):
         condition: Optional[Callable] = None
     ) -> None:
         """
-        注册 node 事件回调
+        注册 node 事件回调（传统方法，推荐使用装饰器方式）
         
         Args:
             node_name: 节点名称
             callback: 回调函数，接收一个context参数
             timing: 触发时机，默认为节点结束时
             condition: 可选的条件函数，返回True时才执行回调
+            
+        Example:
+            ```python
+            # 传统方式
+            callback.register_node_event(
+                node_name="extract_basic_metadata",
+                callback=self._store_basic_metadata,
+                timing=NodeEventTiming.ON_CHAIN_END
+            )
+            
+            # 推荐使用装饰器方式
+            @callback.node_event(node_name="extract_basic_metadata", timing=NodeEventTiming.ON_CHAIN_END)
+            def _store_basic_metadata(context):
+                # 处理逻辑
+                pass
+            ```
         """
         # 如果timing是字符串，转换为枚举
         if isinstance(timing, str):

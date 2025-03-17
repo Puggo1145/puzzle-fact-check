@@ -18,32 +18,26 @@ class DBIntegrationCallback(BaseAgentCallback):
     """
     def __init__(self):
         super().__init__()
-        
-        self.register_node_event(
-            callback=lambda _: print(self.current_node),
-            timing=NodeEventTiming.ON_CHAIN_END,
-        )
-        
-        # 注册节点事件回调
-        self.register_node_event(
-            node_name="extract_basic_metadata",
-            callback=self._store_basic_metadata,
-            timing=NodeEventTiming.ON_CHAIN_END,
-        )
-        
-        self.register_node_event(
-            node_name="retrieve_knowledge",
-            callback=self._store_retrieved_knowledge,
-            timing=NodeEventTiming.ON_CHAIN_END,
-        )
     
-    def _store_basic_metadata(self, context: Dict[str, Any]) -> None:
-        outputs = context.get("outputs", {})
-        db_integration.store_basic_metadata(outputs["basic_metadata"])
+        @self.node_event(timing=NodeEventTiming.ON_CHAIN_END)
+        def debug_print(_):
+            print(self.current_node)
     
-    def _store_retrieved_knowledge(self, context: Dict[str, Any]) -> None:
-        outputs = context.get("outputs", {})
-        db_integration.store_retrieved_knowledge(outputs["retrieved_knowledges"][0])
+        @self.node_event(node_name="extract_basic_metadata", timing=NodeEventTiming.ON_CHAIN_END)
+        def store_basic_metadata(context: Dict[str, Any]) -> None:
+            outputs = context.get("outputs", {})
+            if not outputs["basic_metadata"]:
+                return
+            
+            db_integration.store_basic_metadata(outputs["basic_metadata"])
+    
+        @self.node_event(node_name="retrieve_knowledge", timing=NodeEventTiming.ON_CHAIN_END)
+        def store_retrieved_knowledge(context: Dict[str, Any]) -> None:
+            outputs = context.get("outputs", {})
+            if not outputs["retrieved_knowledges"]:
+                return
+            
+            db_integration.store_retrieved_knowledge(outputs["retrieved_knowledges"][0])
     
 
 class CLIModeCallback(BaseAgentCallback):
@@ -54,7 +48,6 @@ class CLIModeCallback(BaseAgentCallback):
     def __init__(self):
         super().__init__()
         self.step_count = 0  # 总步骤计数
-        self.llm_call_count = 0  # LLM调用计数
         self.start_time = None
         self.last_tokens = 0
         # ANSI 颜色代码
@@ -68,7 +61,11 @@ class CLIModeCallback(BaseAgentCallback):
             "bold": "\033[1m",
             "reset": "\033[0m",
         }
-
+        
+        self.handle_tools()
+        self.print_llm_start_info()
+        self.print_llm_results()
+        
     def _print_colored(self, text, color="blue", bold=False):
         """打印彩色文本"""
         prefix = ""
@@ -92,115 +89,127 @@ class CLIModeCallback(BaseAgentCallback):
         elif isinstance(data, (dict, list)):
             return json.dumps(data, indent=2, ensure_ascii=False)
         else:
-            return str(data)
+            return str(data)    
+    
+    def handle_tools(self):
+        @self.node_event(timing=NodeEventTiming.ON_TOOL_START)
+        def print_tool_start(context: Dict[str, Any]):
+            tool_name = context.get("serialized", {}).get("name", "Unknown Tool")
+            self._print_colored(f"\n🔨 开始执行工具: {tool_name}", "purple")
+            self._print_colored(f"📥 输入: {context.get('input_str', 'Unknown Input')}", "purple")
         
-    def on_tool_start(self, serialized, input_str, **kwargs):
-        tool_name = serialized.get("name", "Unknown Tool")
-        self._print_colored(f"\n🔨 开始执行工具: {tool_name}", "purple")
-        self._print_colored(f"📥 输入: {input_str}", "purple")
-
-    def on_tool_end(self, output, **kwargs):
-        self._print_colored(f"📤 工具执行结果:", "green")
-        
-        # 处理不同类型的输出
-        try:
-            # 如果是字符串类型，检查长度并可能截断
-            if isinstance(output, str):
-                if len(output) > 500:
-                    self._print_colored(f"{output[:497]}...", "green")
-                else:
-                    self._print_colored(output, "green")
-            # 处理ToolMessage或其他对象类型
-            else:
-                # 尝试获取内容属性
-                if hasattr(output, "content"):
-                    content = output.content
-                    if isinstance(content, str) and len(content) > 500:
-                        self._print_colored(f"{content[:497]}...", "green")
+        @self.node_event(timing=NodeEventTiming.ON_TOOL_END)
+        def print_tool_result(context: Dict[str, Any]):
+            self._print_colored(f"\n📤 工具执行结果:", "green")
+            
+            output = context.get("output", None)
+            
+            # 处理不同类型的输出
+            try:
+                # 如果是字符串类型，检查长度并可能截断
+                if isinstance(output, str):
+                    if len(output) > 500:
+                        self._print_colored(f"{output[:497]}...", "green")
                     else:
-                        self._print_colored(str(content), "green")
+                        self._print_colored(output, "green")
+                # 处理ToolMessage或其他对象类型
                 else:
-                    # 如果没有content属性，使用字符串表示
-                    self._print_colored(str(output), "green")
-        except Exception as e:
-            self._print_colored(f"输出处理错误: {str(e)}", "red")
-
-    def on_tool_error(self, error, **kwargs):
-        self._print_colored(f"\n❌ 工具执行错误:", "red", True)
-        self._print_colored(f"{str(error)}", "red")
-        self._print_colored(f"{'-'*50}", "red")
-
-    def on_llm_start(
-        self, 
-        serialized, 
-        prompts, 
-        **kwargs
-    ) -> None:
-        self.llm_call_count += 1  # 增加LLM调用计数
-
-        model_name = serialized.get("name", "Unknown Model")
+                    # 尝试获取内容属性
+                    if hasattr(output, "content"):
+                        content = output.content
+                        if isinstance(content, str) and len(content) > 500:
+                            self._print_colored(f"{content[:497]}...", "green")
+                        else:
+                            self._print_colored(str(content), "green")
+                    else:
+                        # 如果没有content属性，使用字符串表示
+                        self._print_colored(str(output), "green")
+            except Exception as e:
+                self._print_colored(f"输出处理错误: {str(e)}", "red")
         
-        # 根据当前节点显示不同的开始信息
-        if self.current_node == "extract_basic_metadata":
+        @self.node_event(timing=NodeEventTiming.ON_TOOL_ERROR)
+        def print_tool_error(context: Dict[str, Any]):
+            error = context.get("error", None)
+            
+            self._print_colored(f"\n❌ 工具执行错误:", "red", True)
+            self._print_colored(f"{str(error)}", "red")
+            self._print_colored(f"{'-'*50}", "red")
+
+        
+    def print_llm_start_info(self) -> None:
+        @self.node_event(node_name="extract_basic_metadata", timing=NodeEventTiming.ON_LLM_START)
+        def print_basic_metadata_start(context: Dict[str, Any]):
             self._print_colored(
-                f"\n🧠 LLM 开始提取基本元数据 (调用 #{self.llm_call_count}, {model_name})",
+                f"\n🧠 LLM 开始提取基本元数据",
                 "purple",
                 True,
             )
-        elif self.current_node == "extract_knowledge":
+        
+        @self.node_event(node_name="extract_knowledge", timing=NodeEventTiming.ON_LLM_START)
+        def print_knowledge_start(context: Dict[str, Any]):
             self._print_colored(
-                f"\n🧠 LLM 开始提取知识元 (调用 #{self.llm_call_count}, {model_name})",
+                f"\n🧠 LLM 开始提取知识元",
                 "cyan",
                 True,
             )
-        elif self.current_node == "retrieve_knowledge":
+        
+        @self.node_event(node_name="retrieve_knowledge", timing=NodeEventTiming.ON_LLM_START)
+        def print_retrieve_knowledge_start(context: Dict[str, Any]):
             self._print_colored(
-                f"\n🧠 LLM 开始检索知识元定义 (调用 #{self.llm_call_count}, {model_name})",
+                f"\n🧠 LLM 开始检索知识元定义",
                 "green",
                 True,
             )
-        else:
-            self._print_colored(
-                f"\n🧠 LLM 开始生成 (调用 #{self.llm_call_count}, {model_name})",
-                "purple",
-                True,
-            )
-        # 如果需要查看提示词，可以取消下面的注释
-        # self._print_colored(f"提示词: {prompts}", "purple")
 
-    def on_llm_end(
-        self, 
-        response, 
-        **kwargs
-    ):
-        if self.current_node == "agent" or self.current_node == "tools":
-            return
+    def print_llm_results(self) -> None:
+        @self.node_event(node_name="agent", timing=NodeEventTiming.ON_LLM_END)
+        def print_agent_end(context: Dict[str, Any]):
+            self._print_colored("📋 输出:", "cyan", True)
+        
+        @self.node_event(node_name="tools", timing=NodeEventTiming.ON_LLM_END)
+        def print_tools_end(context: Dict[str, Any]):
+            self._print_colored("📋 输出:", "cyan", True)
         
         self._print_colored("📋 输出:", "cyan", True)
         
         # 根据当前节点处理不同的输出
-        if not hasattr(response, "generations") or not response.generations:
-            return
-            
-        generated_text = response.generations[0][0].text
         
-        if self.current_node == "extract_basic_metadata":
+        @self.node_event(node_name="extract_basic_metadata", timing=NodeEventTiming.ON_LLM_END)
+        def print_basic_metadata_end(context: Dict[str, Any]):
+            response = context.get("response", {})
+            if not hasattr(response, "generations") or not response.generations:
+                return
+
+            generated_text = response.generations[0][0].text
             try:
                 parsed_result = basic_metadata_extractor_output_parser.parse(generated_text)
                 self._print_basic_metadata(parsed_result)
             except Exception as e:
                 self._print_colored(f"解析基本元数据失败: {str(e)}", "red")
                 print(generated_text)
-        elif self.current_node == "extract_knowledge":
+        
+        @self.node_event(node_name="extract_knowledge", timing=NodeEventTiming.ON_LLM_END)
+        def print_knowledge_end(context: Dict[str, Any]):
+            response = context.get("response", {})
+            if not hasattr(response, "generations") or not response.generations:
+                return
+
+            generated_text = response.generations[0][0].text
             try:
                 parsed_result = knowledge_extraction_output_parser.parse(generated_text)
                 self._print_knowledges(parsed_result)
             except Exception as e:
                 self._print_colored(f"解析知识元失败: {str(e)}", "red")
                 print(generated_text)
-        elif self.current_node == "generate_structured_response":
+        
+        @self.node_event(node_name="retrieve_knowledge", timing=NodeEventTiming.ON_LLM_END)
+        def print_retrieve_knowledge_end(context: Dict[str, Any]):
+            response = context.get("response", {})
+            if not hasattr(response, "generations") or not response.generations:
+                return
+
+            generated_text = response.generations[0][0].text
             try:
-                # 尝试解析为知识元对象
                 parsed_result = knowledge_retrieve_output_parser.parse(generated_text)
                 self._print_retrieved_knowledge(parsed_result)
             except Exception as e:

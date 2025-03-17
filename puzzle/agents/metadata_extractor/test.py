@@ -19,9 +19,7 @@ def test_metadata_extractor():
         temperature=0
     )
     # 初始化 db news text node
-    db_integration.initialize_with_news_text(
-        news_text=example_initial_state["news_text"]
-    )
+    db_integration.initialize_with_news_text(example_initial_state["news_text"])
     MetadataExtractAgentGraph(model).invoke(example_initial_state)
 
 
