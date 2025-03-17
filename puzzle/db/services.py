@@ -14,7 +14,7 @@ from .schema import (
 
 from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
-    from agents.metadata_extractor.states import MetadataState
+    from agents.metadata_extractor.states import BasicMetadata, Knowledge
     from agents.main.states import CheckPoint as CheckPointState
     from agents.searcher.states import SearchAgentState
 
@@ -29,31 +29,39 @@ class DatabaseService:
         return NewsTextNode(content=content).save()
     
     @staticmethod
-    def store_metadata(news_text_node, metadata_state: MetadataState) -> Optional[BasicMetadataNode]:
-        if not metadata_state.basic_metadata:
+    def store_basic_metadata(
+        news_text_node, 
+        basic_metadata: BasicMetadata
+    ) -> Optional[BasicMetadataNode]:
+        if not basic_metadata:
             return None
            
         basic_metadata_node = BasicMetadataNode(
-            news_type=metadata_state.basic_metadata.news_type,
-            who=metadata_state.basic_metadata.who,
-            when=metadata_state.basic_metadata.when,
-            where=metadata_state.basic_metadata.where,
-            what=metadata_state.basic_metadata.what,
-            why=metadata_state.basic_metadata.why,
-            how=metadata_state.basic_metadata.how,
+            news_type=basic_metadata.news_type,
+            who=basic_metadata.who,
+            when=basic_metadata.when,
+            where=basic_metadata.where,
+            what=basic_metadata.what,
+            why=basic_metadata.why,
+            how=basic_metadata.how,
         ).save()
         news_text_node.has_basic_metadata.connect(basic_metadata_node)
         
-        for knowledge_item in metadata_state.retrieved_knowledges:
-            knowledge_node = KnowledgeNode(
-                term=knowledge_item.term,
-                category=knowledge_item.category,
-                description=knowledge_item.description,
-                source=knowledge_item.source
-            ).save()
-            news_text_node.has_knowledge.connect(knowledge_node)
-            
         return basic_metadata_node
+    
+    @staticmethod
+    def store_retrieved_knowledge(
+        news_text_node, 
+        knowledge: Knowledge
+    ) -> None:
+        knowledge_node = KnowledgeNode(
+            term=knowledge.term,
+            category=knowledge.category,
+            description=knowledge.description,
+            source=knowledge.source
+        ).save()
+        news_text_node.has_knowledge.connect(knowledge_node)
+        
     
     @staticmethod
     def store_check_points(news_text_node, check_points: List[CheckPointState]) -> List[CheckPointNode]:

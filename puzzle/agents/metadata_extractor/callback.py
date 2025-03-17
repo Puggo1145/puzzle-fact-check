@@ -1,21 +1,58 @@
 import json
-from uuid import UUID
-from typing import Any, Dict, Optional
-from ..base import BaseAgentCallback
-from langchain_core.agents import AgentAction
+from typing import Any, Dict
+from ..base import (
+    BaseAgentCallback, 
+    NodeEventTiming,
+)
 from .prompts import (
     basic_metadata_extractor_output_parser, 
     knowledge_extraction_output_parser, 
     knowledge_retrieve_output_parser
 )
+from db import db_integration
 
 
-class MetadataExtractorCLIModeCallback(BaseAgentCallback):
+class DBIntegrationCallback(BaseAgentCallback):
+    """
+    DB Integration 回调，将 metadata 存储到 neo4j
+    """
+    def __init__(self):
+        super().__init__()
+        
+        self.register_node_event(
+            callback=lambda _: print(self.current_node),
+            timing=NodeEventTiming.ON_CHAIN_END,
+        )
+        
+        # 注册节点事件回调
+        self.register_node_event(
+            node_name="extract_basic_metadata",
+            callback=self._store_basic_metadata,
+            timing=NodeEventTiming.ON_CHAIN_END,
+        )
+        
+        self.register_node_event(
+            node_name="retrieve_knowledge",
+            callback=self._store_retrieved_knowledge,
+            timing=NodeEventTiming.ON_CHAIN_END,
+        )
+    
+    def _store_basic_metadata(self, context: Dict[str, Any]) -> None:
+        outputs = context.get("outputs", {})
+        db_integration.store_basic_metadata(outputs["basic_metadata"])
+    
+    def _store_retrieved_knowledge(self, context: Dict[str, Any]) -> None:
+        outputs = context.get("outputs", {})
+        db_integration.store_retrieved_knowledge(outputs["retrieved_knowledges"][0])
+    
+
+class CLIModeCallback(BaseAgentCallback):
     """
     Metadata Extractor CLI Mode 回调，主要用于在 terminal 显示 LLM 的推理过程
     """
 
     def __init__(self):
+        super().__init__()
         self.step_count = 0  # 总步骤计数
         self.llm_call_count = 0  # LLM调用计数
         self.start_time = None
@@ -57,53 +94,6 @@ class MetadataExtractorCLIModeCallback(BaseAgentCallback):
         else:
             return str(data)
         
-        
-    def on_chain_end(
-        self, 
-        outputs: Dict[str, Any], 
-        **kwargs: Any
-    ) -> None:
-        # 检查outputs是否为布尔值或不是字典
-        if not isinstance(outputs, dict):
-            return
-
-        # 统计 token 消耗
-        if "token_usage" in outputs:
-            current_tokens = int(outputs["token_usage"])
-            tokens_used = current_tokens - self.last_tokens
-
-            # 只有当token消耗有变化时才显示统计信息
-            if tokens_used > 0:
-                self.last_tokens = current_tokens
-
-                self._print_colored(
-                    f"\n📊 Token消耗统计: ", "blue", True
-                )
-                self._print_colored(f"   本次消耗: {tokens_used} tokens", "blue")
-                self._print_colored(f"   累计消耗: {current_tokens} tokens", "blue")
-                self._print_colored(f"{'-'*50}", "blue")
-
-    def on_agent_action(
-        self, 
-        action: AgentAction, 
-        *, 
-        run_id: UUID, 
-        parent_run_id: Optional[UUID] = None, 
-        **kwargs: Any
-    ) -> Any:
-        """当Agent执行动作时调用"""
-        self.step_count += 1
-        action_name = action.tool if hasattr(action, "tool") else "Unknown Action"
-        self._print_colored(f"\n🔄 执行动作 #{self.step_count}: {action_name}", "yellow", True)
-        
-        # 显示动作输入
-        if hasattr(action, "tool_input"):
-            input_str = (
-                action.tool_input if isinstance(action.tool_input, str) 
-                else self._format_json(action.tool_input)
-            )
-            self._print_colored(f"📥 输入: {input_str}", "yellow")
-        
     def on_tool_start(self, serialized, input_str, **kwargs):
         tool_name = serialized.get("name", "Unknown Tool")
         self._print_colored(f"\n🔨 开始执行工具: {tool_name}", "purple")
@@ -133,7 +123,6 @@ class MetadataExtractorCLIModeCallback(BaseAgentCallback):
                     # 如果没有content属性，使用字符串表示
                     self._print_colored(str(output), "green")
         except Exception as e:
-            # 捕获任何错误，确保回调不会中断主程序
             self._print_colored(f"输出处理错误: {str(e)}", "red")
 
     def on_tool_error(self, error, **kwargs):
@@ -146,7 +135,7 @@ class MetadataExtractorCLIModeCallback(BaseAgentCallback):
         serialized, 
         prompts, 
         **kwargs
-    ):
+    ) -> None:
         self.llm_call_count += 1  # 增加LLM调用计数
 
         model_name = serialized.get("name", "Unknown Model")

@@ -18,7 +18,7 @@ from tools import (
     get_current_time,
 )
 from langgraph.graph.state import StateGraph
-from .callback import SearchAgentCLIModeCallback
+from .callback import CLIModeCallback
 
 from typing import cast, List, Literal
 from langchain_core.messages import ToolCall
@@ -41,7 +41,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
             mode=mode,
             model=model,
             api_callbacks=[],
-            cli_callbacks=[SearchAgentCLIModeCallback()],
+            cli_callbacks=[CLIModeCallback()],
         )
         
         self.max_search_tokens = max_search_tokens

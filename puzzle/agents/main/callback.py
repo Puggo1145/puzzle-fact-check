@@ -7,7 +7,7 @@ from langchain_core.outputs import ChatGenerationChunk, GenerationChunk
 from .prompts import fact_check_plan_output_parser, evaluate_search_result_output_parser
 
 
-class MainAgentCLIModeCallback(BaseAgentCallback):
+class CLIModeCallback(BaseAgentCallback):
     """
     Main Agent CLI Mode 回调，主要用于在 terminal 显示 LLM 的推理过程
     """

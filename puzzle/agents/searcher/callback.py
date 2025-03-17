@@ -4,7 +4,7 @@ from ..base import BaseAgentCallback
 from .prompts import evaluate_current_status_output_parser, generate_answer_output_parser
 
 
-class SearchAgentCLIModeCallback(BaseAgentCallback):
+class CLIModeCallback(BaseAgentCallback):
     """
     Search Agent CLI Mode 回调，主要用于在 terminal 显示 LLM 的推理过程
     """
@@ -52,10 +52,6 @@ class SearchAgentCLIModeCallback(BaseAgentCallback):
             return str(data)
         
     def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> None:
-        # 检查outputs是否为布尔值或不是字典
-        if not isinstance(outputs, dict):
-            return
-
         # 统计 token 消耗
         if "token_usage" in outputs:
             current_tokens = int(outputs["token_usage"])

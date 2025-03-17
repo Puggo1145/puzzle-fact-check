@@ -10,7 +10,7 @@ from .prompts import (
     knowledge_retrieve_prompt
 )
 from tools import SearchWikipediaTool
-from .callback import MetadataExtractorCLIModeCallback
+from .callback import CLIModeCallback, DBIntegrationCallback
 
 from typing import Literal
 from .states import MetadataState, BasicMetadata, Knowledge, Knowledges
@@ -32,7 +32,7 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
             mode=mode,
             model=model,
             api_callbacks=[],
-            cli_callbacks=[MetadataExtractorCLIModeCallback()],
+            cli_callbacks=[DBIntegrationCallback()],
         )
 
         self.tools = [SearchWikipediaTool()]
@@ -44,7 +44,6 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
         graph_builder.add_node("extract_basic_metadata", self.extract_basic_metadata)
         graph_builder.add_node("extract_knowledge", self.extract_knowledge)
         graph_builder.add_node("retrieve_knowledge", self.retrieve_knowledge)
-        graph_builder.add_node("store_metadata_state_to_db", self.store_metadata_state_to_db)
 
         graph_builder.set_entry_point("extract_basic_metadata")
         graph_builder.add_edge("extract_basic_metadata", "extract_knowledge")
@@ -53,8 +52,7 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
             self.should_continue_to_retrieval, # type: ignore
             ["retrieve_knowledge"]
         )
-        graph_builder.add_edge("retrieve_knowledge", "store_metadata_state_to_db")
-        graph_builder.set_finish_point("store_metadata_state_to_db")
+        graph_builder.set_finish_point("retrieve_knowledge")
 
         return graph_builder.compile()
 
@@ -121,7 +119,3 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
         # 返回检索到的知识元
         return {"retrieved_knowledges": [retrieved_knowledge]}
     
-    def store_metadata_state_to_db(self, state: MetadataState):
-        self.db_integration.store_metadata_state(state)
-
-        return state

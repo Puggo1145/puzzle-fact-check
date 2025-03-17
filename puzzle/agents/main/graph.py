@@ -11,7 +11,7 @@ from .prompts import (
     evaluate_search_result_prompt_template,
     write_fact_checking_report_prompt_template,
 )
-from .callback import MainAgentCLIModeCallback
+from .callback import CLIModeCallback
 from ..searcher.states import SearchAgentState
 from ..searcher.graph import SearchAgentGraph
 from ..metadata_extractor.graph import MetadataExtractAgentGraph
@@ -39,7 +39,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
             mode=mode,
             model=model,
             api_callbacks=[],
-            cli_callbacks=[MainAgentCLIModeCallback()]
+            cli_callbacks=[CLIModeCallback()]
         )
 
         self.metadata_extract_agent = MetadataExtractAgentGraph(

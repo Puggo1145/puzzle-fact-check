@@ -9,7 +9,7 @@ from .services import DatabaseService
 
 from typing import Optional, List, TYPE_CHECKING
 if TYPE_CHECKING:
-    from agents.metadata_extractor.states import MetadataState
+    from agents.metadata_extractor.states import BasicMetadata, Knowledge
     from agents.main.states import CheckPoint as CheckPointState
     from agents.searcher.states import SearchAgentState
 
@@ -24,12 +24,20 @@ class NewsTextRepository:
 class MetadataRepository:
     @staticmethod
     @DatabaseService.transaction
-    def store_metadata_from_state(
+    def store_basic_metadata(
         news_text_node: NewsTextNode, 
-        metadata_state: MetadataState
+        basic_metadata: BasicMetadata
     ):
-        return DatabaseService.store_metadata(news_text_node, metadata_state)
+        return DatabaseService.store_basic_metadata(news_text_node, basic_metadata)
 
+    @staticmethod
+    @DatabaseService.transaction
+    def store_retrieved_knowledge(
+        news_text_node: NewsTextNode, 
+        knowledge: Knowledge
+    ):
+        return DatabaseService.store_retrieved_knowledge(news_text_node, knowledge)
+    
 
 class CheckPointRepository:
     @staticmethod
