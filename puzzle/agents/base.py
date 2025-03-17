@@ -1,7 +1,6 @@
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.callbacks import BaseCallbackHandler
 from utils import view_graph
-from db import db_integration
 
 from typing import (
     List, 
@@ -32,14 +31,14 @@ class BaseAgent(Generic[ModelT]):
     def __init__(
         self,
         model: ModelT,
-        callbacks: List[BaseCallbackHandler] = [],
+        mode: Literal["CLI", "API"] = "CLI",
+        base_callbacks: List[BaseCallbackHandler] = [],
         api_callbacks: List[BaseCallbackHandler] = [],
         cli_callbacks: List[BaseCallbackHandler] = [],
         default_config: RunnableConfig = {},
-        mode: Literal["CLI", "API"] = "CLI",
     ) -> None:
         self.default_config = default_config
-        self.default_config["callbacks"] = callbacks
+        self.default_config["callbacks"] = base_callbacks
         if mode == "API":
             self.default_config["callbacks"].extend(api_callbacks)
         elif mode == "CLI":
@@ -49,7 +48,6 @@ class BaseAgent(Generic[ModelT]):
         self.model = model
         self.memory_saver = MemorySaver()
         self.graph = self._build_graph()
-        self.db_integration = db_integration
         
         view_graph(self.graph) # 运行时携带参数 --view-graph 输出 agent 的 graph 并停止运行
     
@@ -146,10 +144,11 @@ class NodeEventManager:
             context: 上下文信息，将传递给回调函数
         """
         # 先执行 ALL node 事件
-        handlers_exec_all = self._event_handlers["ALL"][timing]
-        for callback, condition in handlers_exec_all:
-            if condition is None or condition(context):
-                callback(context)
+        if "ALL" in self._event_handlers:
+            handlers_exec_all = self._event_handlers["ALL"][timing]
+            for callback, condition in handlers_exec_all:
+                if condition is None or condition(context):
+                    callback(context)
         
         # 再执行当前 node 事件
         if current_node not in self._event_handlers:

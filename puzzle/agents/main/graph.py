@@ -38,6 +38,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         super().__init__(
             mode=mode,
             model=model,
+            base_callbacks=[],
             api_callbacks=[],
             cli_callbacks=[CLIModeCallback()]
         )
@@ -55,26 +56,20 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
     def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(FactCheckPlanState)
 
-        graph_builder.add_node("store_news_text_to_db", self.store_news_text_to_db)
         graph_builder.add_node("invoke_metadata_extract_agent", self.invoke_metadata_extract_agent)
         graph_builder.add_node("extract_check_point", self.extract_check_point)
         graph_builder.add_node("invoke_search_agent", self.invoke_search_agent)
         graph_builder.add_node("human_verification", self.human_verification)
-        graph_builder.add_node(
-            "store_check_points_to_db", self.store_check_points_to_db
-        )
         graph_builder.add_node("merge_retrieved_results", self.merge_retrieved_results)
         graph_builder.add_node("evaluate_search_result", self.evaluate_search_result)
         graph_builder.add_node("write_fact_checking_report", self.write_fact_checking_report)
 
-        graph_builder.set_entry_point("store_news_text_to_db")
-        graph_builder.add_edge("store_news_text_to_db", "invoke_metadata_extract_agent")
+        graph_builder.set_entry_point("invoke_metadata_extract_agent")
         graph_builder.add_edge("invoke_metadata_extract_agent", "extract_check_point")
         graph_builder.add_edge("extract_check_point", "human_verification")
-        graph_builder.add_edge("human_verification", "store_check_points_to_db")
 
         graph_builder.add_conditional_edges(
-            "store_check_points_to_db",
+            "human_verification",
             self.should_continue_to_parallel_retrieval,
             ["extract_check_point", END, "invoke_search_agent"],
         )
@@ -89,9 +84,9 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         )
 
     # nodes
-    def store_news_text_to_db(self, state: FactCheckPlanState):
-        self.db_integration.initialize_with_news_text(state.news_text)
-        return state
+    # def store_news_text_to_db(self, state: FactCheckPlanState):
+    #     self.db_integration.initialize_with_news_text(state.news_text)
+    #     return state
 
     def invoke_metadata_extract_agent(self, state: FactCheckPlanState):
         result = self.metadata_extract_agent.invoke({"news_text": state.news_text})
@@ -149,11 +144,11 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         else:
             return Command(resume="")
 
-    def store_check_points_to_db(self, state: FactCheckPlanState):
-        if len(state.check_points) > 0:
-            self.db_integration.store_check_points(state.check_points)
+    # def store_check_points_to_db(self, state: FactCheckPlanState):
+    #     if len(state.check_points) > 0:
+    #         self.db_integration.store_check_points(state.check_points)
 
-        return state
+    #     return state
 
     def should_continue_to_parallel_retrieval(self, state: FactCheckPlanState):
         """

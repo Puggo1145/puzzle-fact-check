@@ -62,7 +62,6 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         graph_builder.add_node("evaluate_current_status", self.evaluate_current_status)
         graph_builder.add_node("tools", self.tool_node)
         graph_builder.add_node("generate_answer", self.generate_answer)
-        graph_builder.add_node("store_search_result_to_db", self.store_search_result_to_db)
 
         graph_builder.set_entry_point("check_token_usage")
         graph_builder.add_conditional_edges(
@@ -79,11 +78,9 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
             self._does_llm_generate_answer,
             {"tools": "tools", "generate_answer": "generate_answer"},
         )
-        # 工具调用后再次检查token
-        graph_builder.add_edge("tools", "check_token_usage")
-        
-        graph_builder.add_edge("generate_answer", "store_search_result_to_db")
-        graph_builder.set_finish_point("store_search_result_to_db")
+        graph_builder.add_edge("tools", "check_token_usage") # 工具调用后再次检查token
+
+        graph_builder.set_finish_point("generate_answer")
         
         return graph_builder.compile()
     
@@ -238,5 +235,5 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
             "token_usage": state.token_usage
         }
     
-    def store_search_result_to_db(self, state: SearchAgentState):
-        self.db_integration.store_search_results(state)
+    # def store_search_result_to_db(self, state: SearchAgentState):
+    #     self.db_integration.store_search_results(state)

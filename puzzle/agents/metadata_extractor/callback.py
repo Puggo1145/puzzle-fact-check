@@ -19,10 +19,6 @@ class DBIntegrationCallback(BaseAgentCallback):
     def __init__(self):
         super().__init__()
     
-        @self.node_event(timing=NodeEventTiming.ON_CHAIN_END)
-        def debug_print(_):
-            print(self.current_node)
-    
         @self.node_event(node_name="extract_basic_metadata", timing=NodeEventTiming.ON_CHAIN_END)
         def store_basic_metadata(context: Dict[str, Any]) -> None:
             outputs = context.get("outputs", {})
@@ -47,10 +43,10 @@ class CLIModeCallback(BaseAgentCallback):
 
     def __init__(self):
         super().__init__()
+        
         self.step_count = 0  # 总步骤计数
         self.start_time = None
         self.last_tokens = 0
-        # ANSI 颜色代码
         self.colors = {
             "blue": "\033[94m",
             "green": "\033[92m",
@@ -162,18 +158,7 @@ class CLIModeCallback(BaseAgentCallback):
             )
 
     def print_llm_results(self) -> None:
-        @self.node_event(node_name="agent", timing=NodeEventTiming.ON_LLM_END)
-        def print_agent_end(context: Dict[str, Any]):
-            self._print_colored("📋 输出:", "cyan", True)
-        
-        @self.node_event(node_name="tools", timing=NodeEventTiming.ON_LLM_END)
-        def print_tools_end(context: Dict[str, Any]):
-            self._print_colored("📋 输出:", "cyan", True)
-        
-        self._print_colored("📋 输出:", "cyan", True)
-        
         # 根据当前节点处理不同的输出
-        
         @self.node_event(node_name="extract_basic_metadata", timing=NodeEventTiming.ON_LLM_END)
         def print_basic_metadata_end(context: Dict[str, Any]):
             response = context.get("response", {})

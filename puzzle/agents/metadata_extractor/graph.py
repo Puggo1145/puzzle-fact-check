@@ -31,7 +31,7 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
         super().__init__(
             mode=mode,
             model=model,
-            callbacks=[DBIntegrationCallback()],
+            base_callbacks=[DBIntegrationCallback()],
             api_callbacks=[],
             cli_callbacks=[CLIModeCallback()],
         )
