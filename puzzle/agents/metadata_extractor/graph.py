@@ -10,8 +10,9 @@ from .prompts import (
     knowledge_retrieve_prompt
 )
 from tools import SearchWikipediaTool
-from .callback import MetadataExtractorCallback
+from .callback import MetadataExtractorCLIModeCallback
 
+from typing import Literal
 from .states import MetadataState, BasicMetadata, Knowledge, Knowledges
 from models import ChatQwen
 from langchain_openai import ChatOpenAI
@@ -25,10 +26,13 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
     def __init__(
         self, 
         model: ChatQwen | ChatOpenAI,
+        mode: Literal["CLI", "API"] = "CLI",
     ):
         super().__init__(
-            model=model, 
-            default_config={"callbacks": [MetadataExtractorCallback()]},
+            mode=mode,
+            model=model,
+            api_callbacks=[],
+            cli_callbacks=[MetadataExtractorCLIModeCallback()],
         )
 
         self.tools = [SearchWikipediaTool()]

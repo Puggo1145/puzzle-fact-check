@@ -1,25 +1,18 @@
 import json
 import time
 from typing import Any, Dict, List, Optional, Union, cast
-from langchain_core.callbacks import BaseCallbackHandler
+from ..base import BaseAgentCallback
 from langchain_core.outputs import LLMResult
 from langchain_core.outputs import ChatGenerationChunk, GenerationChunk
 from .prompts import fact_check_plan_output_parser, evaluate_search_result_output_parser
 
 
-class MainAgentCallback(BaseCallbackHandler):
+class MainAgentCLIModeCallback(BaseAgentCallback):
     """
-    Callback handler for MainAgent to track and display the agent's reasoning process,
-    output tokens, and planning results during execution.
+    Main Agent CLI Mode 回调，主要用于在 terminal 显示 LLM 的推理过程
     """
 
     def __init__(self):
-        """
-        Initialize the callback handler
-
-        Args:
-            verbose: Whether to display detailed information
-        """
         self.step_count = 0
         self.llm_call_count = 0
         self.start_time = None
@@ -28,8 +21,6 @@ class MainAgentCallback(BaseCallbackHandler):
         self.has_content_started = False
         # 跟踪当前是否在 planner graph 内部
         self.is_in_planner_graph = False
-        # 跟踪当前正在执行的节点
-        self.current_node = None
 
         # ANSI color codes
         self.colors = {
@@ -73,11 +64,12 @@ class MainAgentCallback(BaseCallbackHandler):
             return str(data)
 
     def on_chain_start(
-        self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any
+        self, 
+        serialized: Dict[str, Any], 
+        inputs: Dict[str, Any], 
+        **kwargs: Any
     ) -> None:
-        """Called when a chain starts running, check if we're in planner graph"""
         try:            
-            # 从 kwargs 中读取 node 名称
             node_name = None
             if kwargs and "metadata" in kwargs and isinstance(kwargs["metadata"], dict):
                 node_name = kwargs["metadata"].get("langgraph_node", None)
@@ -94,14 +86,19 @@ class MainAgentCallback(BaseCallbackHandler):
             print(f"Error in on_chain_start: {str(e)}")
 
     def on_chain_end(
-        self, outputs: Dict[str, Any], **kwargs: Any
+        self, 
+        outputs: Dict[str, Any], 
+        **kwargs: Any
     ) -> None:
         """Called when a chain ends, reset to planner graph context"""
         # 链结束后重置为 planner 上下文，但不重置 current_node
         self.is_in_planner_graph = True
         
     def on_llm_start(
-        self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
+        self, 
+        serialized: Dict[str, Any], 
+        prompts: List[str], 
+        **kwargs: Any
     ) -> None:        
         """Called when LLM starts generating"""
         if not self.is_in_planner_graph:
@@ -349,7 +346,11 @@ class MainAgentCallback(BaseCallbackHandler):
         except Exception as e:
             self._print_colored(f"Error in _print_formatted_plan: {str(e)}", "red")
 
-    def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
+    def on_tool_error(
+        self, 
+        error: BaseException, 
+        **kwargs: Any
+    ) -> None:
         """Called when a tool errors"""
         if not self.is_in_planner_graph:
             return
@@ -362,7 +363,10 @@ class MainAgentCallback(BaseCallbackHandler):
             self._print_colored(f"Error in on_tool_error: {str(e)}", "red")
 
     def on_tool_start(
-        self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
+        self, 
+        serialized: Dict[str, Any], 
+        input_str: str, 
+        **kwargs: Any
     ) -> None:
         """Called when a tool starts running"""
         try:

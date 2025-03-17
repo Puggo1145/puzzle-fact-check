@@ -1,27 +1,19 @@
 import json
 from typing import Any, Dict, List
-from langchain_core.callbacks import BaseCallbackHandler
+from ..base import BaseAgentCallback
 from .prompts import evaluate_current_status_output_parser, generate_answer_output_parser
 
 
-class AgentStateCallback(BaseCallbackHandler):
+class SearchAgentCLIModeCallback(BaseAgentCallback):
     """
-    Callback function，用于跟踪和显示 Search Agent 执行过程中的状态变化
+    Search Agent CLI Mode 回调，主要用于在 terminal 显示 LLM 的推理过程
     """
 
     def __init__(self):
-        """
-        初始化回调处理器
-
-        Args:
-            verbose: 是否显示详细信息
-        """
         self.step_count = 0  # 总步骤计数
         self.llm_call_count = 0  # LLM调用计数
         self.start_time = None
         self.last_tokens = 0
-        # 跟踪当前正在执行的节点
-        self.current_node = None
         # ANSI 颜色代码
         self.colors = {
             "blue": "\033[94m",
@@ -58,19 +50,6 @@ class AgentStateCallback(BaseCallbackHandler):
             return json.dumps(data, indent=2, ensure_ascii=False)
         else:
             return str(data)
-        
-    def on_chain_start(
-        self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any
-    ) -> None:
-        """当链开始运行时调用，检查当前节点"""
-        try:            
-            # 从 kwargs 中读取 node 名称
-            node_name = None
-            if kwargs and "metadata" in kwargs and isinstance(kwargs["metadata"], dict):
-                node_name = kwargs["metadata"].get("langgraph_node", None)
-                self.current_node = node_name
-        except Exception as e:
-            print(f"Error in on_chain_start: {str(e)}")
         
     def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> None:
         # 检查outputs是否为布尔值或不是字典

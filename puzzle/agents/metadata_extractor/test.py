@@ -1,11 +1,9 @@
-import json
 from langchain_openai import ChatOpenAI
 from .graph import MetadataExtractAgentGraph
-from db import AgentDatabaseIntegration
+from db import db_integration
+
 
 def test_metadata_extractor():
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    
     example_initial_state = {
         "news_text": """
 2021 年 7 月 26 日，东京奥运会男子铁人三项比赛结束后，
@@ -15,16 +13,17 @@ def test_metadata_extractor():
 中游泳"等
 """
     }
-    
-    db_integration = AgentDatabaseIntegration()
-    
-    # 初始化 db news text node
-    db_integration.initialize_with_news_text(news_text=example_initial_state["news_text"])
-    
-    metadata_extractor_agent = MetadataExtractAgentGraph(
-        model,
+
+    model = ChatOpenAI(
+        model="gpt-4o-mini", 
+        temperature=0
     )
-    metadata_extractor_agent.invoke(example_initial_state)
+    # 初始化 db news text node
+    db_integration.initialize_with_news_text(
+        news_text=example_initial_state["news_text"]
+    )
+    MetadataExtractAgentGraph(model).invoke(example_initial_state)
+
 
 if __name__ == "__main__":
     test_metadata_extractor()

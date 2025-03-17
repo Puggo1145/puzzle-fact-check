@@ -18,9 +18,9 @@ from tools import (
     get_current_time,
 )
 from langgraph.graph.state import StateGraph
-from .callback import AgentStateCallback
+from .callback import SearchAgentCLIModeCallback
 
-from typing import cast, List
+from typing import cast, List, Literal
 from langchain_core.messages import ToolCall
 
 
@@ -34,14 +34,17 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
     def __init__(
         self,
         model: ChatQwen,
-        max_tokens: int,
+        max_search_tokens: int,
+        mode: Literal["CLI", "API"] = "CLI",
     ):
         super().__init__(
+            mode=mode,
             model=model,
-            default_config={"callbacks": [AgentStateCallback()]},
+            api_callbacks=[],
+            cli_callbacks=[SearchAgentCLIModeCallback()],
         )
         
-        self.max_tokens = max_tokens
+        self.max_search_tokens = max_search_tokens
         
         self.tools = [
             SearchBingTool(),
@@ -90,7 +93,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         # print(f"已消耗 token：{state.token_usage}/{self.max_tokens}")
         
         # 超出最大 token 窗口，强制进行回答
-        if state.token_usage >= self.max_tokens:
+        if state.token_usage >= self.max_search_tokens:
             forced_answer_status = Status(
                 evaluation="检索 token 超出最大可用 token，强制基于当前信息开始回答",
                 memory="检索消耗的 token 超出最大可用 token",
@@ -106,7 +109,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         """根据 token 消耗结果决策的 router"""
 
         # token 消耗超出限制，强制回答
-        if state.token_usage >= self.max_tokens:
+        if state.token_usage >= self.max_search_tokens:
             return "exceeded"
         else:
             return "not_exceeded"

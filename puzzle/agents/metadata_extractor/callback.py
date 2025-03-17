@@ -1,29 +1,25 @@
 import json
 from uuid import UUID
 from typing import Any, Dict, Optional
-from langchain_core.callbacks import BaseCallbackHandler
+from ..base import BaseAgentCallback
 from langchain_core.agents import AgentAction
-from .prompts import basic_metadata_extractor_output_parser, knowledge_extraction_output_parser, knowledge_retrieve_output_parser
+from .prompts import (
+    basic_metadata_extractor_output_parser, 
+    knowledge_extraction_output_parser, 
+    knowledge_retrieve_output_parser
+)
 
 
-class MetadataExtractorCallback(BaseCallbackHandler):
+class MetadataExtractorCLIModeCallback(BaseAgentCallback):
     """
-    Callback function，用于跟踪和显示 Metadata Extractor Agent 执行过程中的状态变化
+    Metadata Extractor CLI Mode 回调，主要用于在 terminal 显示 LLM 的推理过程
     """
 
     def __init__(self):
-        """
-        初始化回调处理器
-
-        Args:
-            verbose: 是否显示详细信息
-        """
         self.step_count = 0  # 总步骤计数
         self.llm_call_count = 0  # LLM调用计数
         self.start_time = None
         self.last_tokens = 0
-        # 跟踪当前正在执行的节点
-        self.current_node = None
         # ANSI 颜色代码
         self.colors = {
             "blue": "\033[94m",
@@ -61,21 +57,12 @@ class MetadataExtractorCallback(BaseCallbackHandler):
         else:
             return str(data)
         
-    def on_chain_start(
-        self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any
+        
+    def on_chain_end(
+        self, 
+        outputs: Dict[str, Any], 
+        **kwargs: Any
     ) -> None:
-        """当链开始运行时调用，检查当前节点"""
-        try:            
-            # 从 kwargs 中读取 node 名称
-            node_name = None
-            if kwargs and "metadata" in kwargs and isinstance(kwargs["metadata"], dict):
-                node_name = kwargs["metadata"].get("langgraph_node", None)
-                self.current_node = node_name
-        except Exception as e:
-            print(f"Error in on_chain_start: {str(e)}")
-
-    def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> None:
-        """当链结束运行时调用"""
         # 检查outputs是否为布尔值或不是字典
         if not isinstance(outputs, dict):
             return
@@ -154,8 +141,12 @@ class MetadataExtractorCallback(BaseCallbackHandler):
         self._print_colored(f"{str(error)}", "red")
         self._print_colored(f"{'-'*50}", "red")
 
-    def on_llm_start(self, serialized, prompts, **kwargs):
-        """当LLM开始生成时调用"""
+    def on_llm_start(
+        self, 
+        serialized, 
+        prompts, 
+        **kwargs
+    ):
         self.llm_call_count += 1  # 增加LLM调用计数
 
         model_name = serialized.get("name", "Unknown Model")
@@ -188,8 +179,11 @@ class MetadataExtractorCallback(BaseCallbackHandler):
         # 如果需要查看提示词，可以取消下面的注释
         # self._print_colored(f"提示词: {prompts}", "purple")
 
-    def on_llm_end(self, response, **kwargs):
-        """当LLM生成结束时调用"""
+    def on_llm_end(
+        self, 
+        response, 
+        **kwargs
+    ):
         if self.current_node == "agent" or self.current_node == "tools":
             return
         
@@ -227,43 +221,35 @@ class MetadataExtractorCallback(BaseCallbackHandler):
     def _print_basic_metadata(self, metadata):
         """打印基本元数据信息"""
         self._print_colored("\n📋 基本元数据:", "blue", True)
-        
-        # 打印新闻类型
+        # 新闻类型
         self._print_colored(f"📰 新闻类型: {metadata.news_type}", "blue")
-        
-        # 打印新闻六要素
+        # 新闻六要素
         self._print_colored("\n🔍 新闻六要素 (5W1H):", "blue", True)
-        
         # Who
         if metadata.who:
             self._print_colored("👤 Who (谁):", "blue")
             for item in metadata.who:
                 self._print_colored(f"  • {item}", "blue")
-        
         # What
         if metadata.what:
             self._print_colored("📌 What (什么):", "blue")
             for item in metadata.what:
                 self._print_colored(f"  • {item}", "blue")
-        
         # When
         if metadata.when:
             self._print_colored("🕒 When (何时):", "blue")
             for item in metadata.when:
                 self._print_colored(f"  • {item}", "blue")
-        
         # Where
         if metadata.where:
             self._print_colored("📍 Where (何地):", "blue")
             for item in metadata.where:
                 self._print_colored(f"  • {item}", "blue")
-        
         # Why
         if metadata.why:
             self._print_colored("❓ Why (为何):", "blue")
             for item in metadata.why:
                 self._print_colored(f"  • {item}", "blue")
-        
         # How
         if metadata.how:
             self._print_colored("🛠️ How (如何):", "blue")

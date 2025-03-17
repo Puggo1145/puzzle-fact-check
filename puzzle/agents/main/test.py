@@ -1,65 +1,5 @@
-import readchar
-import sys
 from .graph import MainAgent
-# from langchain_deepseek import ChatDeepSeek
 from models import ChatQwen
-from langgraph.types import Command
-
-
-def cli_select_option(options, prompt):
-    """
-    实现命令行选择功能，用户可以通过左右箭头键选择选项
-
-    Args:
-        options: 选项列表
-        prompt: 提示信息
-
-    Returns:
-        选中的选项
-    """
-    selected = 0
-
-    print(prompt)
-
-    def print_options():
-        # 清除当前行
-        sys.stdout.write("\r" + " " * 100 + "\r")
-
-        # 只打印选项，不打印提示
-        for i, option in enumerate(options):
-            if i == selected:
-                sys.stdout.write(f"[•] {option}  ")
-            else:
-                sys.stdout.write(f"[ ] {option}  ")
-
-        sys.stdout.flush()
-
-    print_options()
-
-    while True:
-        key = readchar.readkey()
-
-        if key == readchar.key.LEFT and selected > 0:
-            selected -= 1
-            print_options()
-        elif key == readchar.key.RIGHT and selected < len(options) - 1:
-            selected += 1
-            print_options()
-        elif key == readchar.key.ENTER:
-            sys.stdout.write("\n")
-            return options[selected]
-
-
-def get_user_feedback():
-    """处理用户交互，返回用户反馈"""
-    choice = cli_select_option(["continue", "revise"], "请选择操作：")
-
-    if choice == "continue":
-        return {"action": "continue"}
-    else:
-        print("\n请输入您的修改建议：")
-        feedback = input("> ")
-        return {"action": "revise", "feedback": feedback}
 
 
 def test_plan_agent():
@@ -88,6 +28,7 @@ def test_plan_agent():
     )
 
     plan_agent = MainAgent(
+        # mode="API",
         model=model,
         metadata_extract_model=metadata_extract_model,
         search_model=search_model,

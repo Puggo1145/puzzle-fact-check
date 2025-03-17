@@ -11,12 +11,12 @@ from .prompts import (
     evaluate_search_result_prompt_template,
     write_fact_checking_report_prompt_template,
 )
-from .callback import MainAgentCallback
+from .callback import MainAgentCLIModeCallback
 from ..searcher.states import SearchAgentState
 from ..searcher.graph import SearchAgentGraph
 from ..metadata_extractor.graph import MetadataExtractAgentGraph
 
-from typing import List, Optional, Any, Dict, TypedDict
+from typing import List, Optional, Any, Dict, Literal
 from models import ChatQwen
 from langchain_deepseek import ChatDeepSeek
 from .states import FactCheckPlanState, RetrievalResult, RetrievalResultVerifications, CheckPoint, CheckPoints
@@ -26,28 +26,31 @@ from langchain_openai import ChatOpenAI
 from utils.exceptions import AgentExecutionException
 
 
-class MainAgentConfig(TypedDict):
-    max_search_tokens: int
-    cli_mode: bool
-
-
 class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
     def __init__(
         self,
         model: ChatDeepSeek | ChatQwen,
         metadata_extract_model: ChatOpenAI | ChatQwen,
         search_model: ChatQwen,
-        config: MainAgentConfig,
+        mode: Literal["CLI", "API"] = "CLI",
+        max_search_tokens: int = 5000,
     ):
         super().__init__(
+            mode=mode,
             model=model,
-            default_config={"callbacks": [MainAgentCallback()]},
-            cli_mode=config["cli_mode"],
+            api_callbacks=[],
+            cli_callbacks=[MainAgentCLIModeCallback()]
         )
 
-        self.metadata_extract_model = metadata_extract_model
-        self.search_model = search_model
-        self.max_search_tokens = config["max_search_tokens"]
+        self.metadata_extract_agent = MetadataExtractAgentGraph(
+            mode=mode,
+            model=metadata_extract_model,
+        )
+        self.search_agent = SearchAgentGraph(
+            mode=mode,
+            model=search_model,
+            max_search_tokens=max_search_tokens,
+        )
 
     def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(FactCheckPlanState)
@@ -91,12 +94,10 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         return state
 
     def invoke_metadata_extract_agent(self, state: FactCheckPlanState):
-        metadata_extract_agent = MetadataExtractAgentGraph(
-            model=self.metadata_extract_model
-        )
-        result = MetadataState(**metadata_extract_agent.invoke({"news_text": state.news_text}))
+        result = self.metadata_extract_agent.invoke({"news_text": state.news_text})
+        metadata = MetadataState(**result)
 
-        return {"metadata": result}
+        return {"metadata": metadata}
 
     def extract_check_point(self, state: FactCheckPlanState):
         """
@@ -199,11 +200,8 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
 
     def invoke_search_agent(self, state: SearchAgentState):
         """根据检索规划调用子检索模型执行深度检索"""
-        search_agent = SearchAgentGraph(
-            model=self.search_model,
-            max_tokens=self.max_search_tokens,
-        )
-        search_state = SearchAgentState(**search_agent.invoke(state))
+        result = self.search_agent.invoke(state)
+        search_state = SearchAgentState(**result)
         if not search_state.result:
             raise AgentExecutionException(
                 agent_type="searcher",
@@ -326,7 +324,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
 
         result = super().invoke(initial_state, config)
 
-        if self.cli_mode:
+        if self.mode == "CLI":
             thread_config = config.get("configurable", {})
             while True:
                 states = self.graph.get_state({"configurable": thread_config})
