@@ -9,18 +9,16 @@ from .repository import (
 from .schema import (
     NewsText as NewsTextNode,
     BasicMetadata as BasicMetadataNode,
-    CheckPoint as CheckPointNode,
     RetrievalStep as RetrievalStepNode,
-    SearchResult as SearchResultNode,
 )
 from utils import singleton
 from utils.exceptions import AgentExecutionException
 
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from agents.metadata_extractor.states import BasicMetadata, Knowledge
     from agents.main.states import CheckPoint as CheckPointState
-    from agents.searcher.states import SearchAgentState
+    from agents.searcher.states import SearchResult, Evidence
 
 
 @singleton
@@ -33,8 +31,6 @@ class AgentDatabaseIntegration:
     def __init__(self):
         # 全局共享 nodes 状态
         self.news_text_node = None
-        self.check_point_nodes: Dict[str, CheckPointNode] = {}
-        self.retrieval_step_nodes: Dict[str, RetrievalStepNode] = {}
     
     def initialize_with_news_text(self, news_text: str) -> NewsTextNode:
         self.news_text_node = NewsTextRepository.create(news_text)
@@ -65,46 +61,32 @@ class AgentDatabaseIntegration:
         if not self.news_text_node:
             raise ValueError("News text node not initialized. Call initialize_with_news_text first.")
         
-        CheckPointRepository.store_check_points_from_state(self.news_text_node, check_points)
-        
-        # 从 db 创建好的 nodes 中，将 check point nodes 和 retrieval step nodes 存入内存以供后续操作
-        for check_point_node in CheckPointNode.nodes.all():
-            self.check_point_nodes[check_point_node.content] = check_point_node
-            
-        for retrieval_step_node in RetrievalStepNode.nodes.all():
-            self.retrieval_step_nodes[retrieval_step_node.purpose] = retrieval_step_node
-        
-    def store_search_results(
-        self, 
-        search_state: SearchAgentState
-    ) -> Optional[SearchResultNode]:
-        if not search_state.result:
-            raise AgentExecutionException(
-                agent_type="searcher",
-                purpose=search_state.purpose,
-                message="No results from search agent."
-            )
-        
-        if not self.retrieval_step_nodes:
-            raise AgentExecutionException(
-                agent_type="searcher",
-                purpose=search_state.purpose,
-                message="No retrieval steps found. Store check points first."
-            )
-        
-        # 找到对应的 retrieval step node
-        retrieval_step_node = self.get_retrieval_step_node(search_state.purpose)
+        CheckPointRepository.store_check_points(self.news_text_node, check_points)
+    
+    def store_search_evidences(
+        self,
+        retrieval_step_purpose: str,
+        evidences: List[Evidence]
+    ) -> None:
+        retrieval_step_node = RetrievalStepNode.nodes.get(purpose=retrieval_step_purpose)
         if not retrieval_step_node:
             raise AgentExecutionException(
                 agent_type="searcher",
-                purpose=search_state.purpose,
-                message=f"Retrieval step with purpose '{search_state.purpose}' not found."
+                message=f"Retrieval step with purpose '{retrieval_step_purpose}' not found."
             )
         
-        return SearchRepository.store_search_results_from_state(retrieval_step_node, search_state)
+        return SearchRepository.store_search_evidences(retrieval_step_node, evidences)
     
-    def get_check_point_node(self, content: str) -> Optional[CheckPointNode]:
-        return self.check_point_nodes.get(content)
-    
-    def get_retrieval_step_node(self, purpose: str) -> Optional[RetrievalStepNode]:
-        return self.retrieval_step_nodes.get(purpose)
+    def store_search_results(
+        self, 
+        retrieval_step_purpose: str,
+        search_result: SearchResult
+    ) -> None:
+        retrieval_step_node = RetrievalStepNode.nodes.get(purpose=retrieval_step_purpose)
+        if not retrieval_step_node:
+            raise AgentExecutionException(
+                agent_type="searcher",
+                message=f"Retrieval step with purpose '{retrieval_step_purpose}' not found."
+            )
+        
+        return SearchRepository.store_search_result(retrieval_step_node, search_result)

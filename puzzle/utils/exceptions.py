@@ -17,10 +17,6 @@ class AgentExecutionException(Exception):
         message: Optional[str] = None
     ):
         self.agent_type = agent_type
-        self.purpose = purpose
         self.message = message or f"🚫 [Agent Execution Error]: Failed to execute {agent_type}"
-        
-        if purpose:
-            self.message += f" with purpose: {purpose}"
         
         super().__init__(self.message)

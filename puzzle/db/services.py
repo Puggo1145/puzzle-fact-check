@@ -16,7 +16,7 @@ from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from agents.metadata_extractor.states import BasicMetadata, Knowledge
     from agents.main.states import CheckPoint as CheckPointState
-    from agents.searcher.states import SearchAgentState
+    from agents.searcher.states import Evidence, SearchResult
 
 
 class DatabaseService:
@@ -91,24 +91,11 @@ class DatabaseService:
         return db_check_points
     
     @staticmethod
-    def store_search_results(
-        retrieval_step_node, 
-        search_state: SearchAgentState
-    ) -> Optional[SearchResultNode]:
-        if not search_state.result:
-            return None
-            
-        # Search Result Nodes
-        search_result_node = SearchResultNode(
-            summary=search_state.result.summary,
-            conclusion=search_state.result.conclusion,
-            confidence=search_state.result.confidence,
-        ).save()
-        
-        retrieval_step_node.has_result.connect(search_result_node)
-        
-        # Evidence Nodes
-        for evidence in search_state.evidences:
+    def store_search_evidences(
+        retrieval_step_node,
+        evidences: List[Evidence]
+    ) -> None:
+        for evidence in evidences:
             evidence_node = EvidenceNode(
                 content=evidence.content,
                 source=evidence.source,
@@ -121,8 +108,19 @@ class DatabaseService:
             elif evidence.relationship.lower() == "contradict":
                 retrieval_step_node.contradicts_with.connect(evidence_node)
                 
-        return search_result_node
-    
+    @staticmethod
+    def store_search_results(
+        retrieval_step_node, 
+        search_result: SearchResult
+    ) -> None:
+        # Search Result Nodes
+        search_result_node = SearchResultNode(
+            summary=search_result.summary,
+            conclusion=search_result.conclusion,
+            confidence=search_result.confidence,
+        ).save()
+        retrieval_step_node.has_result.connect(search_result_node)
+        
     @staticmethod
     def find_news_text_by_content(content: str) -> Optional[NewsTextNode]:
         try:

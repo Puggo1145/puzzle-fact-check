@@ -11,7 +11,7 @@ from typing import Optional, List, TYPE_CHECKING
 if TYPE_CHECKING:
     from agents.metadata_extractor.states import BasicMetadata, Knowledge
     from agents.main.states import CheckPoint as CheckPointState
-    from agents.searcher.states import SearchAgentState
+    from agents.searcher.states import SearchResult, Evidence
 
 
 class NewsTextRepository:
@@ -42,7 +42,7 @@ class MetadataRepository:
 class CheckPointRepository:
     @staticmethod
     @DatabaseService.transaction
-    def store_check_points_from_state(
+    def store_check_points(
         news_text_node: NewsTextNode, 
         check_points: List[CheckPointState]
     ):
@@ -52,11 +52,19 @@ class CheckPointRepository:
 class SearchRepository:
     @staticmethod
     @DatabaseService.transaction
-    def store_search_results_from_state(
+    def store_search_result(
         retrieval_step_node: RetrievalStepNode, 
-        search_state: SearchAgentState
+        search_result: SearchResult
     ):
-        return DatabaseService.store_search_results(retrieval_step_node, search_state)
+        return DatabaseService.store_search_results(retrieval_step_node, search_result)
+    
+    @staticmethod
+    @DatabaseService.transaction
+    def store_search_evidences(
+        retrieval_step_node: RetrievalStepNode,
+        evidences: List[Evidence]
+    ):
+        return DatabaseService.store_search_evidences(retrieval_step_node, evidences)
     
     @staticmethod
     def find_retrieval_step(

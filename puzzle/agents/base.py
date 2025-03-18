@@ -13,6 +13,7 @@ from typing import (
     Callable,
     Union,
     Tuple,
+    TypedDict,
 )
 from enum import Enum
 from uuid import UUID
@@ -81,6 +82,7 @@ class NodeEventTiming(Enum):
     ON_TOOL_START = "on_tool_start"
     ON_TOOL_END = "on_tool_end"
     ON_TOOL_ERROR = "on_tool_error"
+
 
 EventHandlers = Dict[str, Dict[NodeEventTiming, List[Tuple[Callable, Optional[Callable]]]]]
 
@@ -161,12 +163,84 @@ class NodeEventManager:
                 callback(context)
 
 
+class OnLLMStartContext(TypedDict):
+    serialized: dict[str, Any]
+    prompts: list[str]
+    run_id: UUID
+    parent_run_id: Optional[UUID]
+    tags: Optional[list[str]]
+    metadata: Optional[dict[str, Any]]
+
+class OnLLMNewTokenContext(TypedDict):
+    token: str
+    chunk: Optional[Union[GenerationChunk, ChatGenerationChunk]]
+    run_id: UUID
+    parent_run_id: Optional[UUID]
+    tags: Optional[list[str]]
+    kwargs: dict[str, Any]
+    
+
+class OnLLMEndContext(TypedDict):
+    response: LLMResult
+    run_id: UUID
+    parent_run_id: Optional[UUID]
+    kwargs: dict[str, Any]
+
+
+class OnLLMErrorContext(TypedDict):
+    error: BaseException
+    run_id: UUID
+    parent_run_id: Optional[UUID]
+    kwargs: dict[str, Any]
+
+
+class OnToolStartContext(TypedDict):
+    serialized: dict[str, Any]
+    input_str: str
+    run_id: UUID
+    parent_run_id: Optional[UUID]
+    tags: Optional[list[str]]
+    metadata: Optional[dict[str, Any]]
+    inputs: Optional[dict[str, Any]]
+    kwargs: dict[str, Any]
+
+
+class OnToolEndContext(TypedDict):
+    output: Any
+    run_id: UUID
+    parent_run_id: Optional[UUID]
+    tags: Optional[list[str]]
+    kwargs: dict[str, Any]
+
+
+class OnToolErrorContext(TypedDict):
+    error: BaseException
+    run_id: UUID
+    parent_run_id: Optional[UUID]
+    tags: Optional[list[str]]
+    kwargs: dict[str, Any]
+
+
+class OnChainStartContext(TypedDict):
+    serialized: dict[str, Any]
+    inputs: dict[str, Any]
+    kwargs: dict[str, Any]
+
+
+class OnChainEndContext(TypedDict):
+    outputs: dict[str, Any]
+    run_id: UUID
+    parent_run_id: Optional[UUID]
+    tags: Optional[list[str]]
+    kwargs: dict[str, Any]
+
+
 class BaseAgentCallback(BaseCallbackHandler):
     def __init__(self):
         super().__init__()
         self.current_node: str | None = None
         self.event_manager = NodeEventManager()
-        
+    
     def on_llm_start(
         self,
         serialized: dict[str, Any],

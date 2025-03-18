@@ -18,7 +18,7 @@ from tools import (
     get_current_time,
 )
 from langgraph.graph.state import StateGraph
-from .callback import CLIModeCallback
+from .callback import CLIModeCallback, DBIntegrationCallback
 
 from typing import cast, List, Literal
 from langchain_core.messages import ToolCall
@@ -40,6 +40,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         super().__init__(
             mode=mode,
             model=model,
+            base_callbacks=[DBIntegrationCallback()],
             api_callbacks=[],
             cli_callbacks=[CLIModeCallback()],
         )
@@ -234,6 +235,3 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
             "result": answer,
             "token_usage": state.token_usage
         }
-    
-    # def store_search_result_to_db(self, state: SearchAgentState):
-    #     self.db_integration.store_search_results(state)

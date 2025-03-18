@@ -1,8 +1,51 @@
 import json
-from typing import Any, Dict, List
-from ..base import BaseAgentCallback
+from ..base import (
+    BaseAgentCallback, 
+    NodeEventTiming, 
+    OnChainStartContext,
+    OnChainEndContext,
+    OnToolStartContext,
+    OnToolEndContext,
+    OnToolErrorContext,
+    OnLLMStartContext,
+    OnLLMEndContext,
+)
 from .prompts import evaluate_current_status_output_parser, generate_answer_output_parser
+from .states import SearchAgentState
+from db import db_integration
+from typing import cast, Optional
 
+
+class DBIntegrationCallback(BaseAgentCallback):
+    def __init__(self):
+        super().__init__()
+        
+        self.current_retrieval_step_purpose: Optional[str] = None
+        
+        # 保存当前 retrieval step purpose，方便匹配对应的 node
+        @self.node_event(node_name="__start__", timing=NodeEventTiming.ON_CHAIN_START)
+        def store_news_text_to_db(context: OnChainStartContext):
+            inputs = cast(SearchAgentState, context["inputs"])
+            self.current_retrieval_step_purpose = inputs.purpose
+        
+        @self.node_event(node_name="evaluate_current_status", timing=NodeEventTiming.ON_CHAIN_END)
+        def store_search_evidences_to_db(context: OnChainEndContext):
+            if not self.current_retrieval_step_purpose:
+                raise ValueError("Current retrieval step purpose is not set.")
+            
+            outputs = context["outputs"]
+            if not outputs.get("evidences"): # 检索过程中可能没有检索到新证据
+                return
+            db_integration.store_search_evidences(self.current_retrieval_step_purpose, outputs["evidences"])
+            
+        @self.node_event(node_name="generate_answer", timing=NodeEventTiming.ON_CHAIN_END)
+        def store_search_result_to_db(context: OnChainEndContext) -> None:
+            if not self.current_retrieval_step_purpose:
+                raise ValueError("Current retrieval step purpose is not set.")
+            
+            outputs = context["outputs"]
+            db_integration.store_search_results(self.current_retrieval_step_purpose, outputs["result"])
+    
 
 class CLIModeCallback(BaseAgentCallback):
     """
@@ -10,6 +53,8 @@ class CLIModeCallback(BaseAgentCallback):
     """
 
     def __init__(self):
+        super().__init__()
+        
         self.step_count = 0  # 总步骤计数
         self.llm_call_count = 0  # LLM调用计数
         self.start_time = None
@@ -25,9 +70,13 @@ class CLIModeCallback(BaseAgentCallback):
             "bold": "\033[1m",
             "reset": "\033[0m",
         }
+        
+        self.handle_chain_end()
+        self.handle_tools()
+        self.print_llm_start_info()
+        self.print_llm_results()
 
     def _print_colored(self, text, color="blue", bold=False):
-        """打印彩色文本"""
         prefix = ""
         if bold:
             prefix += self.colors["bold"]
@@ -38,10 +87,8 @@ class CLIModeCallback(BaseAgentCallback):
         print(f"{prefix}{text}{self.colors['reset']}")
 
     def _format_json(self, data):
-        """格式化 JSON 数据为可读字符串"""
         if isinstance(data, str):
             try:
-                # 尝试解析 JSON 字符串
                 parsed_data = json.loads(data)
                 return json.dumps(parsed_data, indent=2, ensure_ascii=False)
             except:
@@ -50,121 +97,103 @@ class CLIModeCallback(BaseAgentCallback):
             return json.dumps(data, indent=2, ensure_ascii=False)
         else:
             return str(data)
-        
-    def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> None:
-        # 统计 token 消耗
-        if "token_usage" in outputs:
-            current_tokens = int(outputs["token_usage"])
-            tokens_used = current_tokens - self.last_tokens
+    
+    def handle_chain_end(self):
+        @self.node_event(timing=NodeEventTiming.ON_CHAIN_END)
+        def track_token_usage(context: OnChainEndContext):
+            outputs = context["outputs"]
+            if "token_usage" in outputs:
+                current_tokens = int(outputs["token_usage"])
+                tokens_used = current_tokens - self.last_tokens
 
-            # 只有当token消耗有变化时才显示统计信息
-            if tokens_used > 0:
-                self.last_tokens = current_tokens
+                # 只有当token消耗有变化时才显示统计信息
+                if tokens_used > 0:
+                    self.last_tokens = current_tokens
 
-                self._print_colored(
-                    f"\n📊 Token消耗统计: ", "blue", True
-                )
-                self._print_colored(f"   本次消耗: {tokens_used} tokens", "blue")
-                self._print_colored(f"   累计消耗: {current_tokens} tokens", "blue")
-                self._print_colored(f"{'-'*50}", "blue")
+                    self._print_colored(f"\n📊 Token消耗统计: ", "blue", True)
+                    self._print_colored(f"   本次消耗: {tokens_used} tokens", "blue")
+                    self._print_colored(f"   累计消耗: {current_tokens} tokens", "blue")
+                    self._print_colored(f"{'-'*50}", "blue")
         
-    def on_tool_start(
-        self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
-    ) -> None:
-        tool_name = serialized.get("name", "Unknown Tool")
-        self._print_colored(f"\n🔨 开始执行工具: {tool_name}", "purple")
-        self._print_colored(f"📥 输入: {input_str}", "purple")
+    def handle_tools(self):
+        @self.node_event(timing=NodeEventTiming.ON_TOOL_START)
+        def print_tool_start(context: OnToolStartContext):
 
-    def on_tool_end(self, output: str, **kwargs: Any) -> None:
-        self._print_colored(f"📤 工具执行结果:", "green")
-        
-        # 处理不同类型的输出
-        try:
-            # 如果是字符串类型，检查长度并可能截断
-            if isinstance(output, str):
-                if len(output) > 500:
-                    self._print_colored(f"{output[:497]}...", "green")
+            tool_name = context["serialized"].get("name", "Unknown Tool")
+            self._print_colored(f"\n🔨 开始执行工具: {tool_name}", "purple")
+            self._print_colored(f"📥 输入: {context['input_str']}", "purple")
+
+        @self.node_event(timing=NodeEventTiming.ON_TOOL_END)
+        def print_tool_result(context: OnToolEndContext):
+            output = context["output"]
+            
+            self._print_colored(f"\n📤 工具执行结果:", "green")
+            
+            # 处理不同类型的输出
+            try:
+                # 如果是字符串类型，检查长度并可能截断
+                if isinstance(output, str):
+                    if len(output) > 500:
+                        self._print_colored(f"{output[:497]}...", "green")
+                    else:
+                        self._print_colored(output, "green")
                 else:
-                    self._print_colored(output, "green")
-            else:
-                # 处理非字符串类型
-                self._print_colored(str(output), "green")
-        except Exception as e:
-            # 捕获任何错误，确保回调不会中断主程序
-            self._print_colored(f"输出处理错误: {str(e)}", "red")
+                    # 处理非字符串类型
+                    self._print_colored(str(output), "green")
+            except Exception as e:
+                # 捕获任何错误，确保回调不会中断主程序
+                self._print_colored(f"输出处理错误: {str(e)}", "red")
 
-    def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
-        self._print_colored(f"\n❌ 工具执行错误:", "red", True)
-        self._print_colored(f"{str(error)}", "red")
-        self._print_colored(f"{'-'*50}", "red")
+        @self.node_event(timing=NodeEventTiming.ON_TOOL_ERROR)
+        def print_tool_error(context: OnToolErrorContext):
+            error = context["error"]
+            
+            self._print_colored(f"\n❌ 工具执行错误:", "red", True)
+            self._print_colored(f"{str(error)}", "red")
+            self._print_colored(f"{'-'*50}", "red")
 
-    def on_llm_start(
-        self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
-    ) -> None:
-        """当LLM开始生成时调用"""
-        self.llm_call_count += 1  # 增加LLM调用计数
-
-        model_name = serialized.get("name", "Unknown Model")
-        
-        # 根据当前节点显示不同的开始信息
-        if self.current_node == "evaluate_current_status":
+    def print_llm_start_info(self):
+        @self.node_event(node_name="evaluate_current_status", timing=NodeEventTiming.ON_LLM_START)
+        def print_evaluate_status_start(context: OnLLMStartContext):
+            self.llm_call_count += 1
+            model_name = context["serialized"]["name"]
             self._print_colored(
-                f"🧠 LLM 开始评估当前状态 (调用 #{self.llm_call_count}, {model_name})",
+                f"\n🧠 LLM 开始评估当前状态 (调用 #{self.llm_call_count}, {model_name})",
                 "purple",
                 True,
             )
-        elif self.current_node == "generate_answer":
+        
+        @self.node_event(node_name="generate_answer", timing=NodeEventTiming.ON_LLM_START)
+        def print_generate_answer_start(context: OnLLMStartContext):
+            model_name = context["serialized"]["name"]
+            self.llm_call_count += 1
             self._print_colored(
-                f"🧠 LLM 开始生成检索结论 (调用 #{self.llm_call_count}, {model_name})",
+                f"\n🧠 LLM 开始生成检索结论 (调用 #{self.llm_call_count}, {model_name})",
                 "green",
                 True,
             )
-        else:
-            self._print_colored(
-                f"🧠 LLM 开始生成 (调用 #{self.llm_call_count}, {model_name})",
-                "purple",
-                True,
-            )
-        # 如果需要查看提示词，可以取消下面的注释
-        # self._print_colored(f"提示词: {prompts}", "purple")
-
-    def on_llm_end(self, response, **kwargs: Any) -> None:
-        """当LLM生成结束时调用"""
-        # 控制台格式化输出
-        self._print_colored("LLM 输出:", "cyan", True)
         
-        # 根据当前节点处理不同的输出
-        if not hasattr(response, "generations") or not response.generations:
-            return
-            
-        for _, generation in enumerate(response.generations):
-            if generation:
-                for g_idx, g in enumerate(generation):
-                    if hasattr(g, "message") and g.message:
-                        content = (
-                            g.message.content
-                            if hasattr(g.message, "content")
-                            else str(g.message)
-                        )
-                        
-                        if self.current_node == "evaluate_current_status":
-                            try:
-                                parsed_result = evaluate_current_status_output_parser.parse(content)
-                                self._print_status_evaluation(parsed_result)
-                            except Exception as e:
-                                self._print_colored(f"解析状态评估失败: {str(e)}", "red")
-                                self._print_colored(content, "cyan")
-                        elif self.current_node == "generate_answer":
-                            try:
-                                parsed_result = generate_answer_output_parser.parse(content)
-                                self._print_search_result(parsed_result)
-                            except Exception as e:
-                                self._print_colored(f"解析核查结论失败: {str(e)}", "red")
-                                self._print_colored(content, "cyan")
-                        else:
-                            # 默认情况下直接打印输出
-                            self._print_colored(content, "cyan")
-                                
+    def print_llm_results(self):
+        @self.node_event(node_name="evaluate_current_status", timing=NodeEventTiming.ON_LLM_END)
+        def print_status_evaluation_end(context: OnLLMEndContext):
+            generated_text = context["response"].generations[0][0].text
+            try:
+                parsed_result = evaluate_current_status_output_parser.parse(generated_text)
+                self._print_status_evaluation(parsed_result)
+            except Exception as e:
+                self._print_colored(f"解析状态评估失败: {str(e)}", "red")
+                self._print_colored(generated_text, "cyan")
+        
+        @self.node_event(node_name="generate_answer", timing=NodeEventTiming.ON_LLM_END)
+        def print_generate_answer_end(context: OnLLMEndContext):
+            generated_text = context["response"].generations[0][0].text
+            try:
+                parsed_result = generate_answer_output_parser.parse(generated_text)
+                self._print_search_result(parsed_result)
+            except Exception as e:
+                self._print_colored(f"解析核查结论失败: {str(e)}", "red")
+                self._print_colored(generated_text, "cyan")
+        
     def _print_status_evaluation(self, status):
         """打印状态评估信息"""
         # 打印评估结果
