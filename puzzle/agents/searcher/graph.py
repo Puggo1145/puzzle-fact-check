@@ -18,7 +18,8 @@ from tools import (
     get_current_time,
 )
 from langgraph.graph.state import StateGraph
-from .callback import CLIModeCallback, DBIntegrationCallback
+from .events import SearchAgentEvents, CLIModeEvents, DBEvents
+from pubsub import pub
 
 from typing import cast, List, Literal
 from langchain_core.messages import ToolCall
@@ -40,11 +41,8 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         super().__init__(
             mode=mode,
             model=model,
-            base_callbacks=[DBIntegrationCallback()],
-            api_callbacks=[],
-            cli_callbacks=[CLIModeCallback()],
         )
-        
+
         self.max_search_tokens = max_search_tokens
         
         self.tools = [
@@ -56,15 +54,21 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         self.tools_by_name = {tool.name: tool for tool in self.tools}
         self.tool_calling_schema = [convert_to_openai_tool(tool) for tool in self.tools]
         
+        self.db_events = DBEvents()
+        if mode == "CLI":
+            self.cli_events = CLIModeEvents()
+        
     def _build_graph(self):
         graph_builder = StateGraph(SearchAgentState)
         
+        graph_builder.add_node("initialization", self.initialization)
         graph_builder.add_node("check_token_usage", self.check_token_usage)
         graph_builder.add_node("evaluate_current_status", self.evaluate_current_status)
         graph_builder.add_node("tools", self.tool_node)
         graph_builder.add_node("generate_answer", self.generate_answer)
 
-        graph_builder.set_entry_point("check_token_usage")
+        graph_builder.set_entry_point("initialization")
+        graph_builder.add_edge("initialization", "check_token_usage")
         graph_builder.add_conditional_edges(
             "check_token_usage",
             self._route_based_on_token_usage,
@@ -85,10 +89,29 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         
         return graph_builder.compile()
     
+    def initialization(self, state: SearchAgentState):
+        """初始化搜索代理"""
+        pub.sendMessage(
+            SearchAgentEvents.STORE_CHECK_POINT.value,
+            content=state.content,
+            purpose=state.purpose,
+            expected_sources=state.expected_sources,
+        )
+        pub.sendMessage(
+            SearchAgentEvents.PRINT_SEARCH_AGENT_START.value,
+            content=state.content,
+            purpose=state.purpose,
+            expected_sources=state.expected_sources,
+        )
+        
+        return state
+    
     def check_token_usage(self, state: SearchAgentState):
         """检查 token 是否超出最大窗口"""
-        
-        # print(f"已消耗 token：{state.token_usage}/{self.max_tokens}")
+        pub.sendMessage(
+            SearchAgentEvents.PRINT_TOKEN_USAGE.value,
+            current_tokens=state.token_usage
+        )
         
         # 超出最大 token 窗口，强制进行回答
         if state.token_usage >= self.max_search_tokens:
@@ -167,10 +190,22 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         )
         messages = [system_prompt, evaluate_current_status_prompt]
 
+        # 发送LLM开始评估状态的事件
+        pub.sendMessage(
+            SearchAgentEvents.PRINT_EVALUATE_STATUS_START.value,
+            model_name=self.model.model_name
+        )
+
         response = self.model.invoke(input=messages)
         state.token_usage += count_tokens(messages + [response])
         
         new_status: Status = evaluate_current_status_output_parser.parse(str(response.content))
+        
+        # 发送LLM评估状态结束的事件
+        pub.sendMessage(
+            SearchAgentEvents.PRINT_STATUS_EVALUATION_END.value,
+            status=new_status
+        )
         
         updated_state = {
             "statuses": [new_status],
@@ -178,6 +213,17 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         }
         if new_status.new_evidence:
             updated_state["evidences"] = new_status.new_evidence
+            # 存储搜索证据到数据库
+            pub.sendMessage(
+                SearchAgentEvents.STORE_SEARCH_EVIDENCES.value,
+                evidences=new_status.new_evidence
+            )
+        
+        # 发送token使用情况事件
+        pub.sendMessage(
+            SearchAgentEvents.PRINT_TOKEN_USAGE.value,
+            current_tokens=state.token_usage
+        )
         
         return updated_state
     
@@ -188,17 +234,40 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
 
         tool_calling_results: List[str] = []
         for tool_call in tool_calls:
-            # 调用 tool
-            tool_result = self.tools_by_name[tool_call["name"]].invoke(tool_call["args"])
-
-            # 确保工具结果是字符串格式
-            if not isinstance(tool_result, str):
-                # 如果是复杂对象，转换为格式化的JSON字符串
-                tool_result = json.dumps(tool_result, ensure_ascii=False, indent=2)
-
-            # 创建简洁明了的结果格式
-            formatted_result = f"工具名称: {tool_call['name']}\n结果内容:\n{tool_result}"
-            tool_calling_results.append(formatted_result)
+            # 发送工具开始执行事件
+            pub.sendMessage(
+                SearchAgentEvents.PRINT_TOOL_START.value,
+                tool_name=tool_call["name"],
+                input_str=json.dumps(tool_call["args"], ensure_ascii=False)
+            )
+            
+            try:
+                # 调用 tool
+                tool_result = self.tools_by_name[tool_call["name"]].invoke(tool_call["args"])
+                
+                # 发送工具执行结果事件
+                pub.sendMessage(
+                    SearchAgentEvents.PRINT_TOOL_RESULT.value,
+                    output=tool_result
+                )
+                
+                # 确保工具结果是字符串格式
+                if not isinstance(tool_result, str):
+                    # 如果是复杂对象，转换为格式化的JSON字符串
+                    tool_result = json.dumps(tool_result, ensure_ascii=False, indent=2)
+                
+                # 创建简洁明了的结果格式
+                formatted_result = f"工具名称: {tool_call['name']}\n结果内容:\n{tool_result}"
+                tool_calling_results.append(formatted_result)
+            
+            except Exception as e:
+                # 添加错误信息到结果
+                error_result = f"工具名称: {tool_call['name']}\n执行错误:\n{str(e)}"
+                pub.sendMessage(
+                    SearchAgentEvents.PRINT_TOOL_ERROR.value,
+                    error=error_result
+                )
+                tool_calling_results.append(error_result)
 
         return {"latest_tool_messages": tool_calling_results}
     
@@ -226,10 +295,29 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         )
         messages = [system_prompt, generate_answer_prompt]
 
+        # 发送LLM开始生成答案的事件
+        pub.sendMessage(
+            SearchAgentEvents.PRINT_GENERATE_ANSWER_START.value,
+            model_name=self.model.model_name
+        )
+
         response = self.model.invoke(input=messages)
         answer: SearchResult = generate_answer_output_parser.parse(str(response.content))
 
         state.token_usage += count_tokens(messages + [response])
+        
+        pub.sendMessage(
+            SearchAgentEvents.PRINT_GENERATE_ANSWER_END.value,
+            result=answer
+        )
+        pub.sendMessage(
+            SearchAgentEvents.STORE_SEARCH_RESULT.value,
+            result=answer
+        )
+        pub.sendMessage(
+            SearchAgentEvents.PRINT_TOKEN_USAGE.value,
+            current_tokens=state.token_usage
+        )
         
         return {
             "result": answer,

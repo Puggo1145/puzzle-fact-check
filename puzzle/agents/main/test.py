@@ -1,5 +1,7 @@
 from .graph import MainAgent
 from models import ChatQwen
+from langchain_openai import ChatOpenAI
+from utils.llm_callbacks import ReasonerStreamingCallback
 
 
 def test_plan_agent():
@@ -15,20 +17,20 @@ def test_plan_agent():
     
     # model = ChatDeepSeek(model="deepseek-reasoner", temperature=0.6, streaming=True)
     model = ChatQwen(
-        model="qwq-plus-0305",
-        streaming=True
+        model="qwq-plus-latest",
+        streaming=True,
+        callbacks=[ReasonerStreamingCallback()]
     )
-    metadata_extract_model = ChatQwen(
-        model="qwen-turbo", 
+    metadata_extract_model = ChatOpenAI(
+        model="gpt-4o-mini", 
         temperature=0
     )
     search_model = ChatQwen(
-        model="qwq-plus-0305",
+        model="qwq-plus-latest",
         streaming=True
     )
 
     plan_agent = MainAgent(
-        # mode="API",
         model=model,
         metadata_extract_model=metadata_extract_model,
         search_model=search_model,

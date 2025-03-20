@@ -2,7 +2,7 @@ import uuid
 from agents.base import BaseAgent
 from langchain_core.messages import AIMessage, BaseMessage
 from langgraph.graph.state import CompiledStateGraph, StateGraph, END
-from langgraph.types import interrupt, Command, Send
+from langgraph.types import interrupt, Command
 from .prompts import (
     fact_check_plan_prompt_template,
     fact_check_plan_output_parser,
@@ -11,7 +11,6 @@ from .prompts import (
     evaluate_search_result_prompt_template,
     write_fact_checking_report_prompt_template,
 )
-from .callback import CLIModeCallback
 from ..searcher.states import SearchAgentState
 from ..searcher.graph import SearchAgentGraph
 from ..metadata_extractor.graph import MetadataExtractAgentGraph
@@ -19,14 +18,26 @@ from ..metadata_extractor.graph import MetadataExtractAgentGraph
 from typing import List, Optional, Any, Dict, Literal
 from models import ChatQwen
 from langchain_deepseek import ChatDeepSeek
-from .states import FactCheckPlanState, RetrievalResult, RetrievalResultVerifications, CheckPoint, CheckPoints
+from .states import (
+    FactCheckPlanState,
+    RetrievalResult,
+    RetrievalResultVerification,
+    CheckPoint,
+    CheckPoints,
+    RetrievalStep,
+)
 from ..metadata_extractor.states import MetadataState
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from utils.exceptions import AgentExecutionException
+from .events import MainAgentEvents, CLIModeEvents, DBEvents
+from pubsub import pub
 
 
 class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
+    mode: Literal["CLI", "API"]
+    max_search_tokens: int
+
     def __init__(
         self,
         model: ChatDeepSeek | ChatQwen,
@@ -38,11 +49,9 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         super().__init__(
             mode=mode,
             model=model,
-            base_callbacks=[],
-            api_callbacks=[],
-            cli_callbacks=[CLIModeCallback()]
         )
 
+        self.mode = mode
         self.metadata_extract_agent = MetadataExtractAgentGraph(
             mode=mode,
             model=metadata_extract_model,
@@ -52,41 +61,55 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
             model=search_model,
             max_search_tokens=max_search_tokens,
         )
+        
+        self.db_events = DBEvents()
+        if mode == "CLI":
+            self.cli_events = CLIModeEvents()
 
     def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(FactCheckPlanState)
 
+        graph_builder.add_node("initialization", self.initialization)
         graph_builder.add_node("invoke_metadata_extract_agent", self.invoke_metadata_extract_agent)
         graph_builder.add_node("extract_check_point", self.extract_check_point)
         graph_builder.add_node("invoke_search_agent", self.invoke_search_agent)
         graph_builder.add_node("human_verification", self.human_verification)
-        graph_builder.add_node("merge_retrieved_results", self.merge_retrieved_results)
         graph_builder.add_node("evaluate_search_result", self.evaluate_search_result)
         graph_builder.add_node("write_fact_checking_report", self.write_fact_checking_report)
 
-        graph_builder.set_entry_point("invoke_metadata_extract_agent")
+        graph_builder.set_entry_point("initialization")
+        graph_builder.add_edge("initialization", "invoke_metadata_extract_agent")
         graph_builder.add_edge("invoke_metadata_extract_agent", "extract_check_point")
         graph_builder.add_edge("extract_check_point", "human_verification")
 
         graph_builder.add_conditional_edges(
             "human_verification",
-            self.should_continue_to_parallel_retrieval,
+            self.should_continue_to_retrieval,
             ["extract_check_point", END, "invoke_search_agent"],
         )
-
-        graph_builder.add_edge(["invoke_search_agent"], "merge_retrieved_results")
-        graph_builder.add_edge("merge_retrieved_results", "evaluate_search_result")
-        graph_builder.add_edge("evaluate_search_result", "write_fact_checking_report")
+        graph_builder.add_edge("invoke_search_agent", "evaluate_search_result")
+        graph_builder.add_conditional_edges(
+            "evaluate_search_result",
+            self.should_retry_or_continue,
+            {
+                "retry": "invoke_search_agent",
+                "next": "invoke_search_agent",
+                "finish": "write_fact_checking_report"
+            }
+        )
         graph_builder.set_finish_point("write_fact_checking_report")
 
         return graph_builder.compile(
             checkpointer=self.memory_saver,
         )
-
-    # nodes
-    # def store_news_text_to_db(self, state: FactCheckPlanState):
-    #     self.db_integration.initialize_with_news_text(state.news_text)
-    #     return state
+        
+    def initialization(self, state: FactCheckPlanState):
+        pub.sendMessage(
+            MainAgentEvents.STORE_NEWS_TEXT.value,
+            news_text=state.news_text
+        )
+        
+        return state
 
     def invoke_metadata_extract_agent(self, state: FactCheckPlanState):
         result = self.metadata_extract_agent.invoke({"news_text": state.news_text})
@@ -104,6 +127,8 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         Returns:
             核查方案 JSON
         """
+        pub.sendMessage(MainAgentEvents.EXTRACT_CHECK_POINT_START.value)
+        
         messages = [fact_check_plan_prompt_template.format(news_text=state.news_text)]
         # 如果存在人类反馈，将人类反馈嵌入此处
         if state.human_feedback and state.check_points:
@@ -118,7 +143,13 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
 
         response = self.model.invoke(messages)
         check_points: CheckPoints = fact_check_plan_output_parser.invoke(response)
-        formatted_check_points = get_formatted_check_points(check_points) # 只保存需要核查的 check_point
+        
+        pub.sendMessage(
+            MainAgentEvents.EXTRACT_CHECK_POINT_END.value,
+            check_points_result=check_points
+        )
+        
+        formatted_check_points = get_formatted_check_points(check_points)  # 只保存需要核查的 check_point
 
         return {
             "check_points": formatted_check_points,
@@ -144,24 +175,19 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         else:
             return Command(resume="")
 
-    # def store_check_points_to_db(self, state: FactCheckPlanState):
-    #     if len(state.check_points) > 0:
-    #         self.db_integration.store_check_points(state.check_points)
-
-    #     return state
-
-    def should_continue_to_parallel_retrieval(self, state: FactCheckPlanState):
+    def should_continue_to_retrieval(self, state: FactCheckPlanState):
         """
-        决定是否继续执行并行检索
-        如果有 check point 和 basic_metadata，则创建并行检索任务
+        决定是否继续执行检索
+        如果有 check point 和 basic_metadata，则创建检索任务
         如果没有，则结束图的执行
         """
+        # 如果存在人类反馈，重新提取核查点
         if state.human_feedback:
             return "extract_check_point"
 
         # 没有核查点或元数据，结束图执行
         if (
-            len(state.check_points) < 1
+            len(state.check_points) == 0
             or not state.metadata
             or not state.metadata.basic_metadata
         ):
@@ -170,39 +196,34 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
                 message="无法从文本中提取核查点或元数据，请检查文本",
             )
 
-        # 提取 retireval step 分配检索任务
-        retrieval_tasks = []
-        for check_point in state.check_points:
-            if check_point.retrieval_step:
-                for retrieval_step in check_point.retrieval_step:
-                    retrieval_tasks.append(Send(
-                        "invoke_search_agent",
-                        SearchAgentState(
-                            check_point_id=check_point.id,
-                            retrieval_step_id=retrieval_step.id,
-                            basic_metadata=state.metadata.basic_metadata,
-                            content=check_point.content,
-                            purpose=retrieval_step.purpose,
-                            expected_sources=retrieval_step.expected_sources,
-                        ),
-                    ))
+        return "invoke_search_agent"
 
-        # 如果有检索任务，开始检索
-        if retrieval_tasks:
-            return retrieval_tasks
-
-        return END
-
-    def invoke_search_agent(self, state: SearchAgentState):
+    def invoke_search_agent(self, state: FactCheckPlanState):
         """根据检索规划调用子检索模型执行深度检索"""
-        result = self.search_agent.invoke(state)
+        # 获取当前检索任务
+        current_task = self._get_current_retrieval_task(state)
+        if not current_task:
+            raise AgentExecutionException(
+                agent_type="main",
+                message="无法找到当前检索任务",
+            )
+        
+        search_agent_state = SearchAgentState(
+            check_point_id=current_task.check_point_id,
+            retrieval_step_id=current_task.retrieval_step_id,
+            basic_metadata=current_task.basic_metadata,
+            content=current_task.content,
+            purpose=current_task.purpose,
+            expected_sources=current_task.expected_sources,
+        )
+        result = self.search_agent.invoke(search_agent_state)
         search_state = SearchAgentState(**result)
         if not search_state.result:
             raise AgentExecutionException(
                 agent_type="searcher",
                 message="检索模型未返回结果",
             )
-        
+
         retrieval_result = RetrievalResult(
             check_point_id=search_state.check_point_id,
             retrieval_step_id=search_state.retrieval_step_id,
@@ -211,106 +232,214 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
             confidence=search_state.result.confidence,
             evidences=search_state.evidences,
         )
-        
-        return {"aggregated_retrieved_results": [retrieval_result]}
-    
-    def merge_retrieved_results(self, state: FactCheckPlanState):
-        """将检索结果合并到 main state 中对应的 retrieval step 中"""
-        updates = [
-            {
-                "id": retrieval_result.retrieval_step_id,
-                "data": {"result": retrieval_result}
+
+        updates = [{
+            "id": retrieval_result.retrieval_step_id, 
+            "data": {
+                "result": retrieval_result,
             }
-            for retrieval_result in state.aggregated_retrieved_results
-        ]
-        
+        }]
         updated_check_points = self._batch_update_retrieval_steps(state, updates)
-        
+
         return {"check_points": updated_check_points}
-    
+
     def evaluate_search_result(self, state: FactCheckPlanState):
-        """主模型对 search agent 的检索结论进行复核推理"""
+        """主模型对当前 search agent 的检索结论进行复核推理"""
+        # 获取当前检索步骤和结果
+        current_task = self._get_current_retrieval_task(state)
+        if not current_task:
+            raise AgentExecutionException(
+                agent_type="main",
+                message="无法找到当前检索任务",
+            )
+
+        current_step = self.find_retrieval_step(state, current_task.retrieval_step_id)
+        if not current_step:
+            raise AgentExecutionException(
+                agent_type="main",
+                message="无法找到当前检索步骤",
+            )
+        
+        current_result = current_step.result
+        if not current_result:
+            raise AgentExecutionException(
+                agent_type="main",
+                message="无法找到当前检索步骤的结果",
+            )
+
+        pub.sendMessage(MainAgentEvents.EVALUATE_SEARCH_RESULT_START.value)
+        
+        # 评估当前检索结果
         response = self.model.invoke([
             evaluate_search_result_prompt_template.format(
+                news_text=state.news_text,
+                current_step=current_step,
+                current_result=current_result
+            )
+        ])
+        verification_result: RetrievalResultVerification = evaluate_search_result_output_parser.invoke(response)
+        
+        pub.sendMessage(
+            MainAgentEvents.EVALUATE_SEARCH_RESULT_END.value,
+            verification_result=verification_result
+        )
+        
+        updates = [{
+            "id": verification_result.retrieval_step_id, 
+            "data": {
+                "verification": verification_result,
+            }
+        }]
+
+        # 主模型不认可检索结论，需要更新检索步骤
+        if not verification_result.verified and (verification_result.updated_purpose or verification_result.updated_expected_sources):
+            update_data = {
+                "purpose": verification_result.updated_purpose,
+                "expected_sources": verification_result.updated_expected_sources,
+            }
+            updates.append({"id": verification_result.retrieval_step_id, "data": update_data})
+
+        updated_check_points = self._batch_update_retrieval_steps(state, updates)
+
+        return {"check_points": updated_check_points}
+
+    def should_retry_or_continue(self, state: FactCheckPlanState) -> Literal["retry", "next", "finish"]:
+        """
+        根据评估结果决定是重试当前检索任务、继续下一个任务还是完成检索
+        """
+        # 没有更多检索任务，完成检索
+        current_task = self._get_current_retrieval_task(state)
+        if not current_task:
+            pub.sendMessage(
+                MainAgentEvents.LLM_DECISION.value, 
+                decision="完成检索", 
+                reason="所有检索任务均已完成"
+            )
+            return "finish"
+
+        current_step = self.find_retrieval_step(state, current_task.retrieval_step_id)
+        if not current_step or not current_step.verification:
+            pub.sendMessage(
+                MainAgentEvents.LLM_DECISION.value, 
+                decision="重试当前检索",
+                reason="无法获取到当前检索步骤的验证结果"
+            )
+            return "retry"
+        # 主模型对当前检索结果不满意，重试当前检索
+        if not current_step.verification.verified:
+            pub.sendMessage(
+                MainAgentEvents.LLM_DECISION.value, 
+                decision="重试当前检索", 
+                reason="主模型不认可当前检索结果"
+            )
+            return "retry"
+
+        pub.sendMessage(
+            MainAgentEvents.LLM_DECISION.value, 
+            decision="继续下一个任务", 
+            reason="主模型认可当前检索结果"
+        )
+        return "next"
+    
+    def write_fact_checking_report(self, state: FactCheckPlanState):
+        """main agent 认可全部核查结论将核查结果写入报告"""
+        pub.sendMessage(MainAgentEvents.WRITE_FACT_CHECKING_REPORT_START.value)
+        
+        response = self.model.invoke([
+            write_fact_checking_report_prompt_template.format(
                 news_text=state.news_text, 
                 check_points=state.check_points
             )
         ])
-        verification_results: RetrievalResultVerifications = evaluate_search_result_output_parser.invoke(response)
         
-        updates = [
-            {
-                "id": verification_result.retrieval_step_id,
-                "data": {"verification": verification_result}
-            }
-            for verification_result in verification_results.items
+        pub.sendMessage(
+            MainAgentEvents.WRITE_FACT_CHECKING_REPORT_END.value,
+            response_text=response.content
+        )
+
+        return state
+    
+    def _get_current_retrieval_task(self, state: FactCheckPlanState) -> Optional[SearchAgentState]:
+        """获取下一个要执行的检索任务"""
+        unverified_tasks = [
+            SearchAgentState(
+                check_point_id=check_point.id,
+                retrieval_step_id=retrieval_step.id,
+                basic_metadata=state.metadata.basic_metadata, # type: ignore BasicMetadata 不存在的情况已经在前置节点处理
+                content=check_point.content,
+                purpose=retrieval_step.purpose,
+                expected_sources=retrieval_step.expected_sources,
+            )
+            for check_point in state.check_points 
+            if check_point.retrieval_step
+            for retrieval_step in check_point.retrieval_step 
+            if retrieval_step.verification is None or not retrieval_step.verification.verified
         ]
         
-        updated_check_points = self._batch_update_retrieval_steps(state, updates)
-        
-        return {"check_points": updated_check_points}
-    
-    def write_fact_checking_report(self, state: FactCheckPlanState):
-        """main agent 认可全部核查结论将核查结果写入报告"""
-        self.model.invoke([
-            write_fact_checking_report_prompt_template.format(
-                news_text=state.news_text,
-                check_points=state.check_points
-            )
-        ])
-        
-        return state   
-    
+        if unverified_tasks:
+            return unverified_tasks[0]
+        else:
+            return None
+
+
     def _batch_update_retrieval_steps(
-        self, 
-        state: FactCheckPlanState, 
-        updates: List[Dict[str, Any]]
+        self, state: FactCheckPlanState, updates: List[Dict[str, Any]]
     ) -> List[CheckPoint]:
         """
         批量更新多个 retrieval_step
-        
+
         Args:
             state: FactCheckPlanState
             updates: 更新数据列表，每项格式为 {"id": retrieval_step_id, "data": update_data}
                 - id: 要更新的 retrieval_step 的 id
                 - data: 要更新的数据字典
-                
+
         Returns:
             更新后的完整 check_points 列表
-            
+
         Raises:
             ValueError: 当找不到指定 id 的 retrieval_step 时
         """
         updated_check_points = state.check_points.copy()
-        
+
         # 构建检索步骤的索引映射
         step_index = {}
         for i, check_point in enumerate(updated_check_points):
             if not check_point.retrieval_step:
                 continue
-            
+
             for j, step in enumerate(check_point.retrieval_step):
                 step_index[step.id] = (i, j)
-        
+
         # 批量更新
         for update in updates:
             retrieval_step_id = update["id"]
             update_data = update["data"]
-            
+
             if retrieval_step_id in step_index:
                 check_point_idx, step_idx = step_index[retrieval_step_id]
                 step = updated_check_points[check_point_idx].retrieval_step[step_idx]
-                
+
                 for key, value in update_data.items():
                     if hasattr(step, key):
                         setattr(step, key, value)
                     else:
                         raise ValueError(f"Retrieval step 没有 '{key}' 属性")
             else:
-                raise ValueError(f"找不到 ID 为 '{retrieval_step_id}' 的 retrieval step")
-        
+                raise ValueError(
+                    f"找不到 ID 为 '{retrieval_step_id}' 的 retrieval step"
+                )
+
         # 返回完整的 check_points 列表
         return updated_check_points
+    
+    def find_retrieval_step(self, state: FactCheckPlanState, retrieval_step_id: str) -> Optional[RetrievalStep]:
+        """查找指定 id 的 retrieval step"""
+        for check_point in state.check_points:
+            for step in check_point.retrieval_step: # type: ignore
+                if step.id == retrieval_step_id:
+                    return step
+        return None
 
     # 重写 invoke 方法以支持 CLI 模式，令 Main Agent 能够在内部处理 human-in-the-loop 流程
     def invoke(self, initial_state: Any, config: Optional[RunnableConfig] = None):

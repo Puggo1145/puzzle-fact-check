@@ -17,7 +17,7 @@ from utils.exceptions import AgentExecutionException
 from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from agents.metadata_extractor.states import BasicMetadata, Knowledge
-    from agents.main.states import CheckPoint as CheckPointState
+    from agents.main.states import RetrievalStep
     from agents.searcher.states import SearchResult, Evidence
 
 
@@ -54,14 +54,16 @@ class AgentDatabaseIntegration:
         
         return MetadataRepository.store_retrieved_knowledge(self.news_text_node, knowledge)
     
-    def store_check_points(
+    def store_check_point(
         self, 
-        check_points: List[CheckPointState]
+        check_point_content: str, 
+        retrieval_step_purpose: str,
+        retrieval_step_expected_sources: List[str]
     ):
         if not self.news_text_node:
             raise ValueError("News text node not initialized. Call initialize_with_news_text first.")
         
-        CheckPointRepository.store_check_points(self.news_text_node, check_points)
+        CheckPointRepository.store_check_point(self.news_text_node, check_point_content, retrieval_step_purpose, retrieval_step_expected_sources)
     
     def store_search_evidences(
         self,

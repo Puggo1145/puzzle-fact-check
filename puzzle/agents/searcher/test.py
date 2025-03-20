@@ -1,10 +1,9 @@
 from .graph import SearchAgentGraph
 from .states import SearchAgentState
 from agents.metadata_extractor.states import BasicMetadata
-from agents.main.states import CheckPoint, RetrievalStep
 from models import ChatQwen
 from utils.llm_callbacks import ReasonerStreamingCallback
-from db import AgentDatabaseIntegration
+from db import db_integration
 
 
 def test_search_agent():
@@ -37,9 +36,6 @@ def test_search_agent():
         callbacks=[ReasonerStreamingCallback()]
     )
     
-    # 和 graph 使用同一个 db_integration
-    db_integration = AgentDatabaseIntegration()
-
     db_integration.initialize_with_news_text(news_text="""
 2021 年 7 月 26 日，东京奥运会男子铁人三项比赛结束后，
 金牌得主挪威选手 Kristian Blummenfelt 和一些其他选手跪地
@@ -47,25 +43,10 @@ def test_search_agent():
 为"赛场水中大肠杆菌严重超标"、"铁人三项选手在粪水
 中游泳"""
 )
-    db_integration.store_check_points(check_points=[
-        CheckPoint(
-            id="1",
-            content=example_input.content,
-            is_verification_point=True,
-            importance="test",
-            retrieval_step=[
-                RetrievalStep(
-                    id="1",
-                    purpose=example_input.purpose,
-                    expected_sources=example_input.expected_sources,
-                )
-            ]
-        )
-    ])
-    
     SearchAgentGraph(
         model=model,
         max_search_tokens=5000,
+        mode="API"
     ).invoke(example_input)
 
 if __name__ == "__main__":

@@ -15,7 +15,6 @@ from .schema import (
 from typing import List, Optional, TYPE_CHECKING
 if TYPE_CHECKING:
     from agents.metadata_extractor.states import BasicMetadata, Knowledge
-    from agents.main.states import CheckPoint as CheckPointState
     from agents.searcher.states import Evidence, SearchResult
 
 
@@ -64,31 +63,25 @@ class DatabaseService:
         
     
     @staticmethod
-    def store_check_points(news_text_node, check_points: List[CheckPointState]) -> List[CheckPointNode]:
-        db_check_points = []
-        
-        for check_point in check_points:
+    def store_check_point(
+        news_text_node, 
+        check_point_content: str, 
+        retrieval_step_purpose: str,
+        retrieval_step_expected_sources: List[str]
+    ) -> None:
+        check_point_node = CheckPointNode.nodes.get_or_none(content=check_point_content)
+        if not check_point_node:
             check_point_node = CheckPointNode(
-                content=check_point.content,
-                is_verification_point=check_point.is_verification_point,
-                importance=check_point.importance
+                content=check_point_content,
             ).save()
+        news_text_node.has_check_point.connect(check_point_node)
             
-            news_text_node.has_check_point.connect(check_point_node)
-            
-            # 分离 CheckPoint 下的 RetrievalStep
-            if check_point.retrieval_step:
-                for step in check_point.retrieval_step:
-                    retrieval_step = RetrievalStepNode(
-                        purpose=step.purpose,
-                        expected_sources=step.expected_sources
-                    ).save()
-                    
-                    check_point_node.verified_by.connect(retrieval_step)
-            
-            db_check_points.append(check_point)
-            
-        return db_check_points
+        retrieval_step_node = RetrievalStepNode(
+            purpose=retrieval_step_purpose,
+            expected_sources=retrieval_step_expected_sources
+        ).save()
+        check_point_node.verified_by.connect(retrieval_step_node)
+        
     
     @staticmethod
     def store_search_evidences(

@@ -1,6 +1,6 @@
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import HumanMessagePromptTemplate
-from .states import CheckPoints, RetrievalResultVerifications
+from .states import CheckPoints, RetrievalResultVerification
 
 fact_check_plan_output_parser = PydanticOutputParser(pydantic_object=CheckPoints)
 
@@ -44,17 +44,26 @@ human_feedback_prompt_template = HumanMessagePromptTemplate.from_template("""
 """
 )
 
-evaluate_search_result_output_parser = PydanticOutputParser(pydantic_object=RetrievalResultVerifications)
+evaluate_search_result_output_parser = PydanticOutputParser(pydantic_object=RetrievalResultVerification)
 evaluate_search_result_prompt_template = HumanMessagePromptTemplate.from_template("""
-你是一名专业的新闻事实核查员，你的任务是对下面的新闻文本进行事实核查：
+你是一名专业的新闻事实核查员，你先前根据新闻文本规划了一个核查任务。现在，search agent 已经完成了其中一个检索任务，你需要对下面检索步骤的结果进行评估：
 {news_text}
 
-你先前已经基于该新闻文本给出了一个核查方案，search agent 根据你的检索方案执行了检索，并给出了以下检索结果：
-{check_points}
+当前正在评估的检索步骤：
+{current_step}
+
+search agent 根据检索步骤执行了检索，并给出了以下检索结果：
+{current_result}
 
 # 任务
- - 仔细复核每个核查点检索步骤的结论，检查证据是否充分，结论与推理是否一致
- - 在每个核查点下的检索步骤中，对 search agent 的核查结论进行推理，并给出是否认可其核查结论
+1. 仔细复核当前检索步骤的结论，检查证据是否充分，结论与推理是否一致
+2. 评估 search agent 的检索结果是否满足检索步骤的目的
+3. 如果不认可当前检索结果，你可以：
+   - 指出当前结果的问题
+   - 建议如何改进检索步骤（例如调整检索目的、预期来源等）
+   - 要求 search agent 使用改进后的检索步骤重新检索
+   最后，将需要修改的信息更新到 updated_purpose、updated_expected_sources 中字段
+4. 如果认可当前结果，则将 verified 设置为 True，且无需更新 updated_purpose、updated_expected_sources 字段
 
 # 输出格式
 {format_instructions}

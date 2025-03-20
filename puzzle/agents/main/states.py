@@ -16,10 +16,15 @@ class RetrievalResultVerification(BaseModel):
         description="是否认可该检索步骤的结论",
         default=False
     )
+    updated_purpose: Optional[str] = Field(
+        description="如果对检索结果不满意，可以在此处更新该检索步骤的检索目的",
+        default=None
+    )
+    updated_expected_sources: Optional[List[str]] = Field(
+        description="如果对检索结果不满意，可以在此处更新该检索步骤的预期信息来源",
+        default=None
+    )
 
-
-class RetrievalResultVerifications(BaseModel):
-    items: List[RetrievalResultVerification] = Field(description="检索步骤的核查结论", default_factory=list)
 
 # 合并了 SearchResult 和 Evidence 的核查结论
 class RetrievalResult(SearchResult):
@@ -76,4 +81,3 @@ class FactCheckPlanState(BaseModel):
         description="人类对于核查方案的评估结果",
         default=None
     )
-    aggregated_retrieved_results: Annotated[List[RetrievalResult], operator.add] = Field(default_factory=list)

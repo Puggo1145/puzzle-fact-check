@@ -10,7 +10,8 @@ from .prompts import (
     knowledge_retrieve_prompt
 )
 from tools import SearchWikipediaTool
-from .callback import CLIModeCallback, DBIntegrationCallback
+from .events import MetadataExtractAgentEvents, CLIModeEvents, DBEvents
+from pubsub import pub
 
 from typing import Literal
 from .states import MetadataState, BasicMetadata, Knowledge, Knowledges
@@ -31,13 +32,14 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
         super().__init__(
             mode=mode,
             model=model,
-            base_callbacks=[DBIntegrationCallback()],
-            api_callbacks=[],
-            cli_callbacks=[CLIModeCallback()],
         )
-
+        
         self.tools = [SearchWikipediaTool()]
         self.model_with_tools = self.model.bind_tools(tools=self.tools)
+        
+        self.db_events = DBEvents()
+        if mode == "CLI":
+            self.cli_events = CLIModeEvents()
         
     def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(MetadataState)
@@ -65,12 +67,23 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
         Returns:
             包含新闻基本元数据的字典，包括新闻类型和六要素
         """
+        pub.sendMessage(MetadataExtractAgentEvents.PRINT_EXTRACT_BASIC_METADATA_START.value)
+        
         chain = (
             basic_metadata_extractor_prompt_template
             | self.model
             | basic_metadata_extractor_output_parser
         )
         basic_metadata: BasicMetadata = chain.invoke({"news_text": state.news_text})
+        
+        pub.sendMessage(
+            MetadataExtractAgentEvents.PRINT_EXTRACT_BASIC_METADATA_END.value,
+            basic_metadata=basic_metadata
+        )
+        pub.sendMessage(
+            MetadataExtractAgentEvents.STORE_BASIC_METADATA.value,
+            basic_metadata=basic_metadata
+        )
 
         return {"basic_metadata": basic_metadata}
 
@@ -81,12 +94,19 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
         Returns:
             包含知识元素的字典
         """
+        pub.sendMessage(MetadataExtractAgentEvents.PRINT_EXTRACT_KNOWLEDGE_START.value)
+        
         chain = (
             knowledge_extraction_prompt_template
             | self.model
             | knowledge_extraction_output_parser
         )
         knowledges: Knowledges = chain.invoke({"news_text": state.news_text})
+        
+        pub.sendMessage(
+            MetadataExtractAgentEvents.PRINT_EXTRACT_KNOWLEDGE_END.value,
+            knowledges=knowledges
+        )
         
         return {"knowledges": knowledges.items}
 
@@ -104,6 +124,8 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
         """
         使用维基百科检索每个知识元的定义
         """
+        pub.sendMessage(MetadataExtractAgentEvents.PRINT_RETRIEVE_KNOWLEDGE_START.value)
+        
         sub_graph = create_react_agent(
             model=self.model,
             tools=self.tools,
@@ -116,6 +138,15 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
         )
         response = sub_graph.invoke({"messages": [retrieve_message]})
         retrieved_knowledge: Knowledge = response["structured_response"]
+        
+        pub.sendMessage(
+            MetadataExtractAgentEvents.PRINT_RETRIEVE_KNOWLEDGE_END.value,
+            retrieved_knowledge=retrieved_knowledge
+        )
+        pub.sendMessage(
+            MetadataExtractAgentEvents.STORE_RETRIEVED_KNOWLEDGE.value,
+            retrieved_knowledge=retrieved_knowledge
+        )
         
         # 返回检索到的知识元
         return {"retrieved_knowledges": [retrieved_knowledge]}

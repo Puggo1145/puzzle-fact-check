@@ -41,8 +41,6 @@ class NewsText(StructuredNode):
 class CheckPoint(StructuredNode):
     """CheckPoint Node 和 CheckPoint State 相比，不继承 retrieval step"""
     content = StringProperty(required=True)
-    is_verification_point = BooleanProperty(required=True)
-    importance = StringProperty()
     # relationship
     verified_by = RelationshipFrom("RetrievalStep", "VERIFIED_BY")
         

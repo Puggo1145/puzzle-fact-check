@@ -11,13 +11,11 @@ def main():
     metadata_extract_model = ChatOpenAI(model="gpt-4o-mini")
     
     agent = MainAgent(
+        mode="CLI",
         model=model,
         search_model=search_model,
         metadata_extract_model=metadata_extract_model,
-        config={
-            "cli_mode": True,
-            "max_search_tokens": 5000,
-        },
+        max_search_tokens=5000,
     )
     
     example_input = {

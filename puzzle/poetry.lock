@@ -2114,6 +2114,17 @@ files = [
 windows-terminal = ["colorama (>=0.4.6)"]
 
 [[package]]
+name = "pypubsub"
+version = "4.0.3"
+description = "Python Publish-Subscribe Package"
+optional = false
+python-versions = ">=3.3, <4"
+groups = ["main"]
+files = [
+    {file = "Pypubsub-4.0.3-py3-none-any.whl", hash = "sha256:7f716bae9388afe01ff82b264ba8a96a8ae78b42bb1f114f2716ca8f9e404e2a"},
+]
+
+[[package]]
 name = "python-dotenv"
 version = "1.0.1"
 description = "Read key-value pairs from a .env file and set them as environment variables"
@@ -2869,4 +2880,4 @@ cffi = ["cffi (>=1.11)"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<4.0"
-content-hash = "d6ee5d61eff7beb12be16da85eb3b1495cd9efbe1a98c9136fd24b4ee05abf04"
+content-hash = "244f0e3e1897399c157d76e6eabe6cacae895b5b884485cbc7c05d5fd0a8eb5d"
