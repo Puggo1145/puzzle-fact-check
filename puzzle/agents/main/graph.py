@@ -46,7 +46,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         search_model: ChatQwen,
         mode: Literal["CLI", "API"] = "CLI",
         max_search_tokens: int = 5000,
-        max_retries: int = 2, # search agent 在一个任务上允许的最多重试次数
+        max_retries: int = 1, # search agent 在一个任务上允许的最多重试次数
     ):
         super().__init__(
             mode=mode,
@@ -343,18 +343,18 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
                 agent_type="main",
                 message="无法找到当前检索步骤的验证结果",
             )
-            
+
         # 主模型对当前检索结果不满意，且 search agent 重试次数未超过最大重试次数，重试当前检索
-        if not current_step.verification.verified and self.retries < self.max_retries:
+        if not current_step.verification.verified and self.retries <= self.max_retries:
             pub.sendMessage(
                 MainAgentEvents.LLM_DECISION.value, 
                 decision="重试当前检索", 
                 reason=current_step.verification.reasoning
             )
             return "retry"
-        
+
         # 主模型不认可当前检索结果，但 search agent 重试次数超过最大重试次数，继续下一个任务
-        if not current_step.verification.verified and self.retries >= self.max_retries:
+        if not current_step.verification.verified and self.retries > self.max_retries:
             pub.sendMessage(
                 MainAgentEvents.LLM_DECISION.value, 
                 decision="继续下一个任务", 
