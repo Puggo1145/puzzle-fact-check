@@ -1,9 +1,11 @@
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import HumanMessagePromptTemplate
 from .states import CheckPoints, RetrievalResultVerification
+from tools.get_current_time import get_current_time
+
+current_time = get_current_time.invoke({"timezone": "UTC"})
 
 fact_check_plan_output_parser = PydanticOutputParser(pydantic_object=CheckPoints)
-
 # 根据 DeepSeek 官方说法，不建议使用 SystemPrompt，这可能会限制模型的推理表现，这里替换为常规的 HumanMessage
 fact_check_plan_prompt_template = HumanMessagePromptTemplate.from_template(
     template="""
@@ -28,13 +30,23 @@ fact_check_plan_prompt_template = HumanMessagePromptTemplate.from_template(
    - 说明每个检索步骤的目的（请详细描述，至少 50 个字符）
    - 建议合适的信息来源类型
 
+现在时间是：
+{current_time}
+
 新闻文本：
 {news_text}
+
+新闻元数据：
+{basic_metadata}
+
+可能对核查有帮助的知识元：
+{knowledges}
 
 {format_instructions}
 """,
     partial_variables={
-        "format_instructions": fact_check_plan_output_parser.get_format_instructions()
+        "format_instructions": fact_check_plan_output_parser.get_format_instructions(),
+        "current_time": current_time,
     },
 )
 
@@ -46,6 +58,9 @@ human_feedback_prompt_template = HumanMessagePromptTemplate.from_template("""
 
 evaluate_search_result_output_parser = PydanticOutputParser(pydantic_object=RetrievalResultVerification)
 evaluate_search_result_prompt_template = HumanMessagePromptTemplate.from_template("""
+现在时间是：
+{current_time}
+
 你是一名专业的新闻事实核查员，你先前根据新闻文本规划了一个核查任务。现在，search agent 已经完成了其中一个检索任务，你需要对下面检索步骤的结果进行评估：
 {news_text}
 
@@ -69,7 +84,8 @@ search agent 根据检索步骤执行了检索，并给出了以下检索结果�
 {format_instructions}
 """,
     partial_variables={
-        "format_instructions": evaluate_search_result_output_parser.get_format_instructions()
+        "format_instructions": evaluate_search_result_output_parser.get_format_instructions(),
+        "current_time": current_time,
     },
 )
 

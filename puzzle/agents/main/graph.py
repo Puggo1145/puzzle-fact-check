@@ -1,6 +1,7 @@
+import json
 import uuid
 from agents.base import BaseAgent
-from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langgraph.graph.state import CompiledStateGraph, StateGraph, END
 from langgraph.types import interrupt, Command
 from .prompts import (
@@ -14,6 +15,12 @@ from .prompts import (
 from ..searcher.states import SearchAgentState
 from ..searcher.graph import SearchAgentGraph
 from ..metadata_extractor.graph import MetadataExtractAgentGraph
+from ..metadata_extractor.states import MetadataState, Knowledge, BasicMetadata
+
+from pubsub import pub
+from .events import MainAgentEvents, CLIModeEvents, DBEvents
+
+from langgraph.pregel import RetryPolicy
 
 from typing import List, Optional, Any, Dict, Literal
 from models import ChatQwen
@@ -26,18 +33,12 @@ from .states import (
     CheckPoints,
     RetrievalStep,
 )
-from ..metadata_extractor.states import MetadataState
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from utils.exceptions import AgentExecutionException
-from .events import MainAgentEvents, CLIModeEvents, DBEvents
-from pubsub import pub
 
 
 class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
-    mode: Literal["CLI", "API"]
-    max_search_tokens: int
-
     def __init__(
         self,
         model: ChatDeepSeek | ChatQwen,
@@ -45,6 +46,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         search_model: ChatQwen,
         mode: Literal["CLI", "API"] = "CLI",
         max_search_tokens: int = 5000,
+        max_retries: int = 2, # search agent 在一个任务上允许的最多重试次数
     ):
         super().__init__(
             mode=mode,
@@ -62,6 +64,12 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
             max_search_tokens=max_search_tokens,
         )
         
+        # graph 内部动态条件参数
+        self.retries = 0
+        self.max_retries = max_retries
+        self.current_retrieval_task_index = 0  # 跟踪当前检索任务的索引
+        self.total_retrieval_tasks_nums = 0  # 总任务数
+        
         self.db_events = DBEvents()
         if mode == "CLI":
             self.cli_events = CLIModeEvents()
@@ -74,7 +82,14 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         graph_builder.add_node("extract_check_point", self.extract_check_point)
         graph_builder.add_node("invoke_search_agent", self.invoke_search_agent)
         graph_builder.add_node("human_verification", self.human_verification)
-        graph_builder.add_node("evaluate_search_result", self.evaluate_search_result)
+        graph_builder.add_node(
+            node="evaluate_search_result", 
+            action=self.evaluate_search_result, 
+            retry=RetryPolicy(
+                max_attempts=3,
+                retry_on=ValueError
+            )
+        )
         graph_builder.add_node("write_fact_checking_report", self.write_fact_checking_report)
 
         graph_builder.set_entry_point("initialization")
@@ -114,6 +129,12 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
     def invoke_metadata_extract_agent(self, state: FactCheckPlanState):
         result = self.metadata_extract_agent.invoke({"news_text": state.news_text})
         metadata = MetadataState(**result)
+        
+        if not metadata.basic_metadata:
+            raise AgentExecutionException(
+                agent_type="main",
+                message="无法从文本中提取新闻元数据，请检查文本",
+            )
 
         return {"metadata": metadata}
 
@@ -128,8 +149,14 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
             核查方案 JSON
         """
         pub.sendMessage(MainAgentEvents.EXTRACT_CHECK_POINT_START.value)
-        
-        messages = [fact_check_plan_prompt_template.format(news_text=state.news_text)]
+
+        messages = [
+            fact_check_plan_prompt_template.format(
+                news_text=state.news_text,
+                basic_metadata=get_basic_metadata_json(state.metadata.basic_metadata), # type: ignore 上一个节点已经处理了 metadata 不存在的情况
+                knowledges=get_knowledges_json(state.metadata.retrieved_knowledges), # type: ignore 上一个节点已经处理了 knowledges 不存在的情况
+            )
+        ]
         # 如果存在人类反馈，将人类反馈嵌入此处
         if state.human_feedback and state.check_points:
             human_feedback_prompt = human_feedback_prompt_template.format(
@@ -199,24 +226,18 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         return "invoke_search_agent"
 
     def invoke_search_agent(self, state: FactCheckPlanState):
-        """根据检索规划调用子检索模型执行深度检索"""
-        # 获取当前检索任务
+        """根据检索规划调用子检索模型执行深度检索"""        
         current_task = self._get_current_retrieval_task(state)
         if not current_task:
             raise AgentExecutionException(
                 agent_type="main",
-                message="无法找到当前检索任务",
+                message="无法找到检索任务",
             )
         
-        search_agent_state = SearchAgentState(
-            check_point_id=current_task.check_point_id,
-            retrieval_step_id=current_task.retrieval_step_id,
-            basic_metadata=current_task.basic_metadata,
-            content=current_task.content,
-            purpose=current_task.purpose,
-            expected_sources=current_task.expected_sources,
-        )
-        result = self.search_agent.invoke(search_agent_state)
+        self.retries += 1
+        
+        result = self.search_agent.invoke(current_task)
+        
         search_state = SearchAgentState(**result)
         if not search_state.result:
             raise AgentExecutionException(
@@ -245,14 +266,13 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
 
     def evaluate_search_result(self, state: FactCheckPlanState):
         """主模型对当前 search agent 的检索结论进行复核推理"""
-        # 获取当前检索步骤和结果
         current_task = self._get_current_retrieval_task(state)
         if not current_task:
             raise AgentExecutionException(
                 agent_type="main",
                 message="无法找到当前检索任务",
             )
-
+            
         current_step = self.find_retrieval_step(state, current_task.retrieval_step_id)
         if not current_step:
             raise AgentExecutionException(
@@ -279,13 +299,8 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         ])
         verification_result: RetrievalResultVerification = evaluate_search_result_output_parser.invoke(response)
         
-        pub.sendMessage(
-            MainAgentEvents.EVALUATE_SEARCH_RESULT_END.value,
-            verification_result=verification_result
-        )
-        
         updates = [{
-            "id": verification_result.retrieval_step_id, 
+            "id": current_step.id, 
             "data": {
                 "verification": verification_result,
             }
@@ -297,48 +312,66 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
                 "purpose": verification_result.updated_purpose,
                 "expected_sources": verification_result.updated_expected_sources,
             }
-            updates.append({"id": verification_result.retrieval_step_id, "data": update_data})
+            updates.append({"id": current_step.id, "data": update_data})
 
         updated_check_points = self._batch_update_retrieval_steps(state, updates)
-
+        
+        pub.sendMessage(
+            MainAgentEvents.EVALUATE_SEARCH_RESULT_END.value,
+            verification_result=verification_result
+        )
+        
         return {"check_points": updated_check_points}
 
-    def should_retry_or_continue(self, state: FactCheckPlanState) -> Literal["retry", "next", "finish"]:
+    def should_retry_or_continue(self, state: FactCheckPlanState) -> Literal["retry", "next", "finish"]:        
         """
         根据评估结果决定是重试当前检索任务、继续下一个任务还是完成检索
         """
-        # 没有更多检索任务，完成检索
-        current_task = self._get_current_retrieval_task(state)
-        if not current_task:
+        # 检查是否已经处理完所有任务
+        if self.current_retrieval_task_index >= self.total_retrieval_tasks_nums - 1:
             pub.sendMessage(
                 MainAgentEvents.LLM_DECISION.value, 
                 decision="完成检索", 
                 reason="所有检索任务均已完成"
             )
             return "finish"
-
+        
+        current_task = self._get_current_retrieval_task(state)
         current_step = self.find_retrieval_step(state, current_task.retrieval_step_id)
         if not current_step or not current_step.verification:
-            pub.sendMessage(
-                MainAgentEvents.LLM_DECISION.value, 
-                decision="重试当前检索",
-                reason="无法获取到当前检索步骤的验证结果"
+            raise AgentExecutionException(
+                agent_type="main",
+                message="无法找到当前检索步骤的验证结果",
             )
-            return "retry"
-        # 主模型对当前检索结果不满意，重试当前检索
-        if not current_step.verification.verified:
+            
+        # 主模型对当前检索结果不满意，且 search agent 重试次数未超过最大重试次数，重试当前检索
+        if not current_step.verification.verified and self.retries < self.max_retries:
             pub.sendMessage(
                 MainAgentEvents.LLM_DECISION.value, 
                 decision="重试当前检索", 
-                reason="主模型不认可当前检索结果"
+                reason=current_step.verification.reasoning
             )
             return "retry"
+        
+        # 主模型不认可当前检索结果，但 search agent 重试次数超过最大重试次数，继续下一个任务
+        if not current_step.verification.verified and self.retries >= self.max_retries:
+            pub.sendMessage(
+                MainAgentEvents.LLM_DECISION.value, 
+                decision="继续下一个任务", 
+                reason=current_step.verification.reasoning
+            )
+        else:
+        # 主模型认可当前检索结果，search agent 继续下一个任务
+            pub.sendMessage(
+                MainAgentEvents.LLM_DECISION.value, 
+                decision="继续下一个任务", 
+                reason="继续执行下一个检索任务"
+            )
+        
+        # 重置重试计数器和更新当前检索任务索引，准备处理下一个任务
+        self.retries = 0
+        self.current_retrieval_task_index += 1
 
-        pub.sendMessage(
-            MainAgentEvents.LLM_DECISION.value, 
-            decision="继续下一个任务", 
-            reason="主模型认可当前检索结果"
-        )
         return "next"
     
     def write_fact_checking_report(self, state: FactCheckPlanState):
@@ -359,28 +392,27 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
 
         return state
     
-    def _get_current_retrieval_task(self, state: FactCheckPlanState) -> Optional[SearchAgentState]:
-        """获取下一个要执行的检索任务"""
-        unverified_tasks = [
+    def _get_current_retrieval_task(self, state: FactCheckPlanState) -> SearchAgentState:
+        """获取要执行的检索任务"""
+        retrieval_tasks = [
             SearchAgentState(
+                basic_metadata=state.metadata.basic_metadata, # type: ignore BasicMetadata 不存在的情况已经在前置节点处理
                 check_point_id=check_point.id,
                 retrieval_step_id=retrieval_step.id,
-                basic_metadata=state.metadata.basic_metadata, # type: ignore BasicMetadata 不存在的情况已经在前置节点处理
                 content=check_point.content,
                 purpose=retrieval_step.purpose,
                 expected_sources=retrieval_step.expected_sources,
             )
-            for check_point in state.check_points 
+            
+            for check_point in state.check_points
             if check_point.retrieval_step
-            for retrieval_step in check_point.retrieval_step 
-            if retrieval_step.verification is None or not retrieval_step.verification.verified
+            
+            for retrieval_step in check_point.retrieval_step
         ]
         
-        if unverified_tasks:
-            return unverified_tasks[0]
-        else:
-            return None
-
+        self.total_retrieval_tasks_nums = len(retrieval_tasks)
+        
+        return retrieval_tasks[self.current_retrieval_task_index]
 
     def _batch_update_retrieval_steps(
         self, state: FactCheckPlanState, updates: List[Dict[str, Any]]
@@ -478,7 +510,6 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
 
         return result
 
-
 def cli_select_option(options, prompt):
     """实现命令行选择功能"""
     import readchar
@@ -542,3 +573,32 @@ def get_formatted_check_points(check_points: CheckPoints):
     ]
     
     return formatted_check_points
+
+
+def get_basic_metadata_json(basic_metadata: BasicMetadata):
+    """格式化 basic metadata"""
+    formatted_basic_metadata = {
+        "新闻类型": basic_metadata.news_type,
+        "时间": basic_metadata.when,
+        "地点": basic_metadata.where,
+        "人物": basic_metadata.who,
+        "事件": basic_metadata.what,
+        "原因": basic_metadata.why,
+        "过程": basic_metadata.how,
+    }
+    
+    return json.dumps(formatted_basic_metadata, ensure_ascii=False)
+
+
+def get_knowledges_json(knowledges: List[Knowledge]):
+    """格式化 knowledges"""
+    formatted_knowledges = [
+        {
+            "名称": knowledge.term,
+            "类别": knowledge.category,
+            "定义": knowledge.description,
+        }
+        for knowledge in knowledges
+    ]
+    
+    return json.dumps(formatted_knowledges, ensure_ascii=False)

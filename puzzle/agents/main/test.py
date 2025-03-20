@@ -21,13 +21,18 @@ def test_plan_agent():
         streaming=True,
         callbacks=[ReasonerStreamingCallback()]
     )
-    metadata_extract_model = ChatOpenAI(
-        model="gpt-4o-mini", 
+    # metadata_extract_model = ChatOpenAI(
+    #     model="gpt-4o-mini", 
+    #     temperature=0
+    # )
+    metadata_extract_model = ChatQwen(
+        model="qwen-turbo",
         temperature=0
     )
     search_model = ChatQwen(
         model="qwq-plus-latest",
-        streaming=True
+        streaming=True,
+        callbacks=[ReasonerStreamingCallback()]
     )
 
     plan_agent = MainAgent(

@@ -1,8 +1,7 @@
-from typing import Annotated, Optional
+from typing import Annotated
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from langchain.tools import tool
-
 
 @tool
 def get_current_time(

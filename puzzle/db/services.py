@@ -69,7 +69,7 @@ class DatabaseService:
         retrieval_step_purpose: str,
         retrieval_step_expected_sources: List[str]
     ) -> None:
-        check_point_node = CheckPointNode.nodes.get_or_none(content=check_point_content)
+        check_point_node = CheckPointNode.nodes.first_or_none(content=check_point_content)
         if not check_point_node:
             check_point_node = CheckPointNode(
                 content=check_point_content,

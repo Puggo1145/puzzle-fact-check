@@ -6,9 +6,6 @@ from ..searcher.states import SearchResult, Evidence
 
 
 class RetrievalResultVerification(BaseModel):
-    retrieval_step_id: str = Field(
-        description="对应检索步骤的 id",
-    )
     reasoning: str = Field(
         description="对该检索步骤结论的推理",
     )

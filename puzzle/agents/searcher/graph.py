@@ -16,6 +16,7 @@ from tools import (
     SearchGoogleTool,
     ReadWebpageTool,
     get_current_time,
+    TavilySearch
 )
 from langgraph.graph.state import StateGraph
 from .events import SearchAgentEvents, CLIModeEvents, DBEvents
@@ -47,7 +48,8 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         
         self.tools = [
             SearchBingTool(),
-            SearchGoogleTool(),
+            # SearchGoogleTool(),
+            TavilySearch(),
             ReadWebpageTool(),
             get_current_time,
         ]
@@ -176,7 +178,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
             return {"statuses": [forced_status]}
 
         system_prompt = system_prompt_template.format(
-            basic_metadata=state.basic_metadata,
+            basic_metadata=state.basic_metadata.model_dump_json(),
             content=state.content,
             purpose=state.purpose,
             expected_sources=state.expected_sources,

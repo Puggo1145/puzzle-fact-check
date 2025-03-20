@@ -2,12 +2,20 @@ from dotenv import load_dotenv
 from agents import MainAgent
 from models import ChatQwen
 from langchain_openai import ChatOpenAI
+from utils.llm_callbacks import ReasonerStreamingCallback
 
 load_dotenv()
 
 def main():
-    model = ChatQwen(model="qwq-plus-latest", streaming=True)
-    search_model = ChatQwen(model="qwq-plus-latest", streaming=True)
+    model = ChatQwen(
+        model="qwq-plus-latest",
+        streaming=True,
+        callbacks=[ReasonerStreamingCallback()],
+    )
+    search_model = ChatQwen(
+        model="qwq-plus-latest",
+        streaming=True,
+    )
     metadata_extract_model = ChatOpenAI(model="gpt-4o-mini")
     
     agent = MainAgent(

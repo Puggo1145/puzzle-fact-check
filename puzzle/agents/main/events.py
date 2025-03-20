@@ -98,6 +98,12 @@ class CLIModeEvents:
             MainAgentEvents.WRITE_FACT_CHECKING_REPORT_END.value,
         )
         
+        # LLM 决策
+        pub.subscribe(
+            self.on_llm_decision,
+            MainAgentEvents.LLM_DECISION.value,
+        )
+        
     def _print_colored(self, text, color="blue", bold=False):
         """Print colored text"""
         prefix = ""
@@ -192,9 +198,6 @@ class CLIModeEvents:
             generation_time = time.time() - self.start_time
             self._print_colored(f"\n⏱️ 推理耗时: {generation_time:.2f}秒", "blue")
 
-        # 控制台格式化输出
-        self._print_colored("\n📋 评估结果:", "cyan", True)
-        
         try:
             # 打印评估结果
             status_emoji = "✅" if verification_result.verified else "❌"
@@ -203,14 +206,10 @@ class CLIModeEvents:
             self._print_colored(f"\n{status_emoji} 评估结论:", status_color, True)
             self._print_colored(f"📝 推理过程: {verification_result.reasoning}", "yellow")
             self._print_colored(f"🔍 是否认可: {'是' if verification_result.verified else '否'}", status_color)
-            
-            # 如果需要更新检索步骤，显示更新建议
-            if not verification_result.verified and (verification_result.updated_purpose or verification_result.updated_expected_sources):
-                self._print_colored("\n🔄 检索步骤更新建议:", "purple", True)
-                if verification_result.updated_purpose:
-                    self._print_colored(f"新的检索目的: {verification_result.updated_purpose}", "purple")
-                if verification_result.updated_expected_sources:
-                    self._print_colored(f"新的预期来源: {', '.join(verification_result.updated_expected_sources)}", "purple")
+            if verification_result.updated_purpose:
+                self._print_colored(f"新的检索目的: {verification_result.updated_purpose}", "purple")
+            if verification_result.updated_expected_sources:
+                self._print_colored(f"新的预期来源: {', '.join(verification_result.updated_expected_sources)}", "purple")
             
         except Exception as e:
             self._print_colored(f"解析评估结果失败: {str(e)}", "red")
