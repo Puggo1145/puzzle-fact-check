@@ -1,3 +1,11 @@
+"""
+Main agent 是 Puzzle Fact Check 的主模型，其主要负责：
+1. 核查规划：从新闻文本中提取核查点，并规划检索方案
+2. 智能体协调：协调 metadata extractor, search agent 等子模型执行具体的检索任务
+3. Supervisor: 对 search agent 的检索结果进行复核，并根据反馈更新核查计划 
+4. 报告生成：根据核查结论生成报告
+"""
+
 from agents.base import BaseAgent
 from langchain_core.messages import AIMessage, BaseMessage
 from langgraph.graph.state import CompiledStateGraph, StateGraph, END
