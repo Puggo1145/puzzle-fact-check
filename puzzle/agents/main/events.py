@@ -174,7 +174,7 @@ class CLIModeEvents:
             self._print_colored(f"\n⏱️ 推理耗时: {generation_time:.2f}秒", "blue")
 
         # 控制台格式化输出
-        self._print_colored("\n📋 输出:", "cyan", True)
+        self._print_colored("\n📋 LLM 的核查计划：", "cyan", True)
         
         # 处理核查计划
         try:
@@ -182,7 +182,7 @@ class CLIModeEvents:
             for idx, check_point in enumerate(check_points):
                 print(f"\n第 {idx+1} 条陈述")
                 print(f"陈述内容：{check_point.content}")
-                print(f"是否需要核查：{check_point.is_verification_point}")
+                print(f"是否需要核查：{'是' if check_point.is_verification_point else '否'}")
                 print(f"核查理由：{check_point.importance}")
                 if check_point.retrieval_step:
                     for idx, plan in enumerate(check_point.retrieval_step):

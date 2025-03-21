@@ -1,5 +1,6 @@
+import uuid
 import operator
-from typing import Optional, List, Annotated
+from typing import Optional, List, Annotated, Dict, Any
 from pydantic import BaseModel, Field
 from ..metadata_extractor.states import MetadataState
 from ..searcher.states import SearchResult, Evidence
@@ -78,3 +79,33 @@ class FactCheckPlanState(BaseModel):
         description="人类对于核查方案的评估结果",
         default=None
     )
+    
+    def get_formatted_check_points(self, check_points: CheckPoints) -> List[CheckPoint]:
+        """
+        在 LLM 给出 check points 后为每个 check point 和 retrieval step 生成唯一 id
+        并只保留 is_verification_point 为 True 的核查点
+        """
+        formatted_check_points = []
+        
+        for check_point in check_points.items:
+            if check_point.is_verification_point and check_point.retrieval_step:
+                # 创建新的 retrieval_step 列表，为每个 step 生成新的 id
+                new_retrieval_steps = []
+                for retrieval_step in check_point.retrieval_step:
+                    # 为每个 retrieval_step 生成新的 id
+                    new_retrieval_step = retrieval_step.model_copy(
+                        update={"id": str(uuid.uuid4())}
+                    )
+                    new_retrieval_steps.append(new_retrieval_step)
+                
+                # 为 check_point 生成新的 id 并更新 retrieval_step
+                new_check_point = check_point.model_copy(
+                    update={
+                        "id": str(uuid.uuid4()),
+                        "retrieval_step": new_retrieval_steps
+                    }
+                )
+                
+                formatted_check_points.append(new_check_point)
+        
+        return formatted_check_points

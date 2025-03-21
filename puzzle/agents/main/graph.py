@@ -1,9 +1,8 @@
-import json
-import uuid
 from agents.base import BaseAgent
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage
 from langgraph.graph.state import CompiledStateGraph, StateGraph, END
 from langgraph.types import interrupt, Command
+from langgraph.pregel import RetryPolicy
 from .prompts import (
     fact_check_plan_prompt_template,
     fact_check_plan_output_parser,
@@ -15,12 +14,11 @@ from .prompts import (
 from ..searcher.states import SearchAgentState
 from ..searcher.graph import SearchAgentGraph
 from ..metadata_extractor.graph import MetadataExtractAgentGraph
-from ..metadata_extractor.states import MetadataState, Knowledge, BasicMetadata
+from ..metadata_extractor.states import MetadataState
+from utils.exceptions import AgentExecutionException
 
 from pubsub import pub
 from .events import MainAgentEvents, CLIModeEvents, DBEvents
-
-from langgraph.pregel import RetryPolicy
 
 from typing import List, Optional, Any, Dict, Literal
 from models import ChatQwen
@@ -35,7 +33,6 @@ from .states import (
 )
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
-from utils.exceptions import AgentExecutionException
 
 
 class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
@@ -153,10 +150,13 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         messages = [
             fact_check_plan_prompt_template.format(
                 news_text=state.news_text,
-                basic_metadata=get_basic_metadata_json(state.metadata.basic_metadata), # type: ignore 上一个节点已经处理了 metadata 不存在的情况
-                knowledges=get_knowledges_json(state.metadata.retrieved_knowledges), # type: ignore 上一个节点已经处理了 knowledges 不存在的情况
+                # 上一个节点已经处理了 metadata 不存在的情况
+                basic_metadata=state.metadata.basic_metadata.serialize_for_llm(), # type: ignore
+                # 上一个节点已经处理了 knowledges 不存在的情况
+                knowledges=state.metadata.serialize_retrieved_knowledges_for_llm(), # type: ignore
             )
         ]
+        
         # 如果存在人类反馈，将人类反馈嵌入此处
         if state.human_feedback and state.check_points:
             human_feedback_prompt = human_feedback_prompt_template.format(
@@ -170,16 +170,16 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
 
         response = self.model.invoke(messages)
         check_points: CheckPoints = fact_check_plan_output_parser.invoke(response)
-        
         pub.sendMessage(
             MainAgentEvents.EXTRACT_CHECK_POINT_END.value,
             check_points_result=check_points
         )
         
-        formatted_check_points = get_formatted_check_points(check_points)  # 只保存需要核查的 check_point
-
+        formatted_check_points = state.get_formatted_check_points(check_points)
+        
         return {
             "check_points": formatted_check_points,
+            # 清除上一轮的反馈
             "human_feedback": "",
         }
 
@@ -188,14 +188,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         Human-in-the-loop
         将检索方案交给人类进行核验，根据反馈开始核查或更新检索方案
         """
-        # 中断图的执行，等待人类输入
-        result = interrupt(
-            {
-                "question": "根据您提供的新闻文本，我规划了以下事实核查方案:\n\n"
-                + f"{state.check_points}\n"
-                + "选择 'continue' 开始核查，或输入修改建议",
-            }
-        )
+        result = interrupt({"check_points": state.check_points})
 
         if result == "revise":
             return Command(goto="extract_check_point")
@@ -510,21 +503,22 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
 
         return result
 
-def cli_select_option(options, prompt):
+def cli_select_option(options: List[Dict[str, str]], hint: str):
     """实现命令行选择功能"""
     import readchar
     import sys
 
     selected = 0
-    print(prompt)
+    
+    print(f"\n{hint}")
 
     def print_options():
         sys.stdout.write("\r" + " " * 100 + "\r")
         for i, option in enumerate(options):
             if i == selected:
-                sys.stdout.write(f"[•] {option}  ")
+                sys.stdout.write(f"[•] {option['label']}  ")
             else:
-                sys.stdout.write(f"[ ] {option}  ")
+                sys.stdout.write(f"[ ] {option['label']}  ")
         sys.stdout.flush()
 
     print_options()
@@ -539,12 +533,24 @@ def cli_select_option(options, prompt):
             print_options()
         elif key == readchar.key.ENTER:
             sys.stdout.write("\n")
-            return options[selected]
+            return options[selected]["value"]
 
 
 def get_user_feedback():
     """处理用户交互，返回用户反馈"""
-    choice = cli_select_option(["continue", "revise"], "请选择操作：")
+    choice = cli_select_option(
+        options=[
+            {
+                "label": "认可，开始检索",
+                "value": "continue"
+            },
+            {
+                "label": "修改核查计划",
+                "value": "revise"
+            }
+        ], 
+        hint="您是否认可当前的核查计划？"
+    )
 
     if choice == "continue":
         return {"action": "continue"}
@@ -554,51 +560,4 @@ def get_user_feedback():
         return {"action": "revise", "feedback": feedback}
 
 
-def get_formatted_check_points(check_points: CheckPoints):
-    """格式化 check points"""
-    formatted_check_points = [
-        {
-            **check_point.model_dump(),
-            "id": str(uuid.uuid4()),  # 为每个 check point 生成唯一 id
-            "retrieval_step": [
-                {
-                    **retrieval_step.model_dump(),
-                    "id": str(uuid.uuid4()),  # 为每个 retrieval step 生成唯一 id
-                }
-                for retrieval_step in check_point.retrieval_step # type: ignore 是核查点必存在
-            ],
-        }
-        for check_point in check_points.items
-        if check_point.is_verification_point
-    ]
-    
-    return formatted_check_points
 
-
-def get_basic_metadata_json(basic_metadata: BasicMetadata):
-    """格式化 basic metadata"""
-    formatted_basic_metadata = {
-        "新闻类型": basic_metadata.news_type,
-        "时间": basic_metadata.when,
-        "地点": basic_metadata.where,
-        "人物": basic_metadata.who,
-        "事件": basic_metadata.what,
-        "原因": basic_metadata.why,
-        "过程": basic_metadata.how,
-    }
-    
-    return json.dumps(formatted_basic_metadata, ensure_ascii=False)
-
-
-def get_knowledges_json(knowledges: List[Knowledge]):
-    """格式化 knowledges"""
-    formatted_knowledges = [
-        {
-            "名称": knowledge.term,
-            "类别": knowledge.category,
-            "定义": knowledge.description,
-        }
-        for knowledge in knowledges
-    ]
-    
-    return json.dumps(formatted_knowledges, ensure_ascii=False)
