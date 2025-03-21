@@ -6,9 +6,7 @@ from utils.llm_callbacks import ReasonerStreamingCallback
 
 def test_plan_agent():
     example_initial_state = {
-        "news_text": """
-近日，微博平台有用户发帖称：2025 年 3 月 7 日，俄军使用导弹轰炸乌克兰克里沃罗格一栋五星级酒店，并炸死驻扎于此的欧盟雇佣军教官团。
-"""
+        "news_text": """2024 年 12 月 16 日，网传“中欧班列将绕过立陶宛，先前铺设的200多条铁轨也将一并拆除，班列改为停靠俄罗斯境内加里宁格勒”"""
     }
     
     # model = ChatDeepSeek(model="deepseek-reasoner", temperature=0.6, streaming=True)
@@ -18,11 +16,11 @@ def test_plan_agent():
         callbacks=[ReasonerStreamingCallback()]
     )
     metadata_extract_model = ChatOpenAI(
-        model="gpt-4o", 
+        model="gpt-4o-mini", 
         temperature=0
     )
     # metadata_extract_model = ChatQwen(
-    #     model="qwen-plus",
+    #     model="qwen-turbo",
     #     temperature=0
     # )
     search_model = ChatQwen(

@@ -48,7 +48,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         
         self.tools = [
             SearchBingTool(),
-            # SearchGoogleTool(),
+            SearchGoogleTool(),
             TavilySearch(),
             ReadWebpageTool(),
             get_current_time,

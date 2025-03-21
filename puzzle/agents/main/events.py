@@ -1,5 +1,6 @@
 import json
 import time
+from datetime import datetime
 from enum import Enum
 from pubsub import pub
 from db import db_integration
@@ -222,7 +223,13 @@ class CLIModeEvents:
             self._print_colored(f"\n⏱️ 推理耗时: {generation_time:.2f}秒", "blue")
 
         # 控制台格式化输出
-        self._print_colored("\n📋 输出:", "cyan", True)
+        self._print_colored("\n📋 正在保存核查报告:", "cyan", True)
+        
+        # 保存为 markdown 到 logs/llm_outputs 目录下
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"logs/llm_outputs/{timestamp}_report.md"
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(response_text)
         
         # 直接打印报告内容，不尝试解析为JSON
         self._print_colored("\n📊 事实核查报告:", "green", True)
