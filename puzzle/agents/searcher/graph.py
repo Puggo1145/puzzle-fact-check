@@ -4,7 +4,7 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 from utils import count_tokens
 from .states import SearchAgentState, Status, SearchResult
 from .prompts import (
-    system_prompt_template,
+    search_method_prompt_template,
     evaluate_current_status_prompt_template,
     evaluate_current_status_output_parser,
     generate_answer_prompt_template,
@@ -22,7 +22,7 @@ from langgraph.graph.state import StateGraph
 from .events import SearchAgentEvents, CLIModeEvents, DBEvents
 from pubsub import pub
 
-from typing import cast, List, Literal
+from typing import cast, List, Literal, Dict, Any
 from langchain_core.messages import ToolCall
 
 
@@ -45,6 +45,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         )
 
         self.max_search_tokens = max_search_tokens
+        self.token_usage = 0
         
         self.tools = [
             SearchBingTool(),
@@ -79,14 +80,12 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
                 "not_exceeded": "evaluate_current_status"
             }
         )
-
         graph_builder.add_conditional_edges(
             "evaluate_current_status",
             self._does_llm_generate_answer,
             {"tools": "tools", "generate_answer": "generate_answer"},
         )
         graph_builder.add_edge("tools", "check_token_usage") # 工具调用后再次检查token
-
         graph_builder.set_finish_point("generate_answer")
         
         return graph_builder.compile()
@@ -112,11 +111,11 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         """检查 token 是否超出最大窗口"""
         pub.sendMessage(
             SearchAgentEvents.PRINT_TOKEN_USAGE.value,
-            current_tokens=state.token_usage
+            current_tokens=self.token_usage
         )
         
         # 超出最大 token 窗口，强制进行回答
-        if state.token_usage >= self.max_search_tokens:
+        if self.token_usage >= self.max_search_tokens:
             forced_answer_status = Status(
                 evaluation="检索 token 超出最大可用 token，强制基于当前信息开始回答",
                 memory="检索消耗的 token 超出最大可用 token",
@@ -132,7 +131,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         """根据 token 消耗结果决策的 router"""
 
         # token 消耗超出限制，强制回答
-        if state.token_usage >= self.max_search_tokens:
+        if self.token_usage >= self.max_search_tokens:
             return "exceeded"
         else:
             return "not_exceeded"
@@ -177,8 +176,8 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
 
             return {"statuses": [forced_status]}
 
-        system_prompt = system_prompt_template.format(
-            basic_metadata=state.basic_metadata.model_dump_json(),
+        search_method_prompt = search_method_prompt_template.format(
+            basic_metadata=state.basic_metadata.serialize_for_llm(),
             content=state.content,
             purpose=state.purpose,
             expected_sources=state.expected_sources,
@@ -190,7 +189,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
             statuses=state.statuses,
             evidences=state.evidences,
         )
-        messages = [system_prompt, evaluate_current_status_prompt]
+        messages = [search_method_prompt, evaluate_current_status_prompt]
 
         # 发送LLM开始评估状态的事件
         pub.sendMessage(
@@ -199,7 +198,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         )
 
         response = self.model.invoke(input=messages)
-        state.token_usage += count_tokens(messages + [response])
+        self.token_usage += count_tokens(messages + [response])
         
         new_status: Status = evaluate_current_status_output_parser.parse(str(response.content))
         
@@ -209,10 +208,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
             status=new_status
         )
         
-        updated_state = {
-            "statuses": [new_status],
-            "token_usage": state.token_usage
-        }
+        updated_state: Dict[str, Any] = {"statuses": [new_status]}
         if new_status.new_evidence:
             updated_state["evidences"] = new_status.new_evidence
             # 存储搜索证据到数据库
@@ -224,7 +220,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         # 发送token使用情况事件
         pub.sendMessage(
             SearchAgentEvents.PRINT_TOKEN_USAGE.value,
-            current_tokens=state.token_usage
+            current_tokens=self.token_usage
         )
         
         return updated_state
@@ -247,7 +243,6 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
                 # 调用 tool
                 tool_result = self.tools_by_name[tool_call["name"]].invoke(tool_call["args"])
                 
-                # 发送工具执行结果事件
                 pub.sendMessage(
                     SearchAgentEvents.PRINT_TOOL_RESULT.value,
                     output=tool_result
@@ -259,12 +254,12 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
                     tool_result = json.dumps(tool_result, ensure_ascii=False, indent=2)
                 
                 # 创建简洁明了的结果格式
-                formatted_result = f"工具名称: {tool_call['name']}\n结果内容:\n{tool_result}"
+                formatted_result = f"工具名称: {tool_call['name']}\n调用结果:\n{tool_result}"
                 tool_calling_results.append(formatted_result)
             
             except Exception as e:
                 # 添加错误信息到结果
-                error_result = f"工具名称: {tool_call['name']}\n执行错误:\n{str(e)}"
+                error_result = f"工具名称: {tool_call['name']}\n错误:\n{str(e)}"
                 pub.sendMessage(
                     SearchAgentEvents.PRINT_TOOL_ERROR.value,
                     error=error_result
@@ -283,19 +278,15 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
     
     def generate_answer(self, state: SearchAgentState):
         """生成最终答案"""
-        system_prompt = system_prompt_template.format(
-            basic_metadata=state.basic_metadata,
+        generate_answer_prompt = generate_answer_prompt_template.format(
+            basic_metadata=state.basic_metadata.serialize_for_llm(),
             content=state.content,
             purpose=state.purpose,
             expected_sources=state.expected_sources,
-            tools_schema=self.tool_calling_schema,
-        )
-
-        generate_answer_prompt = generate_answer_prompt_template.format(
             statuses=state.statuses,
             evidences=state.evidences,
         )
-        messages = [system_prompt, generate_answer_prompt]
+        messages = [generate_answer_prompt]
 
         # 发送LLM开始生成答案的事件
         pub.sendMessage(
@@ -306,7 +297,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         response = self.model.invoke(input=messages)
         answer: SearchResult = generate_answer_output_parser.parse(str(response.content))
 
-        state.token_usage += count_tokens(messages + [response])
+        self.token_usage += count_tokens(messages + [response])
         
         pub.sendMessage(
             SearchAgentEvents.PRINT_GENERATE_ANSWER_END.value,
@@ -318,10 +309,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
         )
         pub.sendMessage(
             SearchAgentEvents.PRINT_TOKEN_USAGE.value,
-            current_tokens=state.token_usage
+            current_tokens=self.token_usage
         )
         
-        return {
-            "result": answer,
-            "token_usage": state.token_usage
-        }
+        return {"result": answer}

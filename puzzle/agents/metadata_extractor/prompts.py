@@ -1,7 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
 from langchain_core.messages import SystemMessage
 from langchain_core.output_parsers import PydanticOutputParser
-from .states import BasicMetadata, Knowledges, Knowledge
+from .states import Knowledges
 from utils import SafeParse
 
 # Define metadata extractor model role and ability

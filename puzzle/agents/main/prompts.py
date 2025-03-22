@@ -9,6 +9,8 @@ fact_check_plan_output_parser = PydanticOutputParser(pydantic_object=CheckPoints
 # 根据 DeepSeek 官方说法，不建议使用 SystemPrompt，这可能会限制模型的推理表现，这里替换为常规的 HumanMessage
 fact_check_plan_prompt_template = HumanMessagePromptTemplate.from_template(
     template="""
+现在时间是：{current_time}
+
 你是一名专业的新闻事实核查员，你现在需要对给定的一段新闻文本进行核查前的思考和规划：
 1. 陈述提取：从新闻文本中精确客观的陈述
 2. 核查点评估：评估每个陈述的价值，决定哪些陈述值得作为核查点深入验证
@@ -30,9 +32,6 @@ fact_check_plan_prompt_template = HumanMessagePromptTemplate.from_template(
    - 说明每个检索步骤的目的（请详细描述，至少 50 个字符）
    - 建议合适的信息来源类型
 
-现在时间是：
-{current_time}
-
 新闻文本：
 {news_text}
 
@@ -51,15 +50,15 @@ fact_check_plan_prompt_template = HumanMessagePromptTemplate.from_template(
 )
 
 human_feedback_prompt_template = HumanMessagePromptTemplate.from_template("""
-用户对你给出的核查方案提出了反馈，请你基于用户的反馈修改：
+用户对你给出的核查方案提出了反馈：
 {human_feedback}
+请你基于用户的反馈修改核查方案
 """
 )
 
 evaluate_search_result_output_parser = PydanticOutputParser(pydantic_object=RetrievalResultVerification)
 evaluate_search_result_prompt_template = HumanMessagePromptTemplate.from_template("""
-现在时间是：
-{current_time}
+现在时间是：{current_time}
 
 你是一名专业的新闻事实核查员，你先前根据新闻文本规划了一个核查任务。现在，search agent 已经完成了其中一个检索任务，你需要对下面检索步骤的结果进行评估：
 {news_text}
@@ -90,10 +89,12 @@ search agent 根据检索步骤执行了检索，并给出了以下检索结果�
 )
 
 write_fact_checking_report_prompt_template = HumanMessagePromptTemplate.from_template("""
+现在时间是：{current_time}
+
 你是一名专业的新闻事实核查员，你的任务是对下面的新闻文本进行事实核查并撰写正式报告：
 {news_text}
 
-你先前已经基于该新闻文本给出了一个核查方案，main agent 根据你的检索方案执行了检索，且你已经对所有检索结果进行了复核：
+你先前已经基于该新闻给出了核查方案，search agent 根据你的检索方案执行了检索，且你已经对所有检索结果进行了复核：
 {check_points}
 
 # 任务

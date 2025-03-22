@@ -189,17 +189,24 @@ class CLIModeEvents:
         
         # 处理不同类型的输出
         try:
-            # 如果是字符串类型，检查长度并可能截断
+            # 如果是字符串类型，检查长度并按需截断
             if isinstance(output, str):
                 if len(output) > 500:
                     self._print_colored(f"{output[:497]}...", "green")
                 else:
                     self._print_colored(output, "green")
+            elif isinstance(output, dict):
+                self._print_colored(json.dumps(output, indent=2, ensure_ascii=False), "green")
+            elif isinstance(output, list):
+                if len(output) > 5:
+                    self._print_colored(json.dumps(output[:5], indent=2, ensure_ascii=False), "green")
+                    self._print_colored(f"...", "green")
+                else:
+                    self._print_colored(json.dumps(output, indent=2, ensure_ascii=False), "green")
             else:
                 # 处理非字符串类型
                 self._print_colored(str(output), "green")
         except Exception as e:
-            # 捕获任何错误，确保回调不会中断主程序
             self._print_colored(f"输出处理错误: {str(e)}", "red")
 
     def print_tool_error(self, error):
@@ -268,10 +275,10 @@ class CLIModeEvents:
         if hasattr(status, "new_evidence") and status.new_evidence:
             self._print_colored(f"📋 新证据:", "green", True)
             for evidence in status.new_evidence:
-                self._print_colored(f"  • {evidence.content}", "green")
-                self._print_colored(f"  • {evidence.source}", "green")
-                self._print_colored(f"  • {evidence.reasoning}", "green")
-                self._print_colored(f"  • {evidence.relationship}", "green")
+                self._print_colored(f" 原文片段：{evidence.content}", "green")
+                self._print_colored(f" 来源：{evidence.source}", "green")
+                self._print_colored(f" 推理：{evidence.reasoning}", "green")
+                self._print_colored(f" 关系：{evidence.relationship}", "green")
     
     def print_generate_answer_end(self, result):
         """打印搜索结果信息"""
