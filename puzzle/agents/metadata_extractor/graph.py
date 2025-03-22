@@ -4,9 +4,7 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.types import Send
 from .prompts import (
     basic_metadata_extractor_prompt_template,
-    basic_metadata_extractor_output_parser,
     knowledge_extraction_prompt_template,
-    knowledge_extraction_output_parser,
     knowledge_retrieve_prompt
 )
 from tools import SearchWikipediaTool
@@ -69,12 +67,8 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
         """
         pub.sendMessage(MetadataExtractAgentEvents.PRINT_EXTRACT_BASIC_METADATA_START.value)
         
-        chain = (
-            basic_metadata_extractor_prompt_template
-            | self.model
-            | basic_metadata_extractor_output_parser
-        )
-        basic_metadata: BasicMetadata = chain.invoke({"news_text": state.news_text})
+        prompt = basic_metadata_extractor_prompt_template.format(news_text=state.news_text)
+        basic_metadata = self.model.with_structured_output(BasicMetadata).invoke(prompt)
         
         pub.sendMessage(
             MetadataExtractAgentEvents.PRINT_EXTRACT_BASIC_METADATA_END.value,
@@ -96,12 +90,8 @@ class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
         """
         pub.sendMessage(MetadataExtractAgentEvents.PRINT_EXTRACT_KNOWLEDGE_START.value)
         
-        chain = (
-            knowledge_extraction_prompt_template
-            | self.model
-            | knowledge_extraction_output_parser
-        )
-        knowledges: Knowledges = chain.invoke({"news_text": state.news_text})
+        prompt = knowledge_extraction_prompt_template.format(news_text=state.news_text)
+        knowledges = self.model.with_structured_output(Knowledges).invoke(prompt)
         
         pub.sendMessage(
             MetadataExtractAgentEvents.PRINT_EXTRACT_KNOWLEDGE_END.value,

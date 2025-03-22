@@ -16,7 +16,6 @@ METADATA_EXTRACTOR_SYSTEM_PROMPT = SystemMessage(
 )
 
 # basic metadata prompts
-basic_metadata_extractor_output_parser = SafeParse(PydanticOutputParser(pydantic_object=BasicMetadata))
 basic_metadata_extractor_prompt_template_string = """
 请对以下新闻文本进行分析，提取基本元数据：
 
@@ -42,17 +41,12 @@ basic_metadata_extractor_prompt_template_string = """
 <news_text>
 {news_text}
 </news_text>
-
-{format_instructions}
 """
 basic_metadata_extractor_prompt_template = ChatPromptTemplate.from_messages(
     [
         METADATA_EXTRACTOR_SYSTEM_PROMPT,
         HumanMessagePromptTemplate.from_template(
             template=basic_metadata_extractor_prompt_template_string,
-            partial_variables={
-                "format_instructions": basic_metadata_extractor_output_parser.get_format_instructions()
-            },
         ),
     ]
 )
@@ -91,21 +85,15 @@ knowledge_extraction_prompt_template_string = """
 <news_text>
 {news_text}
 </news_text>
-
-{format_instructions}
 """
 knowledge_extraction_prompt_template = ChatPromptTemplate.from_messages(
     [
         HumanMessagePromptTemplate.from_template(
             template=knowledge_extraction_prompt_template_string,
-            partial_variables={
-                "format_instructions": knowledge_extraction_output_parser.get_format_instructions()
-            },
         )
     ]
 )
 
-knowledge_retrieve_output_parser = PydanticOutputParser(pydantic_object=Knowledge)
 knowledge_retrieve_prompt = f"""
 你是一个精通多语言的知识检索专家，用户会提供一个知识元，你需要检索维基百科找到该知识元的定义。
 
@@ -114,7 +102,4 @@ knowledge_retrieve_prompt = f"""
 - 如果无法精确匹配到该知识元，请尝试更换检索语言和知识元的语言，或更换检索方式
 - 如果多次检索后无法找到精确定义，请在description字段中输出"未找到定义"，请不要自主生成定义
 - 确定知识元的定义后，请按用户提供的知识元的源语言将解释输出到description字段中
-
-# 输出格式：
-{knowledge_retrieve_output_parser.get_format_instructions()}
 """
