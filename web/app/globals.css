@@ -42,6 +42,8 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --font-playfair-display: "Playfair Display", serif;
+  --font-fira-sans: "Fira Sans", sans-serif;
 }
 
 :root {
@@ -118,6 +120,6 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-fira-sans;
   }
 }
