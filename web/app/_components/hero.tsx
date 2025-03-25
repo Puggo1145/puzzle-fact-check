@@ -5,7 +5,7 @@ export const Hero = () => {
         <div className="relative h-24 flex flex-col justify-center">
             <div className="flex flex-col gap-2">
                 <h1 className="z-10 text-4xl font-bold font-playfair-display
-            bg-linear-to-r from-primary/90 to-primary/60 bg-clip-text text-transparent">
+            bg-linear-to-r from-primary/50 to-primary/80 bg-clip-text text-transparent">
                     Debunk Fake News with Confidence
                 </h1>
                 <p className="text-muted-foreground">

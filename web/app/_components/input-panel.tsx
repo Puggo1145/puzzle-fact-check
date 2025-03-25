@@ -9,6 +9,7 @@ import {
     PencilRulerIcon,
     SearchIcon,
     GlobeIcon,
+    EyeIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -109,6 +110,11 @@ export const ToolSelector = () => {
             icon: () => <GlobeIcon className="size-4" />,
             description: "Enable Agent to use browser for more complex tasks.",
         },
+        {
+            name: "Vision",
+            icon: () => <EyeIcon className="size-4" />,
+            description: "Enable Agent see for more complex tasks.",
+        },
     ];
 
     useEffect(() => {
@@ -159,11 +165,11 @@ export const ToolSelector = () => {
                         ))}
                     </div>
                 ) : (
-                    <div className="px-3 flex items-center gap-2">
+                    <div className="px-3 pr-4 flex items-center gap-1">
                         <div className="rounded-full flex items-center justify-center size-7">
                             <PencilRulerIcon className="size-4" />
                         </div>
-                        <span className="text-xs font-medium">Select tools</span>
+                        <span className="text-xs font-medium">more tools</span>
                     </div>
                 )}
             </Button>
