@@ -59,6 +59,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         )
 
         self.mode = mode
+        
         self.metadata_extract_agent = MetadataExtractAgentGraph(
             mode=mode,
             model=metadata_extract_model,
@@ -566,6 +567,3 @@ def get_user_feedback():
         print("\n请输入您的修改建议：")
         feedback = input("> ")
         return {"action": "revise", "feedback": feedback}
-
-
-

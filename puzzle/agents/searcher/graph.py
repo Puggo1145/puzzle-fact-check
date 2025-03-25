@@ -312,4 +312,6 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
             current_tokens=self.token_usage
         )
         
+        self.token_usage = 0
+        
         return {"result": answer}

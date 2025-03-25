@@ -6,7 +6,9 @@ from utils.llm_callbacks import ReasonerStreamingCallback
 
 def test_plan_agent():
     example_initial_state = {
-        "news_text": """2024 年 12 月 16 日，网传“中欧班列将绕过立陶宛，先前铺设的200多条铁轨也将一并拆除，班列改为停靠俄罗斯境内加里宁格勒”"""
+        "news_text": """
+最近有网络流传说法称，2025 年初，美国共和党议员Riley Moore通过了一项新法案，将禁止中国公民以学生身份来美国。这项法案会导致每年大约30万中国学生将无法获得F、J、M类签证，从而无法到美国学习或参与学术交流。
+"""
     }
     
     # model = ChatDeepSeek(model="deepseek-reasoner", temperature=0.6, streaming=True)
@@ -33,6 +35,7 @@ def test_plan_agent():
         model=model,
         metadata_extract_model=metadata_extract_model,
         search_model=search_model,
+        max_search_tokens=10000,
     )
 
     thread_config = {"thread_id": "some_id"}
