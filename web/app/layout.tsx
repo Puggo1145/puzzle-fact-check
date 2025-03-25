@@ -32,7 +32,6 @@ export default function RootLayout({
         <div className="w-full flex flex-col items-center">
           <header className="fixed top-4 left-4 w-full flex items-center gap-2">
             <Logo />
-            <p className="text-sm text-muted-foreground/30">v0.1</p>
           </header>
           {children}
         </div>
