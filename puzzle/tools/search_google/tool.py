@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 from langchain_core.tools.base import ArgsSchema
 from pydantic import BaseModel, Field
 from langchain.tools import BaseTool
