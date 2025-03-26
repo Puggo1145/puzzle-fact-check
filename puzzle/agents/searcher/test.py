@@ -46,7 +46,7 @@ def test_search_agent():
     SearchAgentGraph(
         model=model,
         max_search_tokens=5000,
-    ).invoke(example_input)
+    ).graph.invoke(example_input)
 
 if __name__ == "__main__":
     test_search_agent()

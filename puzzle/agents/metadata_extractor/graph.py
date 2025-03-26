@@ -13,18 +13,17 @@ from pubsub import pub
 
 from typing import Literal
 from .states import MetadataState, BasicMetadata, Knowledge, Knowledges
-from models import ChatQwen
-from langchain_openai import ChatOpenAI
+from langchain.chat_models.base import BaseChatModel
 from langgraph.graph.state import CompiledStateGraph
 
 
-class MetadataExtractAgentGraph(BaseAgent[ChatQwen | ChatOpenAI]):
+class MetadataExtractAgentGraph(BaseAgent):
     """
     Metadata Extrct Agent: 负责提取新闻文本的类型和要素
     """
     def __init__(
         self, 
-        model: ChatQwen | ChatOpenAI,
+        model: BaseChatModel,
         mode: Literal["CLI", "API"] = "CLI",
     ):
         super().__init__(

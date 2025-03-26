@@ -1,5 +1,5 @@
 from .graph import MainAgent
-from models import ChatQwen
+from models import ChatQwen, ChatGemini
 from langchain_openai import ChatOpenAI
 from utils.llm_callbacks import ReasonerStreamingCallback
 
@@ -11,38 +11,44 @@ def test_plan_agent():
 """
     }
     
-    # model = ChatDeepSeek(model="deepseek-reasoner", temperature=0.6, streaming=True)
-    model = ChatQwen(
-        model="qwq-plus-latest",
-        streaming=True,
+    # model = ChatQwen(
+    #     model="qwq-plus-latest",
+    #     streaming=True,
+    #     callbacks=[ReasonerStreamingCallback()]
+    # )
+    model = ChatGemini(
+        model="gemini-2.5-pro-exp-03-25",
+        temperature=0,
         callbacks=[ReasonerStreamingCallback()]
     )
     metadata_extract_model = ChatOpenAI(
         model="gpt-4o-mini", 
         temperature=0
     )
-    # metadata_extract_model = ChatQwen(
-    #     model="qwen-turbo",
-    #     temperature=0
+    # search_model = ChatQwen(
+    #     model="qwq-plus-latest",
+    #     streaming=True,
+    #     callbacks=[ReasonerStreamingCallback()]
     # )
-    search_model = ChatQwen(
-        model="qwq-plus-latest",
-        streaming=True,
+    search_model = ChatGemini(
+        model="gemini-2.5-pro-exp-03-25",
+        temperature=0,
         callbacks=[ReasonerStreamingCallback()]
     )
 
-    plan_agent = MainAgent(
+    main_agent = MainAgent(
         model=model,
         metadata_extract_model=metadata_extract_model,
         search_model=search_model,
         max_search_tokens=10000,
     )
 
-    thread_config = {"thread_id": "some_id"}
-    plan_agent.invoke(
+    thread_config = {"thread_id": "test_id"}
+    main_agent.invoke(
         example_initial_state,
         {"configurable": thread_config},
     )
+
 
 if __name__ == "__main__":
     test_plan_agent()

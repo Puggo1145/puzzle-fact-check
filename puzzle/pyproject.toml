@@ -1,9 +1,11 @@
 [project]
 name = "puzzle-fact-check"
 version = "0.1.0"
+description = "A self-reflective news fact check AI agent"
 authors = [
     {name = "puggo",email = "puggoo1145@gmail.com"}
 ]
+readme = "README.md"
 requires-python = ">=3.11,<4.0"
 dependencies = [
     "langgraph (>=0.2.74,<0.3.0)",

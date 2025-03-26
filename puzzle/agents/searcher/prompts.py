@@ -1,5 +1,5 @@
 from .states import Status, SearchResult
-from langchain_core.prompts import HumanMessagePromptTemplate, AIMessagePromptTemplate
+from langchain_core.prompts import HumanMessagePromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 from utils import SafeParse
 
@@ -69,7 +69,7 @@ search_method_prompt_template = HumanMessagePromptTemplate.from_template(
 )
 
 
-evaluate_current_status_prompt_template = AIMessagePromptTemplate.from_template(
+evaluate_current_status_prompt_template = HumanMessagePromptTemplate.from_template(
     template="""
 以下是执行过的检索历史（检索未开始时不存在检索记录）：
 # 检索历史记录：
@@ -85,7 +85,7 @@ evaluate_current_status_prompt_template = AIMessagePromptTemplate.from_template(
 )
 
 generate_answer_output_parser = SafeParse(parser=PydanticOutputParser(pydantic_object=SearchResult))
-generate_answer_prompt_template = AIMessagePromptTemplate.from_template(
+generate_answer_prompt_template = HumanMessagePromptTemplate.from_template(
     template="""
 你正在对一则新闻进行事实核查，你被分配到一个核查点，你已经对核查点进行了事实核查，现在需要基于检索到的信息，给出核查结论。
 

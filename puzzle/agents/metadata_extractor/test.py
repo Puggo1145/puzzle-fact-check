@@ -20,7 +20,7 @@ def test_metadata_extractor():
     )
     # 初始化 db news text node
     db_integration.initialize_with_news_text(example_initial_state["news_text"])
-    MetadataExtractAgentGraph(model=model).invoke(example_initial_state)
+    MetadataExtractAgentGraph(model=model).graph.invoke(example_initial_state)
 
 
 if __name__ == "__main__":

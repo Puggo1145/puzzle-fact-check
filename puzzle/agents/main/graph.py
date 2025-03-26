@@ -11,6 +11,7 @@ from langchain_core.messages import AIMessage, BaseMessage
 from langgraph.graph.state import CompiledStateGraph, StateGraph, END
 from langgraph.types import interrupt, Command
 from langgraph.pregel import RetryPolicy
+from langgraph.checkpoint.memory import MemorySaver
 from .prompts import (
     fact_check_plan_prompt_template,
     fact_check_plan_output_parser,
@@ -29,8 +30,6 @@ from pubsub import pub
 from .events import MainAgentEvents, CLIModeEvents, DBEvents
 
 from typing import List, Optional, Any, Dict, Literal
-from models import ChatQwen
-from langchain_deepseek import ChatDeepSeek
 from .states import (
     FactCheckPlanState,
     RetrievalResult,
@@ -40,15 +39,15 @@ from .states import (
     RetrievalStep,
 )
 from langchain_core.runnables import RunnableConfig
-from langchain_openai import ChatOpenAI
+from langchain.chat_models.base import BaseChatModel
 
 
-class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
+class MainAgent(BaseAgent):
     def __init__(
         self,
-        model: ChatDeepSeek | ChatQwen,
-        metadata_extract_model: ChatOpenAI | ChatQwen,
-        search_model: ChatQwen,
+        model: BaseChatModel,
+        metadata_extract_model: BaseChatModel,
+        search_model: BaseChatModel,
         mode: Literal["CLI", "API"] = "CLI",
         max_search_tokens: int = 5000,
         max_retries: int = 1, # search agent 在一个任务上允许的最多重试次数
@@ -57,9 +56,8 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
             mode=mode,
             model=model,
         )
-
-        self.mode = mode
         
+        self.mode = mode
         self.metadata_extract_agent = MetadataExtractAgentGraph(
             mode=mode,
             model=metadata_extract_model,
@@ -121,7 +119,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         graph_builder.set_finish_point("write_fact_checking_report")
 
         return graph_builder.compile(
-            checkpointer=self.memory_saver,
+            checkpointer=MemorySaver(),
         )
         
     def initialization(self, state: FactCheckPlanState):
@@ -133,7 +131,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         return state
 
     def invoke_metadata_extract_agent(self, state: FactCheckPlanState):
-        result = self.metadata_extract_agent.invoke({"news_text": state.news_text})
+        result = self.metadata_extract_agent.graph.invoke({"news_text": state.news_text})
         metadata = MetadataState(**result)
         
         if not metadata.basic_metadata:
@@ -238,7 +236,7 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         
         self.retries += 1
         
-        result = self.search_agent.invoke(current_task)
+        result = self.search_agent.graph.invoke(current_task)
         
         search_state = SearchAgentState(**result)
         if not search_state.result:
@@ -476,11 +474,11 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
         return None
 
     # 重写 invoke 方法以支持 CLI 模式，令 Main Agent 能够在内部处理 human-in-the-loop 流程
-    def invoke(self, initial_state: Any, config: Optional[RunnableConfig] = None):
+    def invoke(self, input: Any, config: Optional[RunnableConfig] = None, **kwargs):
         if not config or not config.get("configurable"):
             raise ValueError("Agent 缺少 thread_id 配置")
 
-        result = super().invoke(initial_state, config)
+        result = self.graph.invoke(input, config, **kwargs)
 
         if self.mode == "CLI":
             thread_config = config.get("configurable", {})
@@ -493,12 +491,12 @@ class MainAgent(BaseAgent[ChatDeepSeek | ChatQwen]):
                     result = get_user_feedback()
 
                     if result["action"] == "continue":
-                        super().invoke(
+                        self.graph.invoke(
                             Command(resume="continue"),
                             config={"configurable": thread_config},
                         )
                     else:
-                        super().invoke(
+                        self.graph.invoke(
                             Command(
                                 resume="revise",
                                 update={

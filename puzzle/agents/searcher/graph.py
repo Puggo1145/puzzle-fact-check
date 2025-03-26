@@ -10,7 +10,6 @@ from .prompts import (
     generate_answer_prompt_template,
     generate_answer_output_parser,
 )
-from models import ChatQwen
 from tools import (
     SearchBingTool,
     SearchGoogleTool,
@@ -24,9 +23,9 @@ from pubsub import pub
 
 from typing import cast, List, Literal, Dict, Any
 from langchain_core.messages import ToolCall
+from langchain.chat_models.base import BaseChatModel
 
-
-class SearchAgentGraph(BaseAgent[ChatQwen]):
+class SearchAgentGraph(BaseAgent):
     """
     Search Agent: 负责执行具体的检索计划
         
@@ -35,7 +34,7 @@ class SearchAgentGraph(BaseAgent[ChatQwen]):
     """
     def __init__(
         self,
-        model: ChatQwen,
+        model: BaseChatModel,
         max_search_tokens: int,
         mode: Literal["CLI", "API"] = "CLI",
     ):
