@@ -88,7 +88,8 @@ search agent 根据检索步骤执行了检索，并给出了以下检索结果�
     },
 )
 
-write_fact_checking_report_prompt_template = HumanMessagePromptTemplate.from_template("""
+write_fact_checking_report_prompt_template = HumanMessagePromptTemplate.from_template(
+    template="""
 现在时间是：{current_time}
 
 你是一名专业的新闻事实核查员，你的任务是对下面的新闻文本进行事实核查并撰写正式报告：
@@ -119,4 +120,8 @@ write_fact_checking_report_prompt_template = HumanMessagePromptTemplate.from_tem
 - 当证据不足或有矛盾时，诚实说明局限性
 
 请以专业、权威的语气撰写报告，使读者能清晰理解每个核查点的真实性及其依据。
-""")
+""",
+    partial_variables={
+        "current_time": current_time,
+    },
+)

@@ -23,7 +23,7 @@ from pubsub import pub
 
 from typing import cast, List, Literal, Dict, Any
 from langchain_core.messages import ToolCall
-from langchain.chat_models.base import BaseChatModel
+from langchain_openai.chat_models.base import BaseChatOpenAI
 
 class SearchAgentGraph(BaseAgent):
     """
@@ -34,7 +34,7 @@ class SearchAgentGraph(BaseAgent):
     """
     def __init__(
         self,
-        model: BaseChatModel,
+        model: BaseChatOpenAI,
         max_search_tokens: int,
         mode: Literal["CLI", "API"] = "CLI",
     ):

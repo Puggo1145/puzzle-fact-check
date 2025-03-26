@@ -13,7 +13,7 @@ from pubsub import pub
 
 from typing import Literal
 from .states import MetadataState, BasicMetadata, Knowledge, Knowledges
-from langchain.chat_models.base import BaseChatModel
+from langchain_openai.chat_models.base import BaseChatOpenAI
 from langgraph.graph.state import CompiledStateGraph
 
 
@@ -23,7 +23,7 @@ class MetadataExtractAgentGraph(BaseAgent):
     """
     def __init__(
         self, 
-        model: BaseChatModel,
+        model: BaseChatOpenAI,
         mode: Literal["CLI", "API"] = "CLI",
     ):
         super().__init__(

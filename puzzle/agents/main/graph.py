@@ -39,15 +39,15 @@ from .states import (
     RetrievalStep,
 )
 from langchain_core.runnables import RunnableConfig
-from langchain.chat_models.base import BaseChatModel
+from langchain_openai.chat_models.base import BaseChatOpenAI
 
 
 class MainAgent(BaseAgent):
     def __init__(
         self,
-        model: BaseChatModel,
-        metadata_extract_model: BaseChatModel,
-        search_model: BaseChatModel,
+        model: BaseChatOpenAI,
+        metadata_extract_model: BaseChatOpenAI,
+        search_model: BaseChatOpenAI,
         mode: Literal["CLI", "API"] = "CLI",
         max_search_tokens: int = 5000,
         max_retries: int = 1, # search agent 在一个任务上允许的最多重试次数

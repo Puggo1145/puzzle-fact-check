@@ -1,16 +1,16 @@
 from utils import view_graph
 
 from typing import Any, Literal
-from langchain.chat_models.base import BaseChatModel
+from langchain_openai.chat_models.base import BaseChatOpenAI
 from langgraph.graph.state import CompiledStateGraph
 
 
 class BaseAgent:
-    model: BaseChatModel
+    model: BaseChatOpenAI
     
     def __init__(
         self,
-        model: BaseChatModel,
+        model: BaseChatOpenAI,
         mode: Literal["CLI", "API"] = "CLI",
     ) -> None:
         
