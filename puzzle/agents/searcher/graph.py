@@ -30,7 +30,7 @@ class SearchAgentGraph(BaseAgent):
     Search Agent: 负责执行具体的检索计划
         
     Args:
-        max_tokens：子 agent 检索时允许消耗的最大 token 数
+        max_search_tokens：子 agent 检索时允许消耗的最大 token 数
     """
     def __init__(
         self,

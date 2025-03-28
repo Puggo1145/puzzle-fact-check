@@ -1,126 +1,276 @@
 "use client"
 
-import type { ChangeEvent } from "react";
 import { useState, useMemo, useRef, useEffect } from "react";
 import {
     ArrowUpIcon,
-    ChevronsLeftRightEllipsisIcon,
-    BinocularsIcon,
     PencilRulerIcon,
     SearchIcon,
     GlobeIcon,
     EyeIcon,
+    StopCircleIcon,
+    CogIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+import { useAgentStore } from "@/lib/store";
+import { AgentConfigPanel } from "@/components/agent/agent-config";
 
 export const InputPanel = () => {
-    const [input, setInput] = useState("")
-    const hasInput = useMemo(() => input.trim() !== "", [input])
-
-    const onValueChange = (value: ChangeEvent<HTMLTextAreaElement>) => setInput(value.target.value)
-
-    return (
-        <div className="max-w-2xl w-full p-4 border-2 border-primary/5 bg-background rounded-3xl">
-            <textarea
-                value={input}
-                onChange={onValueChange}
-                placeholder="Paste what you don't believe here"
-                className="w-full min-h-20 px-1 outline-none resize-none"
-            />
-            <BottomFns hasInput={hasInput} />
-        </div>
-    )
-}
-
-export const BottomFns = ({ hasInput }: { hasInput: boolean }) => {
-    return (
-        <div className="w-full flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-                <ModelSelector />
-                <ToolSelector />
-            </div>
-            <Button 
-                className="rounded-full" 
-                size="icon"
-                disabled={!hasInput}
-            >
-                <ArrowUpIcon strokeWidth={4} className="size-4" />
-            </Button>
-        </div>
-    )
-}
-
-export const ModelSelector = () => {
-    const searchConfigs = [
-        {
-            name: "Balance",
-            icon: () => <ChevronsLeftRightEllipsisIcon className="size-4" />,
-            description: "Fact check with a balance between speed and accuracy.",
-        },
-        {
-            name: "Deeper",
-            icon: () => <BinocularsIcon className="size-4" />,
-            description: "In-depth fact check by consuming more tokens for search. More accurate but slower and more expensive.",
-        },
-    ]
-
-    return (
-        <Select defaultValue={searchConfigs[0].name}>
-            <SelectTrigger className="rounded-full cursor-pointer hover:bg-accent">
-                <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl">
-                {searchConfigs.map((searchConfig) => (
-                    <SelectItem
-                        className="p-3 rounded-lg cursor-pointer"
-                        key={searchConfig.name}
-                        value={searchConfig.name}
-                    >
-                        <div className="flex items-center gap-2 mr-2">
-                            <searchConfig.icon />
-                            <h4 className="text-sm font-medium">{searchConfig.name}</h4>
-                        </div>
-                    </SelectItem>
-                ))}
-            </SelectContent>
-        </Select>
-    )
-}
-
-export const ToolSelector = () => {
-    const [isOpen, setIsOpen] = useState(false);
+    const {
+        newsText,
+        setNewsText,
+        isRunning,
+        isInterrupting,
+        interruptAgent,
+        createAndRunAgent,
+        mainAgentConfig,
+        metadataExtractorConfig,
+        searcherConfig,
+        availableModels,
+        setMainAgentConfig,
+        setMetadataExtractorConfig,
+        setSearcherConfig,
+        finalReport,
+        resetState
+    } = useAgentStore();
+    
+    const [input, setInput] = useState(newsText);
+    const [mode, setMode] = useState<"initial" | "running">("initial");
+    const [showTools, setShowTools] = useState(false);
+    const [showConfig, setShowConfig] = useState(false);
     const [selectedTools, setSelectedTools] = useState<number[]>([]);
+    const hasInput = useMemo(() => input.trim() !== "", [input]);
+    const panelRef = useRef<HTMLDivElement>(null);
+
+    // Check if we're in active mode (either running or has a report)
+    const isActive = isRunning || finalReport;
+
+    useEffect(() => {
+        if (isActive && mode === "initial") {
+            setMode("running");
+        } else if (!isActive && mode === "running") {
+            setMode("initial");
+        }
+    }, [isActive, mode]);
+
+    useEffect(() => {
+        setNewsText(input);
+    }, [input, setNewsText]);
+
+    const handleSendMessage = async () => {
+        if (!hasInput) return;
+        try {
+            await createAndRunAgent();
+        } catch (error) {
+            console.error('Failed to run agent:', error);
+        }
+    };
+
+    const handleInterrupt = async () => {
+        try {
+            await interruptAgent();
+        } catch (error) {
+            console.error('Failed to interrupt agent:', error);
+        }
+    };
+
+    const handleReset = () => {
+        resetState();
+    };
+
+    const onValueChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value);
+
+    return (
+        <div 
+            ref={panelRef}
+            className={cn(
+                "w-full transition-all duration-500 ease-in-out", 
+                mode === "initial" 
+                    ? "p-4 border-2 border-primary/5 bg-background rounded-3xl" 
+                    : "fixed bottom-6 left-0 right-0 z-10"
+            )}
+        >
+            {mode === "initial" ? (
+                <>
+                    <textarea
+                        value={input}
+                        onChange={onValueChange}
+                        placeholder="粘贴需要核查的新闻内容"
+                        className="w-full min-h-20 px-1 outline-none resize-none"
+                    />
+                    <div className="w-full flex items-center justify-between gap-2 mt-2">
+                        <div className="flex items-center gap-2">
+                            <Dialog open={showConfig} onOpenChange={setShowConfig}>
+                                <DialogTrigger asChild>
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="rounded-full flex items-center gap-1"
+                                    >
+                                        <CogIcon className="size-4" />
+                                        <span className="text-xs">Agent 配置</span>
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-md">
+                                    <DialogHeader>
+                                        <DialogTitle>Agent 配置</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="space-y-4 mt-4">
+                                        <AgentConfigPanel
+                                            agentType="main"
+                                            config={mainAgentConfig}
+                                            availableModels={availableModels}
+                                            onChange={setMainAgentConfig}
+                                            disabled={isRunning}
+                                        />
+                                        
+                                        <AgentConfigPanel
+                                            agentType="metadata"
+                                            config={metadataExtractorConfig}
+                                            availableModels={availableModels}
+                                            onChange={setMetadataExtractorConfig}
+                                            disabled={isRunning}
+                                        />
+                                        
+                                        <AgentConfigPanel
+                                            agentType="searcher"
+                                            config={searcherConfig}
+                                            availableModels={availableModels}
+                                            onChange={setSearcherConfig}
+                                            disabled={isRunning}
+                                        />
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
+                            <ToolSelector
+                                selectedTools={selectedTools}
+                                setSelectedTools={setSelectedTools}
+                                showTools={showTools}
+                                setShowTools={setShowTools}
+                            />
+                        </div>
+                        <Button 
+                            className="rounded-full" 
+                            size="icon"
+                            disabled={!hasInput}
+                            onClick={handleSendMessage}
+                        >
+                            <ArrowUpIcon strokeWidth={2} className="size-4" />
+                        </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground/50 text-center mt-4">
+                        AI 可能会出错，请自行验证信息准确性。
+                    </p>
+                </>
+            ) : (
+                <div className="container mx-auto max-w-2xl">
+                    <div className="bg-background border border-primary/5 rounded-full p-2 flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-2 ml-2">
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="rounded-full flex items-center gap-1 opacity-50"
+                                disabled={true}
+                            >
+                                <CogIcon className="size-4" />
+                                <span className="text-xs">配置</span>
+                            </Button>
+                            {selectedTools.length > 0 && (
+                                <div className="flex opacity-50">
+                                    {selectedTools.map((toolIndex) => {
+                                        const ToolIcon = toolIndex === 0 
+                                            ? SearchIcon 
+                                            : toolIndex === 1 
+                                                ? GlobeIcon 
+                                                : EyeIcon;
+                                        return (
+                                            <div
+                                                key={toolIndex}
+                                                className="rounded-full bg-muted flex items-center justify-center size-8"
+                                                style={{
+                                                    marginLeft: toolIndex > 0 ? '-4px' : '0',
+                                                    zIndex: selectedTools.length - toolIndex,
+                                                }}
+                                            >
+                                                <ToolIcon className="size-4" />
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                        {isRunning ? (
+                            <Button
+                                variant="destructive"
+                                onClick={handleInterrupt}
+                                disabled={isInterrupting}
+                                className="rounded-full flex items-center gap-2"
+                            >
+                                <StopCircleIcon className="size-4" />
+                                <span>{isInterrupting ? '正在中断...' : '中断'}</span>
+                            </Button>
+                        ) : (
+                            <Button
+                                variant="outline"
+                                onClick={handleReset}
+                                className="rounded-full flex items-center gap-2"
+                            >
+                                <ArrowUpIcon className="size-4 rotate-180" />
+                                <span>返回</span>
+                            </Button>
+                        )}
+                    </div>
+                    <p className="text-xs text-muted-foreground/50 text-center mt-2">
+                        AI 可能会出错，请自行验证信息准确性。
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const ToolSelector = ({ 
+    selectedTools,
+    setSelectedTools,
+    showTools,
+    setShowTools
+}: { 
+    selectedTools: number[];
+    setSelectedTools: React.Dispatch<React.SetStateAction<number[]>>;
+    showTools: boolean;
+    setShowTools: (show: boolean) => void;
+}) => {
     const panelRef = useRef<HTMLDivElement>(null);
     
     const tools = [
         {
             name: "Tavily Search",
             icon: () => <SearchIcon className="size-4" />,
-            description: "Search the web faster with Tavily. API Key is required for this tool.",
+            description: "使用 Tavily 进行更快的网络搜索，需要 API Key",
         },
         {
             name: "Browser Use",
             icon: () => <GlobeIcon className="size-4" />,
-            description: "Enable Agent to use browser for more complex tasks.",
+            description: "允许 Agent 使用浏览器执行更复杂的任务",
         },
         {
             name: "Vision",
             icon: () => <EyeIcon className="size-4" />,
-            description: "Enable Agent see for more complex tasks.",
+            description: "允许 Agent 查看更复杂的任务",
         },
     ];
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (panelRef.current && !panelRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
+                setShowTools(false);
             }
         };
 
@@ -128,13 +278,13 @@ export const ToolSelector = () => {
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, []);
+    }, [setShowTools]);
 
     const handleToolSelect = (index: number) => {
-        setSelectedTools(prev => {
+        setSelectedTools((prev: number[]) => {
             // If tool is already selected, remove it
             if (prev.includes(index)) {
-                return prev.filter(i => i !== index);
+                return prev.filter((i: number) => i !== index);
             }
             // Otherwise add it
             return [...prev, index];
@@ -146,35 +296,42 @@ export const ToolSelector = () => {
             <Button
                 variant="ghost"
                 className="rounded-full hover:bg-accent flex items-center gap-2 h-9 p-0"
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={() => setShowTools(!showTools)}
             >
                 {selectedTools.length > 0 ? (
                     <div className="flex">
-                        {selectedTools.map((toolIndex, i) => (
-                            <div 
-                                key={toolIndex}
-                                className="rounded-full bg-background flex items-center justify-center size-9"
-                                style={{
-                                    marginLeft: i > 0 ? '-10px' : '0',
-                                    zIndex: selectedTools.length - i,
-                                    border: '1px solid var(--border)',
-                                }}
-                            >
-                                {tools[toolIndex].icon()}
-                            </div>
-                        ))}
+                        {selectedTools.map((toolIndex, i) => {
+                            const ToolIcon = toolIndex === 0 
+                                ? SearchIcon 
+                                : toolIndex === 1 
+                                    ? GlobeIcon 
+                                    : EyeIcon;
+                            return (
+                                <div 
+                                    key={toolIndex}
+                                    className="rounded-full bg-background flex items-center justify-center size-9"
+                                    style={{
+                                        marginLeft: i > 0 ? '-10px' : '0',
+                                        zIndex: selectedTools.length - i,
+                                        border: '1px solid var(--border)',
+                                    }}
+                                >
+                                    <ToolIcon className="size-4" />
+                                </div>
+                            );
+                        })}
                     </div>
                 ) : (
                     <div className="px-3 pr-4 flex items-center gap-1">
                         <div className="rounded-full flex items-center justify-center size-7">
                             <PencilRulerIcon className="size-4" />
                         </div>
-                        <span className="text-xs font-medium">more tools</span>
+                        <span className="text-xs font-medium">更多工具</span>
                     </div>
                 )}
             </Button>
             
-            {isOpen && (
+            {showTools && (
                 <div className="absolute left-0 top-full mt-2 w-64 bg-background border border-border rounded-xl shadow-md z-10">
                     <div className="p-2">
                         {tools.map((tool, index) => {

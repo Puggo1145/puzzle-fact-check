@@ -3,7 +3,9 @@ from queue import Queue
 import uuid
 import threading
 import traceback
-from pubsub import pub
+import time
+import json
+import pubsub.pub as pub
 
 from agents.main.graph import MainAgent
 from agents.main.events import MainAgentEvents
@@ -11,6 +13,13 @@ from agents.main.states import CheckPoints, RetrievalResultVerification
 from agents.metadata_extractor.events import MetadataExtractAgentEvents
 from agents.searcher.events import SearchAgentEvents
 
+# 定义一个模拟客户端类
+class MockClient:
+    def create(self, *args, **kwargs):
+        raise RuntimeError("Agent已被中断")
+    
+    def close(self, *args, **kwargs):
+        pass
 
 class SSEModeEvents:
     """
@@ -292,6 +301,10 @@ class AgentService:
         self.agent_threads: Dict[str, threading.Thread] = {}
         self.agent_states: Dict[str, Dict[str, Any]] = {}
         self.sse_events: Dict[str, SSEModeEvents] = {}
+        self.interruption_flags: Dict[str, bool] = {}
+        self.session_active: Dict[str, bool] = {}
+        # Add a dictionary to store thread cancellation events
+        self.cancellation_events: Dict[str, threading.Event] = {}
     
     def create_agent(self, config: Dict[str, Any]) -> str:
         """创建一个新的 Agent 实例，返回唯一标识符"""
@@ -302,7 +315,7 @@ class AgentService:
         from models import ChatQwen, ChatGemini
         from langchain_openai import ChatOpenAI
         
-        model_name = config.get("model_name", "gpt-4o")
+        model_name = config.get("model_name", "chatgpt-4o-latest")
         model_provider = config.get("model_provider", "openai")
         
         if model_provider == "openai":
@@ -367,7 +380,8 @@ class AgentService:
             metadata_extract_model=metadata_model,
             search_model=search_model,
             mode="API",
-            max_search_tokens=10000,
+            max_search_tokens=config.get("searcher", {}).get("max_search_tokens", 10000),
+            max_retries=config.get("main_agent", {}).get("max_retries", 1),
         )
         
         # 注册 SSE 事件处理
@@ -377,13 +391,22 @@ class AgentService:
         self.event_queues[session_id] = event_queue
         self.agent_states[session_id] = {}
         self.sse_events[session_id] = sse_events
+        self.interruption_flags[session_id] = False
+        self.session_active[session_id] = True
+        # Initialize cancellation event for this session
+        self.cancellation_events[session_id] = threading.Event()
         
         return session_id
     
-    def run_agent(self, session_id: str, news_text: str):
+    def run_agent(self, session_id: str, news_text: str, config: Dict[str, Any] | None = None):
         """在后台线程运行 agent"""
         if session_id not in self.agent_instances:
             raise ValueError(f"Agent with session_id {session_id} not found")
+        
+        # 重置中断标志
+        self.interruption_flags[session_id] = False
+        # Reset cancellation event
+        self.cancellation_events[session_id].clear()
         
         # 向前端发送任务开始的事件
         self.event_queues[session_id].put({
@@ -391,39 +414,334 @@ class AgentService:
             "data": {"message": "开始核查任务"}
         })
         
+        # 应用配置
+        if config:
+            self._apply_agent_config(session_id, config)
+        
         def run_agent_task():
+            # 捕获会话ID，防止在Thread中丢失引用
+            local_session_id = session_id
             try:
                 # 获取agent实例
-                agent = self.agent_instances[session_id]
+                agent = self.agent_instances.get(local_session_id)
+                if agent is None:
+                    print(f"Agent instance for session {local_session_id} not found, task aborted")
+                    return
+                    
+                cancellation_event = self.cancellation_events.get(local_session_id)
+                if cancellation_event is None:
+                    # 如果找不到取消事件，创建一个新的并立即将其设置为已触发状态
+                    cancellation_event = threading.Event()
+                    cancellation_event.set()
+                    print(f"Cancellation event for session {local_session_id} not found, creating a new one and setting it")
                 
-                # 直接执行 Agent，无需人类反馈
-                result = agent.invoke(
-                    {"news_text": news_text},
-                    {"configurable": {"thread_id": session_id}}
+                # 执行前检查连接是否中断
+                should_interrupt = (
+                    local_session_id not in self.session_active or 
+                    not self.session_active.get(local_session_id, False) or
+                    (local_session_id in self.interruption_flags and self.interruption_flags[local_session_id]) or
+                    cancellation_event.is_set()
                 )
                 
-                # 完成后发送事件
-                self.event_queues[session_id].put({
-                    "event": "task_complete",
-                    "data": {
-                        "message": "核查任务完成",
-                        "result": self._make_serializable(result)
-                    }
-                })
+                if should_interrupt:
+                    if local_session_id in self.event_queues:
+                        self.event_queues[local_session_id].put({
+                            "event": "task_interrupted",
+                            "data": {"message": "任务被中断"}
+                        })
+                    return
+                
+                # 使用轮询方式检查中断状态
+                def should_continue():
+                    # 安全检查 - 如果会话已不存在，返回False
+                    if (local_session_id not in self.interruption_flags or 
+                        local_session_id not in self.session_active):
+                        return False
+                        
+                    return not (self.interruption_flags[local_session_id] or 
+                               not self.session_active[local_session_id] or 
+                               cancellation_event.is_set())
+                
+                # 直接执行 Agent，无需人类反馈
+                # 传递 should_continue 回调函数给 agent 以便定期检查是否应该中断
+                result = agent.invoke(
+                    {"news_text": news_text},
+                    {"configurable": {"thread_id": local_session_id, "should_continue": should_continue}}
+                )
+                
+                # 执行后检查是否需要中断
+                should_interrupt = (
+                    local_session_id not in self.session_active or 
+                    not self.session_active.get(local_session_id, False) or
+                    (local_session_id in self.interruption_flags and self.interruption_flags[local_session_id]) or
+                    cancellation_event.is_set()
+                )
+                
+                if should_interrupt:
+                    if local_session_id in self.event_queues:
+                        self.event_queues[local_session_id].put({
+                            "event": "task_interrupted",
+                            "data": {"message": "任务已被中断"}
+                        })
+                    return
+                
+                # 完成后发送事件 - 先检查会话是否仍然存在
+                if local_session_id in self.event_queues:
+                    self.event_queues[local_session_id].put({
+                        "event": "task_complete",
+                        "data": {
+                            "message": "核查任务完成",
+                            "result": self._make_serializable(result)
+                        }
+                    })
+                
+                # 清理相关资源 - 先检查会话是否仍然存在
+                if local_session_id in self.agent_instances:
+                    self.cleanup_resources(local_session_id)
+            except RuntimeError as e:
+                # 特别处理中断错误，不作为真正的错误处理
+                if str(e) == "Agent已被中断":
+                    if local_session_id in self.event_queues:
+                        self.event_queues[local_session_id].put({
+                            "event": "task_interrupted",
+                            "data": {"message": "任务已被中断"}
+                        })
+                else:
+                    print(f"Error in agent thread: {e}")
+                    print(traceback.format_exc())
+                    # 发送错误事件
+                    if local_session_id in self.event_queues:
+                        self.event_queues[local_session_id].put({
+                            "event": "error",
+                            "data": {"message": f"执行错误: {str(e)}"}
+                        })
+            except KeyError as e:
+                # 专门处理会话已被删除的情况
+                print(f"Session key error in agent thread: {e} - The session may have been destroyed")
+                print(traceback.format_exc())
             except Exception as e:
                 print(f"Error in agent thread: {e}")
                 print(traceback.format_exc())
                 # 发送错误事件
-                self.event_queues[session_id].put({
-                    "event": "error",
-                    "data": {"message": f"执行错误: {str(e)}"}
-                })
+                if local_session_id in self.event_queues:
+                    self.event_queues[local_session_id].put({
+                        "event": "error",
+                        "data": {"message": f"执行错误: {str(e)}"}
+                    })
         
         # 启动线程
         thread = threading.Thread(target=run_agent_task)
         thread.daemon = True
         thread.start()
         self.agent_threads[session_id] = thread
+    
+    def _apply_agent_config(self, session_id: str, config: Dict[str, Any]):
+        """应用从前端传递的配置"""
+        try:
+            agent = self.agent_instances[session_id]
+            
+            # 检查是否有主智能体配置
+            if "main_agent" in config:
+                main_config = config["main_agent"]
+                if "max_retries" in main_config:
+                    # 主智能体接受 max_retries 配置
+                    agent.max_retries = main_config["max_retries"]
+            
+            # 检查是否有搜索代理配置
+            if "searcher" in config:
+                searcher_config = config["searcher"]
+                if "max_search_tokens" in searcher_config:
+                    # 搜索代理接受 max_search_tokens 配置
+                    agent.search_agent.max_search_tokens = searcher_config["max_search_tokens"]
+            
+        except Exception as e:
+            print(f"Error applying config: {e}")
+            print(traceback.format_exc())
+    
+    def interrupt_agent(self, session_id: str) -> bool:
+        """中断正在执行的智能体任务"""
+        if session_id not in self.agent_instances:
+            return False
+        
+        # 设置中断标志
+        self.interruption_flags[session_id] = True
+        
+        # 设置取消事件，通知所有等待线程立即退出
+        if session_id in self.cancellation_events:
+            self.cancellation_events[session_id].set()
+        
+        # 发送中断事件到事件队列
+        try:
+            # 首先检查事件队列是否存在
+            if session_id in self.event_queues:
+                self.event_queues[session_id].put({
+                    "event": "task_interrupted",
+                    "data": {"message": "任务正在被中断..."}
+                })
+            
+            # 强制停止所有任务
+            if session_id in self.agent_instances:
+                # 1. 调用取消方法停止正在进行的任务
+                try:
+                    if hasattr(self.agent_instances[session_id], 'cancel_running_tasks'):
+                        self.agent_instances[session_id].cancel_running_tasks()
+                except Exception as e:
+                    print(f"取消任务时出错: {e}")
+                
+                # 2. 强制关闭所有API客户端连接
+                agent = self.agent_instances[session_id]
+                
+                # 关闭主模型客户端
+                try:
+                    if hasattr(agent, 'model') and hasattr(agent.model, 'client'):
+                        if agent.model.client is not None and hasattr(agent.model.client, 'close'):
+                            agent.model.client.close()
+                        # 使用预定义的MockClient类替代None
+                        agent.model.client = MockClient()
+                except Exception as e:
+                    print(f"关闭主模型客户端失败: {e}")
+                
+                # 关闭元数据提取模型客户端
+                try:
+                    if hasattr(agent, 'metadata_extract_agent') and hasattr(agent.metadata_extract_agent, 'model') and hasattr(agent.metadata_extract_agent.model, 'client'):
+                        if agent.metadata_extract_agent.model.client is not None and hasattr(agent.metadata_extract_agent.model.client, 'close'):
+                            agent.metadata_extract_agent.model.client.close()
+                        agent.metadata_extract_agent.model.client = MockClient()
+                except Exception as e:
+                    print(f"关闭元数据提取模型客户端失败: {e}")
+                
+                # 关闭搜索模型客户端
+                try:
+                    if hasattr(agent, 'search_agent') and hasattr(agent.search_agent, 'model') and hasattr(agent.search_agent.model, 'client'):
+                        if agent.search_agent.model.client is not None and hasattr(agent.search_agent.model.client, 'close'):
+                            agent.search_agent.model.client.close()
+                        agent.search_agent.model.client = MockClient()
+                except Exception as e:
+                    print(f"关闭搜索模型客户端失败: {e}")
+            
+            # 等待一小段时间确认线程已停止
+            timeout = 2  # 缩短等待时间到2秒
+            start_time = time.time()
+            while session_id in self.agent_threads and self.agent_threads[session_id].is_alive() and time.time() - start_time < timeout:
+                time.sleep(0.1)
+            
+            # 如果线程仍在运行，尝试彻底清理资源
+            if session_id in self.agent_threads and self.agent_threads[session_id].is_alive():
+                print(f"线程仍在运行，执行强制清理")
+                
+                # 清理资源并移除线程引用
+                if session_id in self.agent_instances:
+                    # 移除事件订阅
+                    if session_id in self.sse_events:
+                        # 尝试取消所有事件订阅
+                        try:
+                            # 直接使用全局的unsubAll方法取消所有订阅，不需要指定具体主题
+                            pub.unsubAll()
+                        except Exception as e:
+                            print(f"移除所有事件订阅失败: {e}")
+            
+            # 发送最终中断确认
+            if session_id in self.event_queues:
+                self.event_queues[session_id].put({
+                    "event": "task_interrupted",
+                    "data": {"message": "任务已成功中断"}
+                })
+            
+            return True
+        except Exception as e:
+            print(f"Error interrupting agent: {e}")
+            print(traceback.format_exc())
+            return False
+    
+    def handle_client_disconnect(self, session_id: str) -> bool:
+        """处理客户端断开连接的情况"""
+        if session_id not in self.agent_instances:
+            return False
+        
+        print(f"Client disconnected, immediately destroying session {session_id}")
+        
+        # 标记会话不再活跃
+        self.session_active[session_id] = False
+        
+        # 设置取消事件
+        if session_id in self.cancellation_events:
+            self.cancellation_events[session_id].set()
+        
+        # 立即中断所有相关任务
+        self.interrupt_agent(session_id)
+        
+        # 强制清理所有与该会话相关的资源
+        try:
+            # 移除事件订阅
+            if session_id in self.sse_events:
+                try:
+                    # 直接使用全局的unsubAll方法取消所有订阅，不需要指定具体主题
+                    pub.unsubAll()
+                except Exception as e:
+                    print(f"移除所有事件订阅失败: {e}")
+            
+            # 清除代理实例的引用，允许垃圾回收
+            if session_id in self.agent_instances:
+                # 清理主代理中的所有模型客户端
+                agent = self.agent_instances[session_id]
+                
+                # 关闭所有可能的客户端连接
+                try:
+                    # 关闭主模型客户端
+                    if hasattr(agent, 'model') and hasattr(agent.model, 'client'):
+                        if hasattr(agent.model.client, 'close'):
+                            agent.model.client.close()
+                    
+                    # 关闭元数据提取模型客户端
+                    if hasattr(agent, 'metadata_extract_agent') and hasattr(agent.metadata_extract_agent, 'model') and hasattr(agent.metadata_extract_agent.model, 'client'):
+                        if hasattr(agent.metadata_extract_agent.model.client, 'close'):
+                            agent.metadata_extract_agent.model.client.close()
+                    
+                    # 关闭搜索模型客户端
+                    if hasattr(agent, 'search_agent') and hasattr(agent.search_agent, 'model') and hasattr(agent.search_agent.model, 'client'):
+                        if hasattr(agent.search_agent.model.client, 'close'):
+                            agent.search_agent.model.client.close()
+                except Exception as e:
+                    print(f"关闭客户端连接失败: {e}")
+                
+                # 从字典中删除而不是设置None
+                del self.agent_instances[session_id]
+            
+            # 清理其他相关资源
+            if session_id in self.agent_threads:
+                del self.agent_threads[session_id]
+            
+            if session_id in self.event_queues:
+                # 清空事件队列
+                while not self.event_queues[session_id].empty():
+                    try:
+                        self.event_queues[session_id].get_nowait()
+                    except:
+                        pass
+                del self.event_queues[session_id]
+            
+            if session_id in self.agent_states:
+                del self.agent_states[session_id]
+            
+            if session_id in self.sse_events:
+                del self.sse_events[session_id]
+            
+            if session_id in self.cancellation_events:
+                del self.cancellation_events[session_id]
+            
+            if session_id in self.interruption_flags:
+                del self.interruption_flags[session_id]
+            
+            if session_id in self.session_active:
+                del self.session_active[session_id]
+            
+            print(f"Successfully destroyed all resources for session {session_id}")
+            return True
+        
+        except Exception as e:
+            print(f"Error destroying agent resources: {e}")
+            print(traceback.format_exc())
+            return False
     
     def _make_serializable(self, obj: Any) -> Union[Dict[str, Any], List[Any], str, int, float, bool, None]:
         """
@@ -464,6 +782,51 @@ class AgentService:
             return event
         except Exception:
             return None
+
+    def cleanup_resources(self, session_id: str) -> bool:
+        """清理任务相关资源但保留会话"""
+        if session_id not in self.agent_instances:
+            return False
+        
+        try:
+            agent = self.agent_instances[session_id]
+            
+            # 关闭所有模型客户端连接
+            # 关闭主模型客户端
+            try:
+                if hasattr(agent.model, 'client'):
+                    if hasattr(agent.model.client, 'close'):
+                        agent.model.client.close()
+                    # 替换客户端对象，防止后续使用
+                    agent.model.client = MockClient()
+            except Exception as e:
+                print(f"关闭主模型客户端失败: {e}")
+            
+            # 关闭元数据提取模型客户端
+            try:
+                if hasattr(agent.metadata_extract_agent, 'model') and hasattr(agent.metadata_extract_agent.model, 'client'):
+                    if hasattr(agent.metadata_extract_agent.model.client, 'close'):
+                        agent.metadata_extract_agent.model.client.close()
+                    agent.metadata_extract_agent.model.client = MockClient()
+            except Exception as e:
+                print(f"关闭元数据提取模型客户端失败: {e}")
+            
+            # 关闭搜索模型客户端
+            try:
+                if hasattr(agent.search_agent, 'model') and hasattr(agent.search_agent.model, 'client'):
+                    if hasattr(agent.search_agent.model.client, 'close'):
+                        agent.search_agent.model.client.close()
+                    agent.search_agent.model.client = MockClient()
+            except Exception as e:
+                print(f"关闭搜索模型客户端失败: {e}")
+            
+            print(f"Successfully cleaned up resources for session {session_id} while keeping the session.")
+            return True
+        
+        except Exception as e:
+            print(f"Error cleaning up resources: {e}")
+            print(traceback.format_exc())
+            return False
 
 # 创建全局的服务实例
 agent_service = AgentService()

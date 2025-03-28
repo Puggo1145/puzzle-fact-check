@@ -49,7 +49,7 @@ class MainAgent(BaseAgent):
         search_model: BaseChatOpenAI,
         mode: Literal["CLI", "API"] = "CLI",
         max_search_tokens: int = 5000,
-        max_retries: int = 1, # search agent 在一个任务上允许的最多重试次数
+        max_retries: int = 1, # main agent 在一个任务上允许的最多重试次数
     ):
         super().__init__(
             mode=mode,
@@ -72,6 +72,7 @@ class MainAgent(BaseAgent):
         self.max_retries = max_retries
         self.current_retrieval_task_index = 0  # 跟踪当前检索任务的索引
         self.total_retrieval_tasks_nums = 0  # 总任务数
+        self._interrupted = False  # 中断标志
         
         # self.db_events = DBEvents()
         if mode == "CLI":
@@ -121,6 +122,10 @@ class MainAgent(BaseAgent):
             news_text=state.news_text
         )
         
+        # Check for interruption in a safer way
+        if self._check_interruption():
+            return interrupt({"status": "interrupted", "message": "任务已被中断"})
+        
         return state
 
     def invoke_metadata_extract_agent(self, state: FactCheckPlanState):
@@ -145,6 +150,10 @@ class MainAgent(BaseAgent):
         Returns:
             核查方案 JSON
         """
+        # Check for interruption
+        if self._check_interruption():
+            return interrupt({"status": "interrupted", "message": "任务已被中断"})
+        
         pub.sendMessage(MainAgentEvents.EXTRACT_CHECK_POINT_START.value)
 
         messages = [
@@ -191,6 +200,10 @@ class MainAgent(BaseAgent):
 
     def invoke_search_agent(self, state: FactCheckPlanState):
         """根据检索规划调用子检索模型执行深度检索"""        
+        # Check for interruption
+        if self._check_interruption():
+            return interrupt({"status": "interrupted", "message": "任务已被中断"})
+        
         current_task = self._get_current_retrieval_task(state)
         if not current_task:
             raise AgentExecutionException(
@@ -230,6 +243,10 @@ class MainAgent(BaseAgent):
 
     def evaluate_search_result(self, state: FactCheckPlanState):
         """主模型对当前 search agent 的检索结论进行复核推理"""
+        # Check for interruption
+        if self._check_interruption():
+            return interrupt({"status": "interrupted", "message": "任务已被中断"})
+                
         current_task = self._get_current_retrieval_task(state)
         if not current_task:
             raise AgentExecutionException(
@@ -340,6 +357,10 @@ class MainAgent(BaseAgent):
     
     def write_fact_checking_report(self, state: FactCheckPlanState):
         """main agent 认可全部核查结论将核查结果写入报告"""
+        # Check for interruption
+        if self._check_interruption():
+            return interrupt({"status": "interrupted", "message": "任务已被中断"})
+                
         pub.sendMessage(MainAgentEvents.WRITE_FACT_CHECKING_REPORT_START.value)
         
         response = self.model.invoke([
@@ -441,9 +462,111 @@ class MainAgent(BaseAgent):
     def invoke(self, input: Any, config: Optional[RunnableConfig] = None, **kwargs):
         if not config or not config.get("configurable"):
             raise ValueError("Agent 缺少 thread_id 配置")
+        
+        # 从配置中获取中断检查回调
+        should_continue = config.get("configurable", {}).get("should_continue", lambda: True)
+        
+        try:
+            # 在执行前检查是否应该继续
+            if callable(should_continue) and not should_continue():
+                pub.sendMessage(
+                    MainAgentEvents.LLM_DECISION.value,
+                    decision="任务中断",
+                    reason="收到用户中断信号"
+                )
+                return {"status": "interrupted", "message": "任务已被中断"}
+            
+            # 修改图表执行策略，加入中断检查
+            orig_invoke = self.graph.invoke
+            
+            def invoke_with_interrupt_check(*args, **kw):
+                # 在每次图执行前检查是否应该继续
+                if callable(should_continue) and not should_continue():
+                    return interrupt({"status": "interrupted", "message": "任务已被中断"})
+                return orig_invoke(*args, **kw)
+            
+            # 临时替换invoke方法添加中断检查
+            self.graph.invoke = invoke_with_interrupt_check
+            
+            # 执行图
+            result = self.graph.invoke(input, config, **kwargs)
+            
+            # 恢复原始方法
+            self.graph.invoke = orig_invoke
+            
+            # 执行完成后再次检查是否被中断
+            if callable(should_continue) and not should_continue():
+                return {"status": "interrupted", "message": "任务已被中断"}
+            
+            return result
+        except Exception as e:
+            # 出现异常时恢复原始方法
+            if hasattr(self, '_orig_invoke'):
+                self.graph.invoke = getattr(self, '_orig_invoke')
+            raise e
 
-        result = self.graph.invoke(input, config, **kwargs)
-        return result
+    def cancel_running_tasks(self):
+        """
+        取消所有正在运行的任务，包括API调用和子代理任务
+        在收到中断信号时由AgentService调用
+        """
+        try:
+            # 设置中断标志
+            self._interrupted = True
+            
+            # 尝试取消metadata extract agent的任务
+            try:
+                # 安全地尝试调用子代理的取消方法，即使方法不存在也不会抛出异常
+                if self.metadata_extract_agent and hasattr(self.metadata_extract_agent, 'cancel_running_tasks'):
+                    getattr(self.metadata_extract_agent, 'cancel_running_tasks')()
+            except Exception as e:
+                print(f"无法取消metadata extract agent任务: {e}")
+            
+            # 尝试取消search agent的任务
+            try:
+                if self.search_agent and hasattr(self.search_agent, 'cancel_running_tasks'):
+                    getattr(self.search_agent, 'cancel_running_tasks')()
+            except Exception as e:
+                print(f"无法取消search agent任务: {e}")
+            
+            # 发布中断事件通知其他组件
+            pub.sendMessage(
+                MainAgentEvents.LLM_DECISION.value,
+                decision="任务中断",
+                reason="收到用户中断信号"
+            )
+            
+            # 如果模型支持中断，则中断当前正在进行的模型调用
+            try:
+                if hasattr(self.model, 'client') and hasattr(self.model.client, 'close'):
+                    self.model.client.close()
+            except Exception as e:
+                print(f"无法关闭模型客户端连接: {e}")
+            
+            return True
+        except Exception as e:
+            print(f"取消任务时出错: {e}")
+            return False
+
+    def _check_interruption(self) -> bool:
+        """检查是否应该中断执行"""
+        try:
+            # 尝试从线程本地存储获取运行配置
+            thread_local = getattr(self.graph, "_thread_local", None)
+            if thread_local and hasattr(thread_local, "run_config"):
+                run_config = thread_local.run_config
+                should_continue = run_config.get("configurable", {}).get("should_continue")
+                if callable(should_continue) and not should_continue():
+                    return True
+                
+            # 快速检查如果中断状态已经设置
+            if hasattr(self, "_interrupted") and self._interrupted:
+                return True
+                
+            return False
+        except Exception:
+            # 任何错误都不应中断任务
+            return False
 
 def cli_select_option(options: List[Dict[str, str]], hint: str):
     """实现命令行选择功能"""
