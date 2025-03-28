@@ -29,11 +29,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`bg-muted ${firaSans.variable} ${playfairDisplay.variable}`}>
-        <div className="w-full flex flex-col items-center">
-          <header className="fixed top-4 left-4 w-full flex items-center gap-2">
+        <div className="w-full h-screen flex flex-col items-center">
+          <header className="z-50 px-4 py-6 bg-muted w-full flex items-center gap-2">
             <Logo />
           </header>
-          {children}
+          <div className="flex-1 w-full">
+            {children}
+          </div>
         </div>
       </body>
     </html>

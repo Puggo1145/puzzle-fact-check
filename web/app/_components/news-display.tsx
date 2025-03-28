@@ -43,7 +43,7 @@ export const NewsDisplay = () => {
     }
 
     return (
-        <div className="w-full bg-muted/30 rounded-xl p-6 mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="w-full bg-muted-foreground/10 rounded-xl p-6 mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
             <div className="flex items-center gap-2 mb-2">
                 <StatusIcon className={cn("size-4", statusColor)} />
                 <h2 className="font-medium">

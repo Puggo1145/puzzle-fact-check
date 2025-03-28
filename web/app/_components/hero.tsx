@@ -13,7 +13,7 @@ export const Hero = () => {
     return (
         <div 
             className={cn(
-                "relative flex flex-col justify-center transition-all duration-500 ease-in-out mb-8",
+                "relative flex flex-col justify-center transition-all duration-300 ease-in-out mb-8",
                 isActive ? "opacity-0 h-0 pointer-events-none" : "opacity-100"
             )}
         >

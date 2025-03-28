@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import {
+    ArrowLeftIcon,
     ArrowUpIcon,
     PencilRulerIcon,
     SearchIcon,
@@ -56,15 +57,17 @@ export const InputPanel = () => {
     const isActive = status !== 'idle';
     const isRunning = status === 'running';
     const isInterrupting = status === 'interrupting';
+    const hasEvents = events.length > 0;
 
     useEffect(() => {
         if (isActive && mode === "initial") {
             setMode("running");
             setShowModelInfo(false);
-        } else if (!isActive && mode === "running") {
+        } else if (!isActive && mode === "running" && !hasEvents) {
+            // Only switch back to initial if there are no events to display
             setMode("initial");
         }
-    }, [isActive, mode]);
+    }, [isActive, mode, hasEvents]);
 
     useEffect(() => {
         setNewsText(input);
@@ -88,7 +91,15 @@ export const InputPanel = () => {
     };
 
     const handleReset = () => {
-        resetState();
+        // Only reset state if not currently interrupting
+        if (status === 'interrupting') {
+            // Just update local UI state without resetting the agent state
+            // This prevents race conditions with the interruptAgent completion
+            setMode("initial");
+        } else {
+            // Normal case - fully reset the state
+            resetState();
+        }
     };
 
     const toggleModelInfo = () => {
@@ -97,16 +108,21 @@ export const InputPanel = () => {
 
     const onValueChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value);
 
+    // Common container class that maintains consistent width
+    const containerClass = mode === "initial" 
+        ? "max-w-2xl w-full mx-auto p-4 border-2 border-primary/5 bg-background rounded-3xl"
+        : "max-w-2xl w-full mx-auto";
+
     return (
         <div 
             ref={panelRef}
             className={cn(
-                "w-full transition-all duration-500 ease-in-out", 
-                mode === "initial" 
-                    ? "p-4 border-2 border-primary/5 bg-background rounded-3xl" 
-                    : "fixed bottom-6 left-0 right-0 z-10"
+                "transition-all duration-500 ease-in-out",
+                containerClass,
+                mode === "running" && "fixed bottom-6 left-0 right-0 z-10"
             )}
         >
+            {/* Content switcher based on mode */}
             {mode === "initial" ? (
                 <>
                     <textarea
@@ -177,7 +193,7 @@ export const InputPanel = () => {
                     </div>
                 </>
             ) : (
-                <div className="container mx-auto max-w-2xl">
+                <div className="p-2 bg-background border border-primary/5 rounded-full shadow-sm">
                     {showModelInfo && (
                         <div className="bg-background/95 backdrop-blur-sm border border-primary/5 rounded-xl p-4 mb-3 shadow-sm animate-in slide-in-from-bottom duration-300">
                             <div className="flex justify-between items-center mb-3">
@@ -211,7 +227,7 @@ export const InputPanel = () => {
                             </div>
                         </div>
                     )}
-                    <div className="p-2 bg-background border border-primary/5 rounded-full shadow-sm flex justify-between items-center">
+                    <div className="flex justify-between items-center">
                         <Button
                             variant="ghost"
                             size="sm"
@@ -244,7 +260,7 @@ export const InputPanel = () => {
                                 className="rounded-full flex items-center gap-1"
                                 size="sm"
                             >
-                                <ArrowUpIcon className="size-4 rotate-180" />
+                                <ArrowLeftIcon className="size-4 rotate-180" />
                                 <span className="text-xs">返回</span>
                             </Button>
                         )}
@@ -306,16 +322,16 @@ const ToolSelector = ({
             icon: () => <SearchIcon className="size-4" />,
             description: "使用 Tavily 进行更快的网络搜索，需要 API Key",
         },
-        {
-            name: "Browser Use",
-            icon: () => <GlobeIcon className="size-4" />,
-            description: "允许 Agent 使用浏览器执行更复杂的任务",
-        },
-        {
-            name: "Vision",
-            icon: () => <EyeIcon className="size-4" />,
-            description: "允许 Agent 查看更复杂的任务",
-        },
+        // {
+        //     name: "Browser Use",
+        //     icon: () => <GlobeIcon className="size-4" />,
+        //     description: "允许 Agent 使用浏览器执行更复杂的任务",
+        // },
+        // {
+        //     name: "Vision",
+        //     icon: () => <EyeIcon className="size-4" />,
+        //     description: "允许 Agent 查看更复杂的任务",
+        // },
     ];
 
     useEffect(() => {
@@ -377,7 +393,7 @@ const ToolSelector = ({
                         <div className="rounded-full flex items-center justify-center size-7">
                             <PencilRulerIcon className="size-4" />
                         </div>
-                        <span className="text-xs font-medium">更多工具</span>
+                        <span className="text-xs font-medium">使用更多工具</span>
                     </div>
                 )}
             </Button>

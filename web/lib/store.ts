@@ -268,17 +268,20 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       // 关闭当前的EventSource连接
       get().closeEventSource();
       
-      // 添加一个更新的中断事件，显示任务已被中断
+      // 总是添加中断成功的消息，即使用户已经点击了返回
       get().addEvent({
         event: 'task_interrupted',
         data: { message: '任务已被中断' }
       });
       
-      // 设置状态为已中断，并清除会话ID
-      set({ 
-        status: 'interrupted',
-        sessionId: null
-      });
+      // 只有在状态仍为interrupting时才更新状态
+      const currentStatus = get().status;
+      if (currentStatus === 'interrupting') {
+        set({ 
+          status: 'interrupted',
+          sessionId: null
+        });
+      }
       
     } catch (error) {
       console.error('中断任务失败:', error);
@@ -286,8 +289,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         event: 'error',
         data: { message: `中断任务失败: ${error instanceof Error ? error.message : String(error)}` }
       });
-      // 如果中断失败，恢复为运行状态
-      set({ status: 'running' });
+      // 如果中断失败且状态仍为interrupting，恢复为运行状态
+      const currentStatus = get().status;
+      if (currentStatus === 'interrupting') {
+        set({ status: 'running' });
+      }
     }
   },
   
