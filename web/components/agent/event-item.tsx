@@ -16,7 +16,6 @@ import {
   WrenchIcon,
   ClipboardListIcon,
   BookOpenIcon,
-  LibraryIcon,
   SparklesIcon,
   StopCircleIcon,
   SparkleIcon
@@ -25,6 +24,20 @@ import { cn } from '@/lib/utils';
 
 interface EventItemProps {
   event: Event;
+}
+
+// Define interfaces for the checkpoint data
+interface CheckPointStep {
+  purpose: string;
+  [key: string]: unknown;
+}
+
+interface CheckPoint {
+  is_verification_point: boolean;
+  content: string;
+  importance?: string;
+  retrieval_step?: CheckPointStep[];
+  [key: string]: unknown;
 }
 
 export const EventItem: React.FC<EventItemProps> = ({ event }) => {
@@ -195,17 +208,17 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
                 Found {data.check_points.items.length} verification points:
               </p>
               {data.check_points.items
-                .filter((cp: any) => cp.is_verification_point)
-                .map((cp: any, idx: number) => (
+                .filter((cp: CheckPoint) => cp.is_verification_point)
+                .map((cp: CheckPoint, idx: number) => (
                   <div key={idx} className="p-2 bg-white rounded-md border">
                     <p className="text-sm font-medium">Point {idx + 1}: {cp.content}</p>
                     {cp.importance && (
                       <p className="text-xs text-gray-600">Reason: {cp.importance}</p>
                     )}
-                    {cp.retrieval_step?.length > 0 && (
+                    {cp.retrieval_step && cp.retrieval_step.length > 0 && (
                       <div className="mt-1">
                         <p className="text-xs font-medium">Retrieval plan:</p>
-                        {cp.retrieval_step.map((step: any, stepIdx: number) => (
+                        {cp.retrieval_step.map((step: CheckPointStep, stepIdx: number) => (
                           <p key={stepIdx} className="text-xs text-gray-600">• {step.purpose}</p>
                         ))}
                       </div>

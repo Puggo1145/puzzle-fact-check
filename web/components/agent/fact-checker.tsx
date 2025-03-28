@@ -6,7 +6,6 @@ import { EventLog } from './event-log';
 import { Report } from './report';
 import { AgentConfigPanel } from './agent-config';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
 import { ArrowUpIcon, RefreshCw, CogIcon, XIcon, StopCircleIcon } from 'lucide-react';
 
 export const FactChecker: React.FC = () => {
@@ -17,7 +16,6 @@ export const FactChecker: React.FC = () => {
     setNewsText,
     interruptAgent,
     resetState,
-    events,
     closeEventSource,
     // Agent configurations
     mainAgentConfig,

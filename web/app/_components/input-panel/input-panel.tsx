@@ -28,7 +28,6 @@ import { ModelInfoItem } from "./model-info-item";
 
 export const InputPanel = () => {
     const {
-        newsText,
         setNewsText,
         status,
         interruptAgent,
@@ -40,7 +39,6 @@ export const InputPanel = () => {
         setMainAgentConfig,
         setMetadataExtractorConfig,
         setSearcherConfig,
-        finalReport,
         resetState,
         events,
         selectedTools,

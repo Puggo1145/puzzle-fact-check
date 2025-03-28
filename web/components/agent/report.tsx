@@ -76,12 +76,12 @@ export const Report: React.FC = () => {
       <CardContent>
         <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mb-4 prose-headings:mt-6 prose-p:my-4 prose-li:my-2">
           <ReactMarkdown components={{
-            h1: ({node, ...props}) => <h1 className="text-2xl font-bold border-b pb-2 mb-6" {...props} />,
-            h2: ({node, ...props}) => <h2 className="text-xl font-semibold mt-8 mb-4" {...props} />,
-            h3: ({node, ...props}) => <h3 className="text-lg font-medium mt-6" {...props} />,
-            ul: ({node, ...props}) => <ul className="my-4 ml-6 list-disc" {...props} />,
-            ol: ({node, ...props}) => <ol className="my-4 ml-6 list-decimal" {...props} />,
-            li: ({node, ...props}) => <li className="mb-2" {...props} />
+            h1: ({...props}) => <h1 className="text-2xl font-bold border-b pb-2 mb-6" {...props} />,
+            h2: ({...props}) => <h2 className="text-xl font-semibold mt-8 mb-4" {...props} />,
+            h3: ({...props}) => <h3 className="text-lg font-medium mt-6" {...props} />,
+            ul: ({...props}) => <ul className="my-4 ml-6 list-disc" {...props} />,
+            ol: ({...props}) => <ol className="my-4 ml-6 list-decimal" {...props} />,
+            li: ({...props}) => <li className="mb-2" {...props} />
           }}>
             {finalReport}
           </ReactMarkdown>

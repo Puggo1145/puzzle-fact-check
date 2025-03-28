@@ -13,7 +13,6 @@ export default function Home() {
 
   // Check if we're in active mode (not idle) or have results to show
   const isActive = status !== 'idle' || Boolean(finalReport) || events.length > 0;
-  const isRunning = status === 'running' || status === 'interrupting';
 
   return (
     <div className="container pt-0 h-full flex flex-col relative mx-auto">

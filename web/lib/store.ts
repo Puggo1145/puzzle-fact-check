@@ -50,6 +50,8 @@ export type EventType =
 
 export interface Event {
   event: EventType;
+  // TODO：后期补完 data 类型
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any;
   timestamp?: number;
 }
@@ -276,7 +278,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }
       });
       
-      const responseData = await response.json();
+      await response.json();
       
       // 关闭当前的EventSource连接
       get().closeEventSource();
@@ -345,7 +347,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     
     // 特殊处理错误事件
     if (event.event === 'error') {
-      const errorMessage = event.data?.message || '';
+      const errorMessage = (event.data?.message as string) || '';
       
       // 检查是否是模型API相关错误
       if (
@@ -519,7 +521,6 @@ function setupEventSource(
   // 超时检查相关变量
   let lastEventTime = Date.now();
   const TIMEOUT_DURATION = 100 * 1000; // 100秒超时
-  let timeoutCheckerId: NodeJS.Timeout;
   
   // 定义更新最后事件时间的函数
   const updateLastEventTime = () => {
@@ -536,7 +537,9 @@ function setupEventSource(
       console.log(`Timeout detected: No events for ${timeSinceLastEvent/1000} seconds`);
       
       // 清除超时检查器
-      clearInterval(timeoutCheckerId);
+      if (timeoutCheckerId) {
+        clearInterval(timeoutCheckerId);
+      }
       
       // 关闭 EventSource 连接
       eventSource.close();
@@ -578,7 +581,7 @@ function setupEventSource(
   };
   
   // 启动超时检查器 - 每10秒检查一次
-  timeoutCheckerId = setInterval(checkForTimeout, 10000);
+  const timeoutCheckerId = setInterval(checkForTimeout, 10000);
   
   eventSource.addEventListener('heartbeat', () => {
     // Keep connection alive
@@ -686,7 +689,7 @@ function setupEventSource(
             });
           }, 100);
         }
-      } catch (e) {
+      } catch {
         addEvent({
           event: 'error',
           data: { message: 'SSE 解析错误: ' + (event.data || '未知错误') }
