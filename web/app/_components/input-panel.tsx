@@ -9,6 +9,8 @@ import {
     EyeIcon,
     StopCircleIcon,
     CogIcon,
+    ChevronUpIcon,
+    ChevronDownIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,8 +28,7 @@ export const InputPanel = () => {
     const {
         newsText,
         setNewsText,
-        isRunning,
-        isInterrupting,
+        status,
         interruptAgent,
         createAndRunAgent,
         mainAgentConfig,
@@ -38,23 +39,28 @@ export const InputPanel = () => {
         setMetadataExtractorConfig,
         setSearcherConfig,
         finalReport,
-        resetState
+        resetState,
+        events
     } = useAgentStore();
     
     const [input, setInput] = useState(newsText);
     const [mode, setMode] = useState<"initial" | "running">("initial");
     const [showTools, setShowTools] = useState(false);
     const [showConfig, setShowConfig] = useState(false);
+    const [showModelInfo, setShowModelInfo] = useState(false);
     const [selectedTools, setSelectedTools] = useState<number[]>([]);
     const hasInput = useMemo(() => input.trim() !== "", [input]);
     const panelRef = useRef<HTMLDivElement>(null);
 
-    // Check if we're in active mode (either running or has a report)
-    const isActive = isRunning || finalReport;
+    // Check if we're in active mode (running, completed, interrupted, or interrupting)
+    const isActive = status !== 'idle';
+    const isRunning = status === 'running';
+    const isInterrupting = status === 'interrupting';
 
     useEffect(() => {
         if (isActive && mode === "initial") {
             setMode("running");
+            setShowModelInfo(false);
         } else if (!isActive && mode === "running") {
             setMode("initial");
         }
@@ -85,6 +91,10 @@ export const InputPanel = () => {
         resetState();
     };
 
+    const toggleModelInfo = () => {
+        setShowModelInfo(!showModelInfo);
+    };
+
     const onValueChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value);
 
     return (
@@ -102,7 +112,7 @@ export const InputPanel = () => {
                     <textarea
                         value={input}
                         onChange={onValueChange}
-                        placeholder="粘贴需要核查的新闻内容"
+                        placeholder="告诉我你想核查的新闻..."
                         className="w-full min-h-20 px-1 outline-none resize-none"
                     />
                     <div className="w-full flex items-center justify-between gap-2 mt-2">
@@ -165,73 +175,114 @@ export const InputPanel = () => {
                             <ArrowUpIcon strokeWidth={2} className="size-4" />
                         </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground/50 text-center mt-4">
-                        AI 可能会出错，请自行验证信息准确性。
-                    </p>
                 </>
             ) : (
                 <div className="container mx-auto max-w-2xl">
-                    <div className="bg-background border border-primary/5 rounded-full p-2 flex items-center justify-between shadow-sm">
-                        <div className="flex items-center gap-2 ml-2">
-                            <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="rounded-full flex items-center gap-1 opacity-50"
-                                disabled={true}
-                            >
-                                <CogIcon className="size-4" />
-                                <span className="text-xs">配置</span>
-                            </Button>
-                            {selectedTools.length > 0 && (
-                                <div className="flex opacity-50">
-                                    {selectedTools.map((toolIndex) => {
-                                        const ToolIcon = toolIndex === 0 
-                                            ? SearchIcon 
-                                            : toolIndex === 1 
-                                                ? GlobeIcon 
-                                                : EyeIcon;
-                                        return (
-                                            <div
-                                                key={toolIndex}
-                                                className="rounded-full bg-muted flex items-center justify-center size-8"
-                                                style={{
-                                                    marginLeft: toolIndex > 0 ? '-4px' : '0',
-                                                    zIndex: selectedTools.length - toolIndex,
-                                                }}
-                                            >
-                                                <ToolIcon className="size-4" />
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
+                    {showModelInfo && (
+                        <div className="bg-background/95 backdrop-blur-sm border border-primary/5 rounded-xl p-4 mb-3 shadow-sm animate-in slide-in-from-bottom duration-300">
+                            <div className="flex justify-between items-center mb-3">
+                                <h3 className="text-sm font-medium">模型配置信息</h3>
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="size-6 p-0 rounded-full" 
+                                    onClick={toggleModelInfo}
+                                >
+                                    <ChevronDownIcon className="size-4" />
+                                </Button>
+                            </div>
+                            <div className="space-y-3">
+                                <ModelInfoItem 
+                                    title="主智能体" 
+                                    model={mainAgentConfig.modelName}
+                                    provider={mainAgentConfig.modelProvider}
+                                />
+                                <ModelInfoItem 
+                                    title="元数据提取智能体" 
+                                    model={metadataExtractorConfig.modelName}
+                                    provider={metadataExtractorConfig.modelProvider}
+                                />
+                                <ModelInfoItem 
+                                    title="检索智能体" 
+                                    model={searcherConfig.modelName}
+                                    provider={searcherConfig.modelProvider}
+                                    tokens={`${searcherConfig.maxSearchTokens} tokens`}
+                                />
+                            </div>
                         </div>
+                    )}
+                    <div className="p-2 bg-background border border-primary/5 rounded-full shadow-sm flex justify-between items-center">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={toggleModelInfo}
+                            className="rounded-full flex items-center gap-1 p-2 pl-3"
+                        >
+                            {showModelInfo ? (
+                                <ChevronDownIcon className="size-4" />
+                            ) : (
+                                <ChevronUpIcon className="size-4" />
+                            )}
+                            <span className="text-xs">Agent 配置</span>
+                        </Button>
+                        
                         {isRunning ? (
                             <Button
                                 variant="destructive"
                                 onClick={handleInterrupt}
                                 disabled={isInterrupting}
-                                className="rounded-full flex items-center gap-2"
+                                className="rounded-full flex items-center gap-1"
+                                size="sm"
                             >
                                 <StopCircleIcon className="size-4" />
-                                <span>{isInterrupting ? '正在中断...' : '中断'}</span>
+                                <span className="text-xs">{isInterrupting ? '正在中断...' : '中断'}</span>
                             </Button>
                         ) : (
                             <Button
                                 variant="outline"
                                 onClick={handleReset}
-                                className="rounded-full flex items-center gap-2"
+                                className="rounded-full flex items-center gap-1"
+                                size="sm"
                             >
                                 <ArrowUpIcon className="size-4 rotate-180" />
-                                <span>返回</span>
+                                <span className="text-xs">返回</span>
                             </Button>
                         )}
                     </div>
-                    <p className="text-xs text-muted-foreground/50 text-center mt-2">
-                        AI 可能会出错，请自行验证信息准确性。
-                    </p>
                 </div>
             )}
+        </div>
+    );
+};
+
+// Component to display model information
+const ModelInfoItem = ({ 
+    title, 
+    model, 
+    provider, 
+    tokens 
+}: { 
+    title: string; 
+    model: string; 
+    provider: string; 
+    tokens?: string;
+}) => {
+    return (
+        <div className="bg-muted/40 rounded-lg p-2 text-xs">
+            <div className="font-medium mb-1">{title}</div>
+            <div className="flex flex-wrap gap-2">
+                <span className="bg-primary/10 rounded-full px-2 py-0.5">
+                    {model}
+                </span>
+                <span className="bg-primary/10 rounded-full px-2 py-0.5">
+                    {provider}
+                </span>
+                {tokens && (
+                    <span className="bg-primary/10 rounded-full px-2 py-0.5">
+                        {tokens}
+                    </span>
+                )}
+            </div>
         </div>
     );
 };

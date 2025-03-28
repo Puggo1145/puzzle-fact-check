@@ -5,7 +5,7 @@ import { useAgentStore } from '@/lib/store';
 import { EventItem } from './event-item';
 
 export const EventLog: React.FC = () => {
-  const { events, isRunning, finalReport } = useAgentStore();
+  const { events, status, finalReport } = useAgentStore();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   
   // Auto-scroll to bottom on new events
@@ -16,8 +16,8 @@ export const EventLog: React.FC = () => {
     }
   }, [events]);
   
-  // If there are no events and neither running nor report, don't show this component
-  if (events.length === 0 && !isRunning && !finalReport) {
+  // If there are no events and we're in idle state with no report, don't show this component
+  if (events.length === 0 && status === 'idle' && !finalReport) {
     return null;
   }
   
@@ -36,7 +36,7 @@ export const EventLog: React.FC = () => {
       >
         {events.length === 0 ? (
           <div className="h-32 flex items-center justify-center text-muted-foreground text-sm">
-            {isRunning ? "加载中..." : "点击开始核查以查看 Agent 执行过程"}
+            {status === 'running' || status === 'interrupting' ? "加载中..." : "点击开始核查以查看 Agent 执行过程"}
           </div>
         ) : (
           events.map((event, index) => (

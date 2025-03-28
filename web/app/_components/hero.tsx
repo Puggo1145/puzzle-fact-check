@@ -5,10 +5,10 @@ import { useAgentStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
 export const Hero = () => {
-    const { isRunning, finalReport } = useAgentStore();
+    const { status, finalReport } = useAgentStore();
     
-    // Check if we're in active mode (either running or has a report)
-    const isActive = isRunning || Boolean(finalReport);
+    // Check if we're in active mode (not idle)
+    const isActive = status !== 'idle';
     
     return (
         <div 

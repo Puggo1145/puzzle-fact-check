@@ -15,6 +15,9 @@ export interface AgentConfig {
   maxRetries: number; // Only used by the main agent
 }
 
+// Define the possible agent statuses
+export type AgentStatus = 'idle' | 'running' | 'interrupting' | 'interrupted' | 'completed';
+
 export type EventType = 
   | 'agent_created'
   | 'run_started'
@@ -50,8 +53,7 @@ export interface Event {
 
 interface AgentState {
   sessionId: string | null;
-  isRunning: boolean;
-  isInterrupting: boolean;
+  status: AgentStatus;
   events: Event[];
   finalReport: string;
   newsText: string;
@@ -101,8 +103,7 @@ const defaultAgentConfig: AgentConfig = {
 
 export const useAgentStore = create<AgentState>((set, get) => ({
   sessionId: null,
-  isRunning: false,
-  isInterrupting: false,
+  status: 'idle',
   events: [],
   finalReport: '',
   newsText: '最近有网络流传说法称，2025 年初，美国共和党议员Riley Moore通过了一项新法案，将禁止中国公民以学生身份来美国。这项法案会导致每年大约30万中国学生将无法获得F、J、M类签证，从而无法到美国学习或参与学术交流。',
@@ -224,7 +225,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       
       await response.json();
       
-      set({ isRunning: true });
+      set({ status: 'running' });
       
       get().addEvent({
         event: 'run_started',
@@ -248,7 +249,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }
     
     try {
-      set({ isInterrupting: true });
+      set({ status: 'interrupting' });
       
       get().addEvent({
         event: 'task_interrupted',
@@ -273,10 +274,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         data: { message: '任务已被中断' }
       });
       
-      // 设置状态为非运行状态，并清除会话ID
+      // 设置状态为已中断，并清除会话ID
       set({ 
-        isRunning: false,
-        isInterrupting: false,
+        status: 'interrupted',
         sessionId: null
       });
       
@@ -286,7 +286,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         event: 'error',
         data: { message: `中断任务失败: ${error instanceof Error ? error.message : String(error)}` }
       });
-      set({ isInterrupting: false });
+      // 如果中断失败，恢复为运行状态
+      set({ status: 'running' });
     }
   },
   
@@ -296,8 +297,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     
     set({
       sessionId: null,
-      isRunning: false,
-      isInterrupting: false,
+      status: 'idle',
       events: [],
       finalReport: '',
       eventSource: null,
@@ -314,10 +314,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         eventSource.close();
       }
       
+      const newStatus = event.event === 'task_complete' ? 'completed' : 'interrupted';
+      
       return {
         events: [...state.events, { ...event, timestamp: Date.now() }],
-        isRunning: false,
-        isInterrupting: false,
+        status: newStatus,
         eventSource: null,
         sessionId: null // Also clear sessionId when task completes or is interrupted
       };
@@ -382,7 +383,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       
       set({ 
         sessionId: data.session_id,
-        isRunning: true
+        status: 'running'
       });
       
       // Setup event source
