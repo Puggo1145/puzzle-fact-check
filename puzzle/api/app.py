@@ -4,7 +4,7 @@ import json
 import time
 import traceback
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List
 import threading
 
 from .service import agent_service
@@ -23,12 +23,77 @@ CORS(app)  # 启用 CORS 以支持前端跨域调用
 active_connections = {}
 connection_lock = threading.Lock()
 
+# 定义可用模型列表和限制
+AVAILABLE_MODELS = {
+    "openai": ["chatgpt-4o-latest", "gpt-4o", "gpt-4o-mini"],
+    "qwen": ["qwq-plus-latest", "qwen-plus-latest", "qwen-turbo"],
+    "deepseek": ["deepseek-reasoner", "deepseek-chat"]
+}
+
+# 定义不同Agent类型的模型限制
+MODEL_RESTRICTIONS = {
+    "main_agent": {
+        "excluded": ["gpt-4o-mini", "qwen-turbo"]
+    },
+    "metadata_extractor": {
+        "excluded": []  # 元数据提取器可以使用所有模型
+    },
+    "searcher": {
+        "excluded": ["gpt-4o-mini", "qwen-turbo"]
+    }
+}
+
+def validate_model_config(config: Dict[str, Any]) -> List[str]:
+    """验证模型配置，返回错误消息列表"""
+    errors = []
+    
+    # 验证创建Agent时的模型配置
+    if "model_name" in config and "model_provider" in config:
+        model_name = config["model_name"]
+        model_provider = config["model_provider"]
+        
+        # 检查提供商是否支持
+        if model_provider not in AVAILABLE_MODELS:
+            errors.append(f"不支持的模型提供商: {model_provider}")
+        else:
+            # 检查模型是否在提供商的列表中
+            if model_name not in AVAILABLE_MODELS[model_provider]:
+                errors.append(f"模型 {model_name} 不在 {model_provider} 提供商的支持列表中")
+    
+    # 验证agent配置中的模型
+    for agent_type in ["main_agent", "metadata_extractor", "searcher"]:
+        if agent_type in config:
+            agent_config = config[agent_type]
+            if "model_name" in agent_config and "model_provider" in agent_config:
+                model_name = agent_config["model_name"]
+                model_provider = agent_config["model_provider"]
+                
+                # 检查提供商是否支持
+                if model_provider not in AVAILABLE_MODELS:
+                    errors.append(f"{agent_type} 使用了不支持的模型提供商: {model_provider}")
+                else:
+                    # 检查模型是否在提供商的列表中
+                    if model_name not in AVAILABLE_MODELS[model_provider]:
+                        errors.append(f"{agent_type} 使用的模型 {model_name} 不在 {model_provider} 提供商的支持列表中")
+                    
+                    # 检查是否有agent类型的特定限制
+                    if model_name in MODEL_RESTRICTIONS[agent_type]["excluded"]:
+                        errors.append(f"模型 {model_name} 不能用于 {agent_type}")
+    
+    return errors
+
 @app.route('/api/agents', methods=['POST'])
 def create_agent():
     """创建一个新的 agent 实例"""
     try:
         config = request.json or {}
         logger.info(f"Creating agent with config: {config}")
+        
+        # 验证模型配置
+        errors = validate_model_config(config)
+        if errors:
+            return jsonify({"errors": errors}), 400
+        
         session_id = agent_service.create_agent(config)
         logger.info(f"Agent created with session_id: {session_id}")
         return jsonify({"session_id": session_id})
@@ -48,6 +113,11 @@ def run_agent(session_id):
     news_text = data['news_text']
     config = data.get('config', {})
     logger.info(f"Running agent {session_id} with news_text: {news_text[:50]}...")
+    
+    # 验证模型配置
+    errors = validate_model_config(config)
+    if errors:
+        return jsonify({"errors": errors}), 400
     
     try:
         agent_service.run_agent(session_id, news_text, config)
@@ -182,8 +252,17 @@ def create_and_run_agent():
         news_text = data['news_text']
         config = data.get('config', {})
         
+        # 验证模型配置
+        errors = validate_model_config(config)
+        if errors:
+            return jsonify({"errors": errors}), 400
+        
         logger.info(f"Creating agent with config: {config}")
         session_id = agent_service.create_agent(config)
+        if not session_id:
+            logger.error("Failed to create agent: no session ID returned")
+            return jsonify({"error": "Failed to create agent: no session ID returned"}), 500
+            
         logger.info(f"Agent created with session_id: {session_id}")
         
         logger.info(f"Running agent {session_id} with news_text: {news_text[:50]}...")

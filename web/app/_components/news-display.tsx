@@ -18,7 +18,7 @@ export const NewsDisplay = () => {
     switch (status) {
         case 'running':
             StatusIcon = Loader2;
-            statusText = "正在核查中...";
+            statusText = "正在核查中（核查期间请勿关闭页面）";
             statusColor = "text-primary animate-spin";
             break;
         case 'interrupting':
@@ -43,7 +43,7 @@ export const NewsDisplay = () => {
     }
 
     return (
-        <div className="w-full bg-muted-foreground/10 rounded-xl p-6 mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="w-full bg-muted-foreground/5 rounded-xl p-6 animate-in fade-in slide-in-from-top-4 duration-500">
             <div className="flex items-center gap-2 mb-2">
                 <StatusIcon className={cn("size-4", statusColor)} />
                 <h2 className="font-medium">

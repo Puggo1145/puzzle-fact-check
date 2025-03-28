@@ -1,10 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ModelSelector } from './model-selector';
 import { NumberInput } from './number-input';
 import type { AgentConfig, ModelOption } from '@/lib/store';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { BotIcon, SearchIcon, InfoIcon } from 'lucide-react';
 
 interface AgentConfigProps {
@@ -33,6 +33,13 @@ const agentDescriptions = {
   searcher: '负责搜索和验证信息'
 };
 
+// 模型限制说明
+const modelRestrictionTexts = {
+  main: '主智能体不支持 GPT-4o Mini 和 Qwen Turbo 等轻量级模型',
+  metadata: '元数据提取器支持所有模型，包括轻量级模型',
+  searcher: '搜索智能体不支持 GPT-4o Mini 和 Qwen Turbo 等轻量级模型'
+};
+
 export const AgentConfigPanel: React.FC<AgentConfigProps> = ({
   agentType,
   config,
@@ -43,6 +50,20 @@ export const AgentConfigPanel: React.FC<AgentConfigProps> = ({
   const Icon = agentIcons[agentType];
   const label = agentLabels[agentType];
   const description = agentDescriptions[agentType];
+  const restrictionText = modelRestrictionTexts[agentType];
+
+  // Filter available models based on agent type
+  const filteredModels = useMemo(() => {
+    if (agentType === 'metadata') {
+      // All models are available for metadata extractor
+      return availableModels;
+    } else {
+      // Main agent and searcher can't use gpt-4o-mini, qwen-turbo
+      return availableModels.filter(model => 
+        !(model.id === 'gpt-4o-mini' || model.id === 'qwen-turbo')
+      );
+    }
+  }, [availableModels, agentType]);
 
   const handleModelChange = (modelId: string, provider: string) => {
     onChange({
@@ -69,11 +90,14 @@ export const AgentConfigPanel: React.FC<AgentConfigProps> = ({
             {description}
           </span>
         </CardTitle>
+        <CardDescription className="text-xs text-muted-foreground mt-1">
+          {restrictionText}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           <ModelSelector
-            models={availableModels}
+            models={filteredModels}
             selectedModelId={config.modelName}
             onModelChange={handleModelChange}
             disabled={disabled}

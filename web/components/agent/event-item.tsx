@@ -81,9 +81,9 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
       case 'agent_created':
         return data.message;
       case 'run_started':
-        return 'Start fact checking process';
+        return '开始核查流程';
       case 'extract_check_point_start':
-        return 'Extracting verification points';
+        return '开始提取核查点';
       case 'extract_check_point_end':
         return 'Verification points extracted';
       case 'extract_basic_metadata_start':
@@ -113,13 +113,13 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
       case 'generate_answer_end':
         return 'Answer generated';
       case 'evaluate_search_result_start':
-        return 'Evaluating search results';
+        return '开始评估搜索结果';
       case 'evaluate_search_result_end':
-        return 'Search results evaluated';
+        return '搜索结果评估完成';
       case 'write_fact_checking_report_start':
-        return 'Writing fact checking report';
+        return '开始撰写核查报告';
       case 'write_fact_checking_report_end':
-        return 'Fact checking report completed';
+        return '核查报告撰写完成';
       case 'llm_decision':
         return `LLM decision: ${data.decision}`;
       case 'task_complete':
@@ -151,11 +151,13 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
       case 'search_agent_start':
       case 'evaluate_status_start':
       case 'status_evaluation_end':
-      case 'tool_start':
-      case 'tool_result':
       case 'generate_answer_start':
-      case 'generate_answer_end':
-        return 'bg-cyan-50 border-cyan-100 text-cyan-700';
+        case 'generate_answer_end':
+            return 'bg-cyan-50 border-cyan-100 text-cyan-700';
+      case 'tool_start':
+        return 'bg-blue-50 border-blue-100 text-blue-700';
+      case 'tool_result':
+        return 'bg-blue-50 border-blue-100 text-blue-700';
       case 'evaluate_search_result_start':
       case 'evaluate_search_result_end':
         return data?.verification_result?.verified 

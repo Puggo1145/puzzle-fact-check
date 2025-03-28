@@ -52,12 +52,23 @@ export const InputPanel = () => {
     const [selectedTools, setSelectedTools] = useState<number[]>([]);
     const hasInput = useMemo(() => input.trim() !== "", [input]);
     const panelRef = useRef<HTMLDivElement>(null);
+    const modelInfoRef = useRef<HTMLDivElement>(null);
 
     // Check if we're in active mode (running, completed, interrupted, or interrupting)
     const isActive = status !== 'idle';
     const isRunning = status === 'running';
     const isInterrupting = status === 'interrupting';
     const hasEvents = events.length > 0;
+
+    // 检查是否存在超时错误事件
+    const timeoutEvent = useMemo(() => {
+        return events.find(event => 
+            event.event === 'error' && 
+            event.data && 
+            typeof event.data.message === 'string' &&
+            event.data.message.includes('请求超时')
+        );
+    }, [events]);
 
     useEffect(() => {
         if (isActive && mode === "initial") {
@@ -72,6 +83,22 @@ export const InputPanel = () => {
     useEffect(() => {
         setNewsText(input);
     }, [input, setNewsText]);
+
+    // Add click outside handler for the model info panel
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (modelInfoRef.current && 
+                !modelInfoRef.current.contains(event.target as Node) && 
+                showModelInfo) {
+                setShowModelInfo(false);
+            }
+        };
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [showModelInfo]);
 
     const handleSendMessage = async () => {
         if (!hasInput) return;
@@ -119,7 +146,7 @@ export const InputPanel = () => {
             className={cn(
                 "transition-all duration-500 ease-in-out",
                 containerClass,
-                mode === "running" && "fixed bottom-6 left-0 right-0 z-10"
+                // mode === "running" && "fixed bottom-6 left-0 right-0 z-10"
             )}
         >
             {/* Content switcher based on mode */}
@@ -194,8 +221,16 @@ export const InputPanel = () => {
                 </>
             ) : (
                 <div className="p-2 bg-background border border-primary/5 rounded-full shadow-sm">
+                    {/* 显示超时通知 - 使用绝对定位避免撑开父容器 */}
+                    {timeoutEvent && (
+                        <div className="absolute left-0 right-0 bottom-full mb-3 max-w-2xl mx-auto p-3 bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-200 rounded-lg border border-amber-300 dark:border-amber-800">
+                            <p className="text-sm font-medium">{timeoutEvent.data.message}</p>
+                            <p className="text-xs mt-1">请考虑切换至其他模型或重试操作</p>
+                        </div>
+                    )}
+                
                     {showModelInfo && (
-                        <div className="bg-background/95 backdrop-blur-sm border border-primary/5 rounded-xl p-4 mb-3 shadow-sm animate-in slide-in-from-bottom duration-300">
+                        <div ref={modelInfoRef} className="absolute bottom-full left-0 right-0 mb-3 bg-background/95 backdrop-blur-sm border border-primary/5 rounded-xl p-4 shadow-sm animate-in slide-in-from-bottom duration-300 z-10 max-w-2xl mx-auto">
                             <div className="flex justify-between items-center mb-3">
                                 <h3 className="text-sm font-medium">模型配置信息</h3>
                                 <Button 
@@ -228,19 +263,52 @@ export const InputPanel = () => {
                         </div>
                     )}
                     <div className="flex justify-between items-center">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={toggleModelInfo}
-                            className="rounded-full flex items-center gap-1 p-2 pl-3"
-                        >
-                            {showModelInfo ? (
-                                <ChevronDownIcon className="size-4" />
-                            ) : (
-                                <ChevronUpIcon className="size-4" />
-                            )}
-                            <span className="text-xs">Agent 配置</span>
-                        </Button>
+                        <Dialog open={showConfig} onOpenChange={setShowConfig}>
+                            <DialogTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="rounded-full flex items-center gap-1 p-2 pl-3"
+                                >
+                                    {showModelInfo ? (
+                                        <ChevronDownIcon className="size-4" />
+                                    ) : (
+                                        <ChevronUpIcon className="size-4" />
+                                    )}
+                                    <span className="text-xs">Agent 配置</span>
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-md fixed">
+                                <DialogHeader>
+                                    <DialogTitle>Agent 配置</DialogTitle>
+                                </DialogHeader>
+                                <div className="space-y-4 mt-4">
+                                    <AgentConfigPanel
+                                        agentType="main"
+                                        config={mainAgentConfig}
+                                        availableModels={availableModels}
+                                        onChange={setMainAgentConfig}
+                                        disabled={isRunning}
+                                    />
+                                    
+                                    <AgentConfigPanel
+                                        agentType="metadata"
+                                        config={metadataExtractorConfig}
+                                        availableModels={availableModels}
+                                        onChange={setMetadataExtractorConfig}
+                                        disabled={isRunning}
+                                    />
+                                    
+                                    <AgentConfigPanel
+                                        agentType="searcher"
+                                        config={searcherConfig}
+                                        availableModels={availableModels}
+                                        onChange={setSearcherConfig}
+                                        disabled={isRunning}
+                                    />
+                                </div>
+                            </DialogContent>
+                        </Dialog>
                         
                         {isRunning ? (
                             <Button

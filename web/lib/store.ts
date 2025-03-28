@@ -81,21 +81,28 @@ interface AgentState {
 }
 
 // API base URL
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 
 // Available models
 const models: ModelOption[] = [
+  // OpenAI models
+  { id: 'chatgpt-4o-latest', name: 'GPT-4o Latest', provider: 'openai' },
   { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' },
-  { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'openai' },
-  { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'openai' },
-  { id: 'claude-3-opus', name: 'Claude 3 Opus', provider: 'anthropic' },
-  { id: 'claude-3-sonnet', name: 'Claude 3 Sonnet', provider: 'anthropic' },
-  { id: 'claude-3-haiku', name: 'Claude 3 Haiku', provider: 'anthropic' },
+  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai' },
+  
+  // Qwen models
+  { id: 'qwq-plus-latest', name: 'QWQ Plus Latest', provider: 'qwen' },
+  { id: 'qwen-plus-latest', name: 'Qwen Plus Latest', provider: 'qwen' },
+  { id: 'qwen-turbo', name: 'Qwen Turbo', provider: 'qwen' },
+  
+  // DeepSeek models
+  { id: 'deepseek-reasoner', name: 'DeepSeek R1', provider: 'deepseek' },
+  { id: 'deepseek-chat', name: 'DeepSeek V3', provider: 'deepseek' },
 ];
 
 // Define default configurations
 const defaultAgentConfig: AgentConfig = {
-  modelName: 'gpt-4o',
+  modelName: 'chatgpt-4o-latest',
   modelProvider: 'openai',
   maxSearchTokens: 10000,
   maxRetries: 3
@@ -109,9 +116,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   newsText: '最近有网络流传说法称，2025 年初，美国共和党议员Riley Moore通过了一项新法案，将禁止中国公民以学生身份来美国。这项法案会导致每年大约30万中国学生将无法获得F、J、M类签证，从而无法到美国学习或参与学术交流。',
   
   // Agent configurations with defaults
-  mainAgentConfig: { ...defaultAgentConfig },
-  metadataExtractorConfig: { ...defaultAgentConfig },
-  searcherConfig: { ...defaultAgentConfig, maxSearchTokens: 20000 },
+  mainAgentConfig: { ...defaultAgentConfig, modelName: 'qwq-plus-latest', modelProvider: 'qwen' },
+  metadataExtractorConfig: { ...defaultAgentConfig, modelName: 'qwen-plus-latest', modelProvider: 'qwen' },
+  searcherConfig: { ...defaultAgentConfig, modelName: 'deepseek-chat', modelProvider: 'deepseek', maxSearchTokens: 20000 },
   
   // Available models
   availableModels: models,
@@ -330,6 +337,43 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       };
     }
     
+    // 特殊处理错误事件
+    if (event.event === 'error') {
+      const errorMessage = event.data?.message || '';
+      
+      // 检查是否是模型API相关错误
+      if (
+        errorMessage.includes('OpenAI API') || 
+        errorMessage.includes('模型API错误') || 
+        errorMessage.includes('配额') || 
+        errorMessage.includes('速率限制')
+      ) {
+        // 对于模型API错误，自动切换到interrupted状态
+        // 这样用户界面会显示中断状态而不是错误状态
+        console.log('Model API error detected, forcing interrupt status');
+        
+        // 关闭EventSource连接
+        const eventSource = get().eventSource;
+        if (eventSource) {
+          console.log('Closing EventSource connection due to model error');
+          eventSource.close();
+        }
+        
+        return {
+          events: [...state.events, { ...event, timestamp: Date.now() }],
+          status: 'interrupted',
+          eventSource: null,
+          sessionId: null // 清除会话ID
+        };
+      }
+      
+      // 其他普通错误，只添加事件
+      return {
+        events: [...state.events, { ...event, timestamp: Date.now() }]
+      };
+    }
+    
+    // 默认只添加事件
     return {
       events: [...state.events, { ...event, timestamp: Date.now() }]
     };
@@ -342,6 +386,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   closeEventSource: () => {
     const eventSource = get().eventSource;
     if (eventSource) {
+      // 关闭连接前手动触发close事件，确保清理超时检查器
+      const closeEvent = new Event('close');
+      eventSource.dispatchEvent(closeEvent);
+      
+      // 关闭连接
       eventSource.close();
       set({ eventSource: null });
     }
@@ -421,150 +470,175 @@ function setupEventSource(
   // 保存到全局状态
   useAgentStore.setState({ eventSource });
   
+  // 超时检查相关变量
+  let lastEventTime = Date.now();
+  const TIMEOUT_DURATION = 100 * 1000; // 100秒超时
+  let timeoutCheckerId: NodeJS.Timeout;
+  
+  // 定义更新最后事件时间的函数
+  const updateLastEventTime = () => {
+    lastEventTime = Date.now();
+  };
+  
+  // 定义检查超时的函数
+  const checkForTimeout = () => {
+    const currentTime = Date.now();
+    const timeSinceLastEvent = currentTime - lastEventTime;
+    
+    // 检查是否已超时
+    if (timeSinceLastEvent > TIMEOUT_DURATION) {
+      console.log(`Timeout detected: No events for ${timeSinceLastEvent/1000} seconds`);
+      
+      // 清除超时检查器
+      clearInterval(timeoutCheckerId);
+      
+      // 关闭 EventSource 连接
+      eventSource.close();
+      
+      // 发送超时错误事件
+      addEvent({
+        event: 'error',
+        data: { message: `请求超时: ${TIMEOUT_DURATION/1000}秒内没有收到新的事件` }
+      });
+      
+      // 发送中断事件
+      setTimeout(() => {
+        addEvent({
+          event: 'task_interrupted',
+          data: { message: `由于请求超时，任务已被中断` }
+        });
+      }, 100);
+      
+      // 中断后端 agent
+      const store = useAgentStore.getState();
+      if (store.sessionId) {
+        fetch(`${API_BASE_URL}/agents/${store.sessionId}/interrupt`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }).catch(err => {
+          console.error('Failed to interrupt agent after timeout:', err);
+        });
+      }
+      
+      // 更新状态
+      useAgentStore.setState({
+        status: 'interrupted', 
+        eventSource: null,
+        sessionId: null
+      });
+    }
+  };
+  
+  // 启动超时检查器 - 每10秒检查一次
+  timeoutCheckerId = setInterval(checkForTimeout, 10000);
+  
   eventSource.addEventListener('heartbeat', () => {
     // Keep connection alive
+    updateLastEventTime();
   });
   
-  // Extract check point events
-  eventSource.addEventListener('extract_check_point_start', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'extract_check_point_start', data });
-  });
+  // 为所有事件类型添加时间更新逻辑
+  const setupEventTypeListener = (eventType: string) => {
+    eventSource.addEventListener(eventType, (event) => {
+      // 更新最后事件时间
+      updateLastEventTime();
+      
+      // 之前的事件处理逻辑
+      try {
+        const data = JSON.parse(event.data);
+        addEvent({ event: eventType as EventType, data });
+        
+        // 处理报告类型的特殊事件
+        if (eventType === 'write_fact_checking_report_end' && data.report) {
+          setFinalReport(data.report);
+        }
+      } catch(e) {
+        console.error(`Error handling ${eventType} event:`, e);
+      }
+    });
+  };
   
-  eventSource.addEventListener('extract_check_point_end', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'extract_check_point_end', data });
-  });
+  // 为所有主要事件类型设置监听器
+  [
+    'extract_check_point_start', 'extract_check_point_end',
+    'extract_basic_metadata_start', 'extract_basic_metadata_end',
+    'extract_knowledge_start', 'extract_knowledge_end',
+    'retrieve_knowledge_start', 'retrieve_knowledge_end',
+    'search_agent_start', 'evaluate_status_start', 'status_evaluation_end',
+    'tool_start', 'tool_result',
+    'generate_answer_start', 'generate_answer_end',
+    'evaluate_search_result_start', 'evaluate_search_result_end',
+    'write_fact_checking_report_start', 'write_fact_checking_report_end',
+    'llm_decision', 'task_complete', 'task_interrupted'
+  ].forEach(setupEventTypeListener);
   
-  // Metadata extractor events
-  eventSource.addEventListener('extract_basic_metadata_start', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'extract_basic_metadata_start', data });
-  });
-  
-  eventSource.addEventListener('extract_basic_metadata_end', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'extract_basic_metadata_end', data });
-  });
-  
-  eventSource.addEventListener('extract_knowledge_start', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'extract_knowledge_start', data });
-  });
-  
-  eventSource.addEventListener('extract_knowledge_end', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'extract_knowledge_end', data });
-  });
-  
-  eventSource.addEventListener('retrieve_knowledge_start', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'retrieve_knowledge_start', data });
-  });
-  
-  eventSource.addEventListener('retrieve_knowledge_end', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'retrieve_knowledge_end', data });
-  });
-  
-  // Search agent events
-  eventSource.addEventListener('search_agent_start', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'search_agent_start', data });
-  });
-  
-  eventSource.addEventListener('evaluate_status_start', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'evaluate_status_start', data });
-  });
-  
-  eventSource.addEventListener('status_evaluation_end', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'status_evaluation_end', data });
-  });
-  
-  eventSource.addEventListener('tool_start', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'tool_start', data });
-  });
-  
-  eventSource.addEventListener('tool_result', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'tool_result', data });
-  });
-  
-  eventSource.addEventListener('generate_answer_start', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'generate_answer_start', data });
-  });
-  
-  eventSource.addEventListener('generate_answer_end', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'generate_answer_end', data });
-  });
-  
-  // Evaluation events
-  eventSource.addEventListener('evaluate_search_result_start', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'evaluate_search_result_start', data });
-  });
-  
-  eventSource.addEventListener('evaluate_search_result_end', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'evaluate_search_result_end', data });
-  });
-  
-  // Report writing events
-  eventSource.addEventListener('write_fact_checking_report_start', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'write_fact_checking_report_start', data });
-  });
-  
-  eventSource.addEventListener('write_fact_checking_report_end', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'write_fact_checking_report_end', data });
-    
-    if (data.report) {
-      setFinalReport(data.report);
-    }
-  });
-  
-  // LLM decision event
-  eventSource.addEventListener('llm_decision', (event) => {
-    const data = JSON.parse(event.data);
-    addEvent({ event: 'llm_decision', data });
-  });
-  
-  // Task completion event
+  // 特殊处理 task_complete 和 task_interrupted 事件
   eventSource.addEventListener('task_complete', (event) => {
+    updateLastEventTime();
+    
     const data = JSON.parse(event.data);
     addEvent({ event: 'task_complete', data });
-    // Close the event source after task completion
+    
+    // 任务完成时清除超时检查器
+    clearInterval(timeoutCheckerId);
+    
+    // 关闭 EventSource 连接
     if (data && data.message === "核查任务完成") {
       setTimeout(() => {
-        // Allow a bit of time for the event to be processed
         useAgentStore.getState().closeEventSource();
       }, 500);
     }
   });
   
-  // Task interrupted event
   eventSource.addEventListener('task_interrupted', (event) => {
+    updateLastEventTime();
+    
     const data = JSON.parse(event.data);
     addEvent({ event: 'task_interrupted', data });
-    // Close the event source after task interruption
+    
+    // 任务中断时清除超时检查器
+    clearInterval(timeoutCheckerId);
+    
+    // 关闭 EventSource 连接
     setTimeout(() => {
-      // Allow a bit of time for the event to be processed
       useAgentStore.getState().closeEventSource();
     }, 500);
   });
   
   // Error event
   eventSource.addEventListener('error', (event: MessageEvent) => {
+    // 错误事件也更新最后事件时间
+    updateLastEventTime();
+    
     if (event.data) {
       try {
         const data = JSON.parse(event.data);
         addEvent({ event: 'error', data });
+        
+        // 检查是否是模型错误，如果是则关闭连接
+        const errorMessage = data.message || '';
+        if (
+          errorMessage.includes('OpenAI API') || 
+          errorMessage.includes('模型API错误') || 
+          errorMessage.includes('配额') || 
+          errorMessage.includes('速率限制')
+        ) {
+          console.log('Model API error in SSE, closing connection');
+          // 清除超时检查器
+          clearInterval(timeoutCheckerId);
+          
+          eventSource.close();
+          
+          // 在错误事件之后添加中断事件，确保UI状态正确更新
+          setTimeout(() => {
+            addEvent({ 
+              event: 'task_interrupted', 
+              data: { message: '由于模型API错误，任务已被中断' } 
+            });
+          }, 100);
+        }
       } catch (e) {
         addEvent({
           event: 'error',
@@ -572,11 +646,39 @@ function setupEventSource(
         });
       }
     } else {
-      addEvent({
-        event: 'error',
-        data: { message: 'SSE 连接错误' }
-      });
+      // EventSource连接错误，可能是网络问题或服务器关闭了连接
+      console.error('SSE connection error without data');
+      
+      // 清除超时检查器
+      clearInterval(timeoutCheckerId);
+      
+      // 如果连接错误，确保前端状态正确更新
+      const currentStatus = useAgentStore.getState().status;
+      if (currentStatus === 'running') {
+        addEvent({
+          event: 'error',
+          data: { message: 'SSE 连接错误，任务可能已被终止' }
+        });
+        
+        // 添加中断事件以更新UI状态
+        setTimeout(() => {
+          addEvent({ 
+            event: 'task_interrupted', 
+            data: { message: '连接中断，任务已终止' } 
+          });
+        }, 100);
+      } else {
+        addEvent({
+          event: 'error',
+          data: { message: 'SSE 连接错误' }
+        });
+      }
     }
+  });
+  
+  // 当EventSource关闭时清除超时检查器
+  eventSource.addEventListener('close', () => {
+    clearInterval(timeoutCheckerId);
   });
   
   return eventSource;

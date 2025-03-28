@@ -12,8 +12,7 @@ import { ArrowUpIcon, RefreshCw, CogIcon, XIcon, StopCircleIcon } from 'lucide-r
 export const FactChecker: React.FC = () => {
   const {
     sessionId,
-    isRunning,
-    isInterrupting,
+    status,
     newsText,
     setNewsText,
     interruptAgent,
@@ -32,6 +31,10 @@ export const FactChecker: React.FC = () => {
     setSearcherConfig,
     createAndRunAgent // New combined method
   } = useAgentStore();
+  
+  // Derive isRunning and isInterrupting from status
+  const isRunning = status === 'running';
+  const isInterrupting = status === 'interrupting';
   
   const [loading, setLoading] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
@@ -69,7 +72,7 @@ export const FactChecker: React.FC = () => {
   };
   
   return (
-    <div className="w-full h-full grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="w-full h-full grid grid-cols-1 gap-6">
       {/* Input Section */}
       <div className="flex flex-col gap-4">
         <div className="rounded-lg border flex flex-col">
@@ -200,7 +203,7 @@ export const FactChecker: React.FC = () => {
       </div>
       
       {/* Event Log Section */}
-      <div className="h-[calc(100vh-12rem)]">
+      <div className="w-full">
         <EventLog />
       </div>
     </div>

@@ -6,6 +6,7 @@ import traceback
 import time
 import json
 import pubsub.pub as pub
+import openai
 
 from agents.main.graph import MainAgent
 from agents.main.events import MainAgentEvents
@@ -249,7 +250,7 @@ class SSEModeEvents:
     
     def on_evaluate_status_start(self, model_name):
         self.send_event("evaluate_status_start", {
-            "message": f"搜索代理({model_name})开始评估搜索状态"
+            "message": f"检索代理({model_name})开始评估搜索状态"
         })
     
     def on_status_evaluation_end(self, status):
@@ -270,7 +271,7 @@ class SSEModeEvents:
     
     def on_generate_answer_start(self, model_name):
         self.send_event("generate_answer_start", {
-            "message": f"搜索代理({model_name})开始生成答案"
+            "message": f"检索代理({model_name})开始生成答案"
         })
     
     def on_generate_answer_end(self, result):
@@ -312,68 +313,103 @@ class AgentService:
         event_queue = Queue()
         
         # 从配置中获取模型，如果没有则使用默认配置
-        from models import ChatQwen, ChatGemini
+        from models import ChatQwen
         from langchain_openai import ChatOpenAI
+        from langchain_deepseek import ChatDeepSeek
         
         model_name = config.get("model_name", "chatgpt-4o-latest")
         model_provider = config.get("model_provider", "openai")
         
         if model_provider == "openai":
-            model = ChatOpenAI(
-                model=model_name,
-                temperature=0,
-                streaming=True
-            )
-            metadata_model = ChatOpenAI(
-                model="gpt-4o-mini", 
-                temperature=0
-            )
-            search_model = ChatOpenAI(
-                model=model_name,
-                temperature=0,
-                streaming=True
-            )
+            # OpenAI 模型从 langchain_openai 导入
+            try:
+                model = ChatOpenAI(
+                    model=model_name,
+                    temperature=0,
+                    streaming=True
+                )
+                
+                # 如果当前配置为主要智能体，可以使用 gpt-4o-mini 作为元数据提取器
+                metadata_model = ChatOpenAI(
+                    model="gpt-4o-mini", 
+                    temperature=0
+                )
+                
+                search_model = ChatOpenAI(
+                    model=model_name,
+                    temperature=0,
+                    streaming=True
+                )
+            except Exception as e:
+                print(f"Error initializing OpenAI model: {e}")
+                raise ValueError(f"创建 OpenAI 模型失败: {e}")
+                
         elif model_provider == "qwen":
-            model = ChatQwen(
-                model=model_name,
-                streaming=True
-            )
-            metadata_model = ChatQwen(
-                model=model_name
-            )
-            search_model = ChatQwen(
-                model=model_name,
-                streaming=True
-            )
-        elif model_provider == "gemini":
-            model = ChatGemini(
-                model=model_name,
-                temperature=0
-            )
-            metadata_model = ChatGemini(
-                model=model_name,
-                temperature=0
-            )
-            search_model = ChatGemini(
-                model=model_name,
-                temperature=0
-            )
+            # Qwen 模型从本地 models 文件夹导入
+            try:
+                model = ChatQwen(
+                    model=model_name,
+                    streaming=True
+                )
+                
+                # 元数据提取器可以使用 qwen-turbo
+                metadata_model = ChatQwen(
+                    model=model_name if model_name != "qwen-turbo" else "qwen-turbo"
+                )
+                
+                search_model = ChatQwen(
+                    model=model_name,
+                    streaming=True
+                )
+            except Exception as e:
+                print(f"Error initializing Qwen model: {e}")
+                raise ValueError(f"创建 Qwen 模型失败: {e}")
+                
+        elif model_provider == "deepseek":
+            # DeepSeek 模型从 langchain_deepseek 导入
+            try:
+                model = ChatDeepSeek(
+                    model=model_name,
+                    temperature=0,
+                    streaming=True
+                )
+                
+                metadata_model = ChatDeepSeek(
+                    model=model_name,
+                    temperature=0
+                )
+                
+                search_model = ChatDeepSeek(
+                    model=model_name,
+                    temperature=0,
+                    streaming=True
+                )
+            except Exception as e:
+                print(f"Error initializing DeepSeek model: {e}")
+                raise ValueError(f"创建 DeepSeek 模型失败: {e}")
+                
         else:
             # 默认使用 OpenAI
-            model = ChatOpenAI(
-                model="gpt-4o",
-                temperature=0,
-                streaming=True
-            )
-            metadata_model = ChatOpenAI(
-                model="gpt-4o-mini", 
-                temperature=0
-            )
-            search_model = ChatOpenAI(
-                model="gpt-4o",
-                temperature=0,
-                streaming=True
-            )
+            try:
+                model = ChatOpenAI(
+                    model="chatgpt-4o-latest",
+                    temperature=0,
+                    streaming=True
+                )
+                
+                metadata_model = ChatOpenAI(
+                    model="gpt-4o-mini", 
+                    temperature=0
+                )
+                
+                search_model = ChatOpenAI(
+                    model="chatgpt-4o-latest",
+                    temperature=0,
+                    streaming=True
+                )
+            except Exception as e:
+                print(f"Error initializing default OpenAI model: {e}")
+                raise ValueError(f"创建默认 OpenAI 模型失败: {e}")
         
         agent = MainAgent(
             model=model,
@@ -519,15 +555,55 @@ class AgentService:
                 # 专门处理会话已被删除的情况
                 print(f"Session key error in agent thread: {e} - The session may have been destroyed")
                 print(traceback.format_exc())
-            except Exception as e:
-                print(f"Error in agent thread: {e}")
+            except openai.RateLimitError as e:
+                # 处理OpenAI API配额或速率限制错误
+                print(f"OpenAI API rate limit or quota error: {e}")
                 print(traceback.format_exc())
-                # 发送错误事件
+                
+                # 中断agent任务并通知前端
+                if local_session_id in self.interruption_flags:
+                    self.interruption_flags[local_session_id] = True
+                
                 if local_session_id in self.event_queues:
                     self.event_queues[local_session_id].put({
                         "event": "error",
-                        "data": {"message": f"执行错误: {str(e)}"}
+                        "data": {"message": f"OpenAI API 错误: 模型配额已用尽或速率限制，请稍后再试"}
                     })
+                    
+                    # 同时发送中断事件，以便前端更新状态
+                    self.event_queues[local_session_id].put({
+                        "event": "task_interrupted",
+                        "data": {"message": "由于模型API错误，任务已被中断"}
+                    })
+            except Exception as e:
+                print(f"Error in agent thread: {e}")
+                print(traceback.format_exc())
+                
+                # 检查是否是模型API相关错误
+                error_str = str(e).lower()
+                if 'openai' in error_str or 'api' in error_str or 'model' in error_str or 'token' in error_str:
+                    # 可能是模型相关错误，中断agent任务
+                    if local_session_id in self.interruption_flags:
+                        self.interruption_flags[local_session_id] = True
+                    
+                    if local_session_id in self.event_queues:
+                        self.event_queues[local_session_id].put({
+                            "event": "error",
+                            "data": {"message": f"模型API错误: {str(e)}"}
+                        })
+                        
+                        # 同时发送中断事件
+                        self.event_queues[local_session_id].put({
+                            "event": "task_interrupted",
+                            "data": {"message": "由于模型API错误，任务已被中断"}
+                        })
+                else:
+                    # 其他一般错误
+                    if local_session_id in self.event_queues:
+                        self.event_queues[local_session_id].put({
+                            "event": "error",
+                            "data": {"message": f"执行错误: {str(e)}"}
+                        })
         
         # 启动线程
         thread = threading.Thread(target=run_agent_task)
@@ -540,23 +616,112 @@ class AgentService:
         try:
             agent = self.agent_instances[session_id]
             
+            # 从配置中导入必要的模型适配器
+            from models import ChatQwen
+            from langchain_openai import ChatOpenAI
+            from langchain_deepseek import ChatDeepSeek
+            
             # 检查是否有主智能体配置
             if "main_agent" in config:
                 main_config = config["main_agent"]
+                
+                # 设置重试次数
                 if "max_retries" in main_config:
-                    # 主智能体接受 max_retries 配置
                     agent.max_retries = main_config["max_retries"]
+                
+                # 设置模型
+                if "model_name" in main_config and "model_provider" in main_config:
+                    model_name = main_config["model_name"]
+                    model_provider = main_config["model_provider"]
+                    
+                    # 验证模型是否适用于主智能体
+                    if model_name in ["gpt-4o-mini", "qwen-turbo"]:
+                        raise ValueError(f"模型 {model_name} 不适用于主智能体")
+                    
+                    # 创建新模型实例
+                    if model_provider == "openai":
+                        agent.model = ChatOpenAI(
+                            model=model_name,
+                            temperature=0,
+                            streaming=True
+                        )
+                    elif model_provider == "qwen":
+                        agent.model = ChatQwen(
+                            model=model_name,
+                            streaming=True
+                        )
+                    elif model_provider == "deepseek":
+                        agent.model = ChatDeepSeek(
+                            model=model_name,
+                            temperature=0,
+                            streaming=True
+                        )
+            
+            # 检查是否有元数据提取器配置
+            if "metadata_extractor" in config:
+                metadata_config = config["metadata_extractor"]
+                
+                # 设置模型
+                if "model_name" in metadata_config and "model_provider" in metadata_config:
+                    model_name = metadata_config["model_name"]
+                    model_provider = metadata_config["model_provider"]
+                    
+                    # 创建新模型实例
+                    if model_provider == "openai":
+                        agent.metadata_extract_agent.model = ChatOpenAI(
+                            model=model_name,
+                            temperature=0
+                        )
+                    elif model_provider == "qwen":
+                        agent.metadata_extract_agent.model = ChatQwen(
+                            model=model_name
+                        )
+                    elif model_provider == "deepseek":
+                        agent.metadata_extract_agent.model = ChatDeepSeek(
+                            model=model_name,
+                            temperature=0
+                        )
             
             # 检查是否有搜索代理配置
             if "searcher" in config:
                 searcher_config = config["searcher"]
+                
+                # 设置最大搜索tokens
                 if "max_search_tokens" in searcher_config:
-                    # 搜索代理接受 max_search_tokens 配置
                     agent.search_agent.max_search_tokens = searcher_config["max_search_tokens"]
+                
+                # 设置模型
+                if "model_name" in searcher_config and "model_provider" in searcher_config:
+                    model_name = searcher_config["model_name"]
+                    model_provider = searcher_config["model_provider"]
+                    
+                    # 验证模型是否适用于搜索智能体
+                    if model_name in ["gpt-4o-mini", "qwen-turbo"]:
+                        raise ValueError(f"模型 {model_name} 不适用于搜索智能体")
+                    
+                    # 创建新模型实例
+                    if model_provider == "openai":
+                        agent.search_agent.model = ChatOpenAI(
+                            model=model_name,
+                            temperature=0,
+                            streaming=True
+                        )
+                    elif model_provider == "qwen":
+                        agent.search_agent.model = ChatQwen(
+                            model=model_name,
+                            streaming=True
+                        )
+                    elif model_provider == "deepseek":
+                        agent.search_agent.model = ChatDeepSeek(
+                            model=model_name,
+                            temperature=0,
+                            streaming=True
+                        )
             
         except Exception as e:
             print(f"Error applying config: {e}")
             print(traceback.format_exc())
+            raise ValueError(f"应用配置失败: {e}")
     
     def interrupt_agent(self, session_id: str) -> bool:
         """中断正在执行的智能体任务"""
