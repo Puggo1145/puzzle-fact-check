@@ -18,7 +18,8 @@ import {
   BookOpenIcon,
   LibraryIcon,
   SparklesIcon,
-  StopCircleIcon
+  StopCircleIcon,
+  SparkleIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -34,6 +35,7 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
       case 'agent_created':
         return <SparklesIcon className="size-4" />;
       case 'run_started':
+      case 'task_start':
         return <PlayIcon className="size-4" />;
       case 'extract_check_point_start':
       case 'extract_check_point_end':
@@ -58,6 +60,7 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
       case 'generate_answer_end':
         return <GlobeIcon className="size-4" />;
       case 'evaluate_search_result_start':
+        return <SparkleIcon className="size-4" />;
       case 'evaluate_search_result_end':
         return data?.verification_result?.verified ? <ThumbsUpIcon className="size-4" /> : <ThumbsDownIcon className="size-4" />;
       case 'write_fact_checking_report_start':
@@ -82,36 +85,38 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
         return data.message;
       case 'run_started':
         return '开始核查流程';
+      case 'task_start':
+        return data.message || '任务开始执行';
       case 'extract_check_point_start':
-        return '开始提取核查点';
+        return '正在提取核查点（这可能需要一些时间）';
       case 'extract_check_point_end':
-        return 'Verification points extracted';
+        return '核查点提取成功';
       case 'extract_basic_metadata_start':
-        return 'Extracting news metadata';
+        return '开始提取新闻元数据';
       case 'extract_basic_metadata_end':
-        return 'News metadata extracted';
+        return '新闻元数据提取完成';
       case 'extract_knowledge_start':
-        return 'Extracting knowledge elements';
+        return '开始提取知识元';
       case 'extract_knowledge_end':
-        return 'Knowledge elements extracted';
+        return '知识元素提取完成';
       case 'retrieve_knowledge_start':
-        return 'Retrieving knowledge definitions';
+        return '开始检索知识定义';
       case 'retrieve_knowledge_end':
-        return 'Knowledge definitions retrieved';
+        return '知识定义检索完成';
       case 'search_agent_start':
-        return 'Search agent activated';
+        return '搜索代理已激活';
       case 'evaluate_status_start':
-        return data.message || 'Evaluating search status';
+        return data.message || '评估搜索状态';
       case 'status_evaluation_end':
-        return 'Search status evaluated';
+        return '搜索状态评估完成';
       case 'tool_start':
-        return `Using tool: ${data.tool_name}`;
+        return `使用工具: ${data.tool_name}`;
       case 'tool_result':
-        return 'Tool execution completed';
+        return '工具执行完成';
       case 'generate_answer_start':
-        return data.message || 'Generating answer';
+        return data.message || '开始生成回答';
       case 'generate_answer_end':
-        return 'Answer generated';
+        return '回答生成完成';
       case 'evaluate_search_result_start':
         return '开始评估搜索结果';
       case 'evaluate_search_result_end':
@@ -121,13 +126,13 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
       case 'write_fact_checking_report_end':
         return '核查报告撰写完成';
       case 'llm_decision':
-        return `LLM decision: ${data.decision}`;
+        return `LLM 决策: ${data.decision}`;
       case 'task_complete':
-        return data.message || 'Task completed';
+        return data.message || '任务完成';
       case 'task_interrupted':
-        return data.message || 'Task interrupted';
+        return data.message || '任务已中断';
       case 'error':
-        return data.message || 'An error occurred';
+        return data.message || '发生错误';
       default:
         return eventType;
     }
@@ -137,6 +142,7 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
     switch (eventType) {
       case 'agent_created':
       case 'run_started':
+      case 'task_start':
         return 'bg-blue-50 border-blue-100 text-blue-700';
       case 'extract_check_point_start':
       case 'extract_check_point_end':
@@ -218,6 +224,12 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
               <p className="text-xs"><span className="font-medium">Type:</span> {data.basic_metadata.news_type || 'Unknown'}</p>
               <p className="text-xs"><span className="font-medium">Title:</span> {data.basic_metadata.title || 'Unknown'}</p>
               <p className="text-xs"><span className="font-medium">Time:</span> {data.basic_metadata.time || 'Unknown'}</p>
+              {data.basic_metadata.who && data.basic_metadata.who.length > 0 && (
+                <p className="text-xs"><span className="font-medium">Who:</span> {data.basic_metadata.who.join(', ')}</p>
+              )}
+              {data.basic_metadata.where && data.basic_metadata.where.length > 0 && (
+                <p className="text-xs"><span className="font-medium">Where:</span> {data.basic_metadata.where.join(', ')}</p>
+              )}
             </div>
           );
         }
@@ -235,10 +247,20 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
         
       case 'retrieve_knowledge_end':
         if (data.retrieved_knowledge) {
+          const knowledge = data.retrieved_knowledge;
           return (
             <div className="mt-2 space-y-1">
-              <p className="text-xs"><span className="font-medium">Term:</span> {data.retrieved_knowledge.term || 'Unknown'}</p>
-              <p className="text-xs"><span className="font-medium">Definition:</span> {data.retrieved_knowledge.definition || 'Unknown'}</p>
+              <p className="text-xs"><span className="font-medium">Term:</span> {knowledge.term || 'Unknown'}</p>
+              <p className="text-xs"><span className="font-medium">Definition:</span> {
+                // 首先尝试使用definition字段，如果没有则尝试description字段
+                knowledge.definition || knowledge.description || 'Unknown'
+              }</p>
+              {knowledge.category && (
+                <p className="text-xs"><span className="font-medium">Category:</span> {knowledge.category}</p>
+              )}
+              {knowledge.source && (
+                <p className="text-xs"><span className="font-medium">Source:</span> {knowledge.source}</p>
+              )}
             </div>
           );
         }
@@ -256,8 +278,20 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
         if (data.status) {
           return (
             <div className="mt-2 space-y-1">
-              <p className="text-xs"><span className="font-medium">Evaluation:</span> {data.status.evaluation}</p>
-              <p className="text-xs"><span className="font-medium">Next step:</span> {data.status.next_step}</p>
+              <p className="text-xs"><span className="font-medium">Evaluation:</span> {data.status.evaluation || 'No evaluation available'}</p>
+              <p className="text-xs"><span className="font-medium">Next step:</span> {data.status.next_step || 'No next step defined'}</p>
+              {data.status.missing_information && (
+                <p className="text-xs"><span className="font-medium">Missing info:</span> {data.status.missing_information}</p>
+              )}
+              {data.status.memory && (
+                <p className="text-xs"><span className="font-medium">Memory:</span> {data.status.memory}</p>
+              )}
+              {data.status.action && data.status.action !== 'answer' && Array.isArray(data.status.action) && (
+                <p className="text-xs"><span className="font-medium">Action:</span> Use tool{data.status.action.length > 1 ? 's' : ''}</p>
+              )}
+              {data.status.action === 'answer' && (
+                <p className="text-xs"><span className="font-medium">Action:</span> Generate answer</p>
+              )}
             </div>
           );
         }

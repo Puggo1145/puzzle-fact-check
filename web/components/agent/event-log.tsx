@@ -18,10 +18,12 @@ export const EventLog: React.FC = () => {
     }
   }, [events, isCollapsed]);
   
-  // Auto-collapse when final report is available
+  // Auto-collapse when final report is available, but ensure it's expanded during running
   useEffect(() => {
     if (finalReport && status === 'completed') {
       setIsCollapsed(true);
+    } else if (status === 'running' || status === 'interrupting') {
+      setIsCollapsed(false);
     }
   }, [finalReport, status]);
   
@@ -35,9 +37,9 @@ export const EventLog: React.FC = () => {
   };
   
   return (
-    <div className="w-full flex-1 flex flex-col border rounded-lg overflow-hidden">
+    <div className="w-full flex-1 flex flex-col overflow-hidden">
       <div 
-        className="flex items-center justify-between p-3 border-b cursor-pointer"
+        className="flex items-center justify-between p-3 border rounded-t-lg cursor-pointer"
         onClick={toggleCollapse}
       >
         <h2 className="text-sm font-semibold">Agent 执行日志</h2>
@@ -56,7 +58,7 @@ export const EventLog: React.FC = () => {
       {!isCollapsed && (
         <div 
           ref={scrollAreaRef}
-          className="flex-1 overflow-y-auto space-y-2 max-h-[calc(100vh-250px)] p-3"
+          className="flex-1 overflow-y-auto space-y-2 min-h-[200px] max-h-[calc(100vh-250px)] border rounded-b-lg p-3"
         >
           {events.length === 0 ? (
             <div className="h-32 flex items-center justify-center text-muted-foreground text-sm">

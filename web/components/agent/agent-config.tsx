@@ -36,7 +36,7 @@ const agentDescriptions = {
 // 模型限制说明
 const modelRestrictionTexts = {
   main: '主智能体不支持 GPT-4o Mini 和 Qwen Turbo 等轻量级模型',
-  metadata: '元数据提取器支持所有模型，包括轻量级模型',
+  metadata: '元数据提取器不支持 DeepSeek R1 和 QWQ Plus Latest 等推理模型',
   searcher: '搜索智能体不支持 GPT-4o Mini 和 Qwen Turbo 等轻量级模型'
 };
 
@@ -55,8 +55,10 @@ export const AgentConfigPanel: React.FC<AgentConfigProps> = ({
   // Filter available models based on agent type
   const filteredModels = useMemo(() => {
     if (agentType === 'metadata') {
-      // All models are available for metadata extractor
-      return availableModels;
+      // Metadata extractor can't use deepseek-reasoner and qwq-plus-latest
+      return availableModels.filter(model => 
+        !(model.id === 'deepseek-reasoner' || model.id === 'qwq-plus-latest')
+      );
     } else {
       // Main agent and searcher can't use gpt-4o-mini, qwen-turbo
       return availableModels.filter(model => 
@@ -107,7 +109,7 @@ export const AgentConfigPanel: React.FC<AgentConfigProps> = ({
           <div className="grid grid-cols-2 gap-2">
             {agentType === 'main' && (
               <NumberInput
-                value={config.maxRetries}
+                value={config.maxRetries ?? 3}
                 onChange={handleMaxRetriesChange}
                 min={1}
                 max={10}
@@ -120,7 +122,7 @@ export const AgentConfigPanel: React.FC<AgentConfigProps> = ({
             {agentType === 'searcher' && (
               <>
                 <NumberInput
-                  value={config.maxSearchTokens}
+                  value={config.maxSearchTokens ?? 10000}
                   onChange={handleMaxSearchTokensChange}
                   min={1000}
                   max={100000}

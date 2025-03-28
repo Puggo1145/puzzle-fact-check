@@ -21,7 +21,7 @@ from langgraph.graph.state import StateGraph
 from .events import SearchAgentEvents, CLIModeEvents, DBEvents
 from pubsub import pub
 
-from typing import cast, List, Literal, Dict, Any
+from typing import cast, List, Literal, Dict, Any, Optional
 from langchain_core.messages import ToolCall
 from langchain_openai.chat_models.base import BaseChatOpenAI
 
@@ -31,12 +31,14 @@ class SearchAgentGraph(BaseAgent):
         
     Args:
         max_search_tokens：子 agent 检索时允许消耗的最大 token 数
+        selected_tools: 从前端传入的工具选择配置
     """
     def __init__(
         self,
         model: BaseChatOpenAI,
         max_search_tokens: int,
         mode: Literal["CLI", "API"] = "CLI",
+        selected_tools: Optional[List[str]] = None,
     ):
         super().__init__(
             mode=mode,
@@ -46,19 +48,53 @@ class SearchAgentGraph(BaseAgent):
         self.max_search_tokens = max_search_tokens
         self.token_usage = 0
         
-        self.tools = [
-            SearchBingTool(),
-            SearchGoogleTool(),
-            TavilySearch(),
-            ReadWebpageTool(),
-            get_current_time,
-        ]
+        # 定义所有可用工具
+        self.available_tools = {
+            "basic": [
+                SearchBingTool(),
+                SearchGoogleTool(),
+                ReadWebpageTool(),
+                get_current_time,
+            ],
+            "tavily_search": [
+                TavilySearch()
+            ],
+            # 其他工具将来在这里添加
+            # "browser_use": [],
+            # "vision": [],
+        }
+        
+        # 初始化工具列表
+        self.tools = self._get_tools(selected_tools)
         self.tools_by_name = {tool.name: tool for tool in self.tools}
         self.tool_calling_schema = [convert_to_openai_tool(tool) for tool in self.tools]
         
         # self.db_events = DBEvents()
         if mode == "CLI":
             self.cli_events = CLIModeEvents()
+    
+    def _get_tools(self, selected_tools: Optional[List[str]] = None) -> List[Any]:
+        """
+        根据选择的工具配置返回工具列表
+        
+        Args:
+            selected_tools: 从前端传入的工具选择列表，如 ["tavily_search"]
+            
+        Returns:
+            所有应该启用的工具列表
+        """
+        tools = []
+        
+        # 总是添加基本工具
+        tools.extend(self.available_tools["basic"])
+        
+        # 根据选择添加额外工具
+        if selected_tools:
+            for tool_name in selected_tools:
+                if tool_name in self.available_tools:
+                    tools.extend(self.available_tools[tool_name])
+        
+        return tools
         
     def _build_graph(self):
         graph_builder = StateGraph(SearchAgentState)

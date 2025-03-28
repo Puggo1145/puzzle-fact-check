@@ -5,7 +5,7 @@ import { useAgentStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
 export const Hero = () => {
-    const { status, finalReport } = useAgentStore();
+    const { status } = useAgentStore();
     
     // Check if we're in active mode (not idle)
     const isActive = status !== 'idle';
@@ -13,13 +13,13 @@ export const Hero = () => {
     return (
         <div 
             className={cn(
-                "relative flex flex-col justify-center transition-all duration-300 ease-in-out mb-8",
-                isActive ? "opacity-0 h-0 pointer-events-none" : "opacity-100"
+                "relative flex flex-col justify-center transition-all duration-300 ease-out",
+                isActive ? "opacity-0 h-0 pointer-events-none" : "opacity-100 mb-8"
             )}
         >
             <div className="ml-3 flex flex-col gap-2">
                 <h1 className="z-10 text-4xl font-bold font-playfair-display
-            bg-linear-to-r from-primary/50 to-primary/80 bg-clip-text text-transparent">
+                bg-linear-to-r from-primary/50 to-primary/80 bg-clip-text text-transparent">
                     Debunk Fake News with Confidence
                 </h1>
                 <p className="text-muted-foreground text-lg">

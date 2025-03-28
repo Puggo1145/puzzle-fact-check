@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Fira_Sans, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
-import { Logo } from "@/components/logo";
+import { Header } from "@/components/header";
+import { ThemeProvider } from "@/components/theme-provider";
 
 const firaSans = Fira_Sans({
   subsets: ["latin"],
@@ -27,16 +28,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`bg-muted ${firaSans.variable} ${playfairDisplay.variable}`}>
-        <div className="w-full h-screen flex flex-col items-center">
-          <header className="z-50 px-4 py-6 bg-muted w-full flex items-center gap-2">
-            <Logo />
-          </header>
-          <div className="flex-1 w-full">
-            {children}
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <div className="w-full h-screen flex flex-col items-center">
+            <Header />
+            <div className="flex-1 w-full overflow-hidden">
+              {children}
+            </div>
           </div>
-        </div>
+        </ThemeProvider>
       </body>
     </html>
   );

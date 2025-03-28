@@ -11,8 +11,10 @@ export interface ModelOption {
 export interface AgentConfig {
   modelName: string;
   modelProvider: string;
-  maxSearchTokens: number; // Only used by the searcher agent
-  maxRetries: number; // Only used by the main agent
+  maxSearchTokens?: number;
+  temperature?: number;
+  maxRetries?: number;
+  selectedTools?: string[];
 }
 
 // Define the possible agent statuses
@@ -21,6 +23,7 @@ export type AgentStatus = 'idle' | 'running' | 'interrupting' | 'interrupted' | 
 export type EventType = 
   | 'agent_created'
   | 'run_started'
+  | 'task_start'
   | 'extract_check_point_start'
   | 'extract_check_point_end'
   | 'extract_basic_metadata_start'
@@ -78,6 +81,9 @@ interface AgentState {
   setFinalReport: (report: string) => void;
   closeEventSource: () => void;
   createAndRunAgent: () => Promise<void>;
+  // Add selected tools
+  selectedTools: string[];
+  setSelectedTools: (tools: string[]) => void;
 }
 
 // API base URL
@@ -175,7 +181,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       });
       
       // Setup event source
-      setupEventSource(get().sessionId as string, get().addEvent, get().setFinalReport);
+      setupEventSource(data.session_id, get().addEvent, get().setFinalReport);
       
     } catch (error) {
       console.error('创建 Agent 失败:', error);
@@ -396,18 +402,51 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     }
   },
   
+  // Initialize selected tools
+  selectedTools: [],
+  setSelectedTools: (tools) => set({ selectedTools: tools }),
+  
   createAndRunAgent: async () => {
-    const { 
+    const {
       newsText, 
       mainAgentConfig, 
       metadataExtractorConfig, 
-      searcherConfig 
+      searcherConfig,
+      selectedTools
     } = get();
     
-    // 关闭现有的EventSource连接
-    get().closeEventSource();
+    // Don't start if already running or if there's no input
+    if (get().status !== 'idle' || !newsText.trim()) {
+      return;
+    }
+    
+    // Reset state before starting
+    set({
+      events: [],
+      status: 'running',
+      finalReport: '',
+    });
     
     try {
+      // Prepare configuration with selected tools
+      const config = {
+        main_agent: {
+          model_name: mainAgentConfig.modelName,
+          model_provider: mainAgentConfig.modelProvider,
+          max_retries: mainAgentConfig.maxRetries
+        },
+        metadata_extractor: {
+          model_name: metadataExtractorConfig.modelName,
+          model_provider: metadataExtractorConfig.modelProvider
+        },
+        searcher: {
+          model_name: searcherConfig.modelName,
+          model_provider: searcherConfig.modelProvider,
+          max_search_tokens: searcherConfig.maxSearchTokens,
+          selected_tools: selectedTools
+        }
+      };
+      
       const response = await fetch(`${API_BASE_URL}/fact-check`, {
         method: 'POST',
         headers: {
@@ -415,45 +454,52 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         },
         body: JSON.stringify({
           news_text: newsText,
-          config: {
-            model_name: mainAgentConfig.modelName,
-            model_provider: mainAgentConfig.modelProvider,
-            main_agent: {
-              max_retries: mainAgentConfig.maxRetries
-            },
-            metadata_extractor: {
-              model_name: metadataExtractorConfig.modelName,
-              model_provider: metadataExtractorConfig.modelProvider
-            },
-            searcher: {
-              model_name: searcherConfig.modelName,
-              model_provider: searcherConfig.modelProvider,
-              max_search_tokens: searcherConfig.maxSearchTokens
-            }
-          }
+          config: config
         })
       });
       
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        
+        // 对于服务器错误（5xx），显示友好的错误消息
+        if (response.status >= 500 && response.status < 600) {
+          throw new Error('服务器出现问题，请稍后再试（Puzzle 是一个个人实验项目，计算资源较少，请谅解）');
+        }
+        
+        throw new Error(errorData.error || 'Unknown error');
+      }
+      
       const data = await response.json();
       
-      set({ 
-        sessionId: data.session_id,
-        status: 'running'
-      });
+      // 更新 sessionId 
+      set({ sessionId: data.session_id });
       
-      // Setup event source
+      // 设置 EventSource 连接
       setupEventSource(data.session_id, get().addEvent, get().setFinalReport);
-      
-      get().addEvent({
-        event: 'run_started',
-        data: { message: '开始执行核查流程' }
-      });
-      
     } catch (error) {
-      console.error('启动核查失败:', error);
-      get().addEvent({
-        event: 'error',
-        data: { message: `启动核查失败: ${error instanceof Error ? error.message : String(error)}` }
+      console.error('Error starting agent:', error);
+      
+      // 检查是否是因为后端服务不可用或网络错误
+      let errorMessage;
+      if (
+        error instanceof TypeError && error.message.includes('Failed to fetch') ||
+        error instanceof DOMException && error.name === 'AbortError' ||
+        error instanceof Error && error.message.includes('NetworkError') ||
+        error instanceof Error && error.message.includes('Network request failed') ||
+        error instanceof Error && error.message.includes('Failed to fetch') ||
+        error instanceof Error && error.message.includes('Network error')
+      ) {
+        errorMessage = '无法连接到 Puzzle 服务器，请稍后再试（Puzzle 是一个个人实验项目，计算资源较少，请谅解）';
+      } else {
+        errorMessage = error instanceof Error ? error.message : String(error);
+      }
+      
+      set({ 
+        status: 'idle',
+        events: [...get().events, {
+          event: 'error',
+          data: { message: errorMessage }
+        }]
       });
     }
   }
@@ -562,6 +608,7 @@ function setupEventSource(
   
   // 为所有主要事件类型设置监听器
   [
+    'task_start',
     'extract_check_point_start', 'extract_check_point_end',
     'extract_basic_metadata_start', 'extract_basic_metadata_end',
     'extract_knowledge_start', 'extract_knowledge_end',

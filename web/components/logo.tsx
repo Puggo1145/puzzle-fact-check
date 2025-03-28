@@ -14,7 +14,7 @@ export const Logo = ({ showText = true }: ILogoProps) => {
         />
         {showText && (
             <h1 className="text-2xl text-primary/30 font-bold">
-                Puzzle Fact Check
+                Puzzle Fact Check (Experimental)
             </h1>
         )}
     </div>

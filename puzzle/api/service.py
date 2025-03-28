@@ -216,8 +216,25 @@ class SSEModeEvents:
         })
     
     def on_extract_basic_metadata_end(self, basic_metadata):
+        # 确保所有必要字段都被包含，包括标题和时间
+        serialized_data = self._make_serializable(basic_metadata)
+        
+        # 确保是字典类型且包含所需字段
+        if isinstance(serialized_data, dict):
+            # 确保news_type, title等字段存在，防止前端显示Unknown
+            if "news_type" not in serialized_data:
+                serialized_data["news_type"] = ""
+            if "title" not in serialized_data:
+                serialized_data["title"] = ""
+            if "time" not in serialized_data:
+                # 从when数据中提取时间（如果存在）
+                if "when" in serialized_data and serialized_data["when"] and len(serialized_data["when"]) > 0:
+                    serialized_data["time"] = serialized_data["when"][0]
+                else:
+                    serialized_data["time"] = ""
+            
         self.send_event("extract_basic_metadata_end", {
-            "basic_metadata": self._make_serializable(basic_metadata)
+            "basic_metadata": serialized_data
         })
     
     def on_extract_knowledge_start(self):
@@ -236,8 +253,23 @@ class SSEModeEvents:
         })
     
     def on_retrieve_knowledge_end(self, retrieved_knowledge):
+        # 确保定义和其他必要字段可以被前端读取
+        serialized_data = self._make_serializable(retrieved_knowledge)
+        
+        # 确保是字典类型且包含所需字段
+        if isinstance(serialized_data, dict):
+            # 如果description字段存在，复制到definition字段以匹配前端期望
+            if "description" in serialized_data and serialized_data["description"]:
+                serialized_data["definition"] = serialized_data["description"]
+            elif "definition" not in serialized_data or not serialized_data["definition"]:
+                serialized_data["definition"] = ""
+                
+            # 确保term字段存在
+            if "term" not in serialized_data:
+                serialized_data["term"] = ""
+            
         self.send_event("retrieve_knowledge_end", {
-            "retrieved_knowledge": self._make_serializable(retrieved_knowledge)
+            "retrieved_knowledge": serialized_data
         })
     
     # 搜索代理事件处理器
@@ -250,12 +282,30 @@ class SSEModeEvents:
     
     def on_evaluate_status_start(self, model_name):
         self.send_event("evaluate_status_start", {
-            "message": f"检索代理({model_name})开始评估搜索状态"
+            "message": f"检索代理({model_name})正在评估搜索状态"
         })
     
     def on_status_evaluation_end(self, status):
+        # 确保评估和下一步信息完整
+        serialized_data = self._make_serializable(status)
+        
+        # 确保是字典类型且包含所需字段
+        if isinstance(serialized_data, dict):
+            # 确保evaluation和next_step字段存在
+            if "evaluation" not in serialized_data:
+                serialized_data["evaluation"] = ""
+            if "next_step" not in serialized_data:
+                serialized_data["next_step"] = ""
+            
+        # 这些检查在序列化后数据可能不再适用，使用原始对象属性
+        if hasattr(status, "missing_information") and status.missing_information and isinstance(serialized_data, dict):
+            serialized_data["missing_information"] = status.missing_information
+            
+        if hasattr(status, "memory") and status.memory and isinstance(serialized_data, dict):
+            serialized_data["memory"] = status.memory
+            
         self.send_event("status_evaluation_end", {
-            "status": self._make_serializable(status)
+            "status": serialized_data
         })
     
     def on_tool_start(self, tool_name, input_str):
@@ -332,7 +382,8 @@ class AgentService:
                 # 如果当前配置为主要智能体，可以使用 gpt-4o-mini 作为元数据提取器
                 metadata_model = ChatOpenAI(
                     model="gpt-4o-mini", 
-                    temperature=0
+                    temperature=0,
+                    streaming=True
                 )
                 
                 search_model = ChatOpenAI(
@@ -353,8 +404,15 @@ class AgentService:
                 )
                 
                 # 元数据提取器可以使用 qwen-turbo
+                # 验证模型是否适用于元数据提取器
+                metadata_model_name = model_name if model_name != "qwen-turbo" else "qwen-turbo"
+                if metadata_model_name in ["qwq-plus-latest"]:
+                    # 改用 qwen-turbo 作为备选
+                    metadata_model_name = "qwen-turbo"
+                
                 metadata_model = ChatQwen(
-                    model=model_name if model_name != "qwen-turbo" else "qwen-turbo"
+                    model=metadata_model_name,
+                    streaming=True
                 )
                 
                 search_model = ChatQwen(
@@ -374,9 +432,16 @@ class AgentService:
                     streaming=True
                 )
                 
+                # 验证模型是否适用于元数据提取器
+                metadata_model_name = model_name
+                if metadata_model_name in ["deepseek-reasoner"]:
+                    # 改用 deepseek-chat 作为备选
+                    metadata_model_name = "deepseek-chat"
+                
                 metadata_model = ChatDeepSeek(
-                    model=model_name,
-                    temperature=0
+                    model=metadata_model_name,
+                    temperature=0,
+                    streaming=True
                 )
                 
                 search_model = ChatDeepSeek(
@@ -399,7 +464,8 @@ class AgentService:
                 
                 metadata_model = ChatOpenAI(
                     model="gpt-4o-mini", 
-                    temperature=0
+                    temperature=0,
+                    streaming=True
                 )
                 
                 search_model = ChatOpenAI(
@@ -666,20 +732,27 @@ class AgentService:
                     model_name = metadata_config["model_name"]
                     model_provider = metadata_config["model_provider"]
                     
+                    # 验证模型是否适用于元数据提取器
+                    if model_name in ["deepseek-reasoner", "qwq-plus-latest"]:
+                        raise ValueError(f"模型 {model_name} 不适用于元数据提取器")
+                    
                     # 创建新模型实例
                     if model_provider == "openai":
                         agent.metadata_extract_agent.model = ChatOpenAI(
                             model=model_name,
-                            temperature=0
+                            temperature=0,
+                            streaming=True
                         )
                     elif model_provider == "qwen":
                         agent.metadata_extract_agent.model = ChatQwen(
-                            model=model_name
+                            model=model_name,
+                            streaming=True
                         )
                     elif model_provider == "deepseek":
                         agent.metadata_extract_agent.model = ChatDeepSeek(
                             model=model_name,
-                            temperature=0
+                            temperature=0,
+                            streaming=True
                         )
             
             # 检查是否有搜索代理配置
@@ -689,6 +762,24 @@ class AgentService:
                 # 设置最大搜索tokens
                 if "max_search_tokens" in searcher_config:
                     agent.search_agent.max_search_tokens = searcher_config["max_search_tokens"]
+                
+                # 设置工具选择
+                if "selected_tools" in searcher_config:
+                    # 使用当前搜索代理实例的模型和tokens重新创建搜索代理实例
+                    from agents.searcher.graph import SearchAgentGraph
+                    selected_tools = searcher_config["selected_tools"]
+                    
+                    # 备份当前模型和最大tokens
+                    current_model = agent.search_agent.model
+                    current_max_tokens = agent.search_agent.max_search_tokens
+                    
+                    # 创建新的搜索代理实例，传入选择的工具
+                    agent.search_agent = SearchAgentGraph(
+                        model=current_model,
+                        max_search_tokens=current_max_tokens,
+                        mode="API",
+                        selected_tools=selected_tools
+                    )
                 
                 # 设置模型
                 if "model_name" in searcher_config and "model_provider" in searcher_config:
