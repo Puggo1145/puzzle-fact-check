@@ -16,9 +16,15 @@ def test_plan_agent():
     #     streaming=True,
     #     callbacks=[ReasonerStreamingCallback()]
     # )
-    model = ChatGemini(
-        model="gemini-2.5-pro-exp-03-25",
+    # model = ChatGemini(
+    #     model="gemini-2.5-pro-exp-03-25",
+    #     temperature=0,
+    #     callbacks=[ReasonerStreamingCallback()]
+    # )
+    model = ChatOpenAI(
+        model="chatgpt-4o-latest",
         temperature=0,
+        streaming=True,
         callbacks=[ReasonerStreamingCallback()]
     )
     metadata_extract_model = ChatOpenAI(
@@ -30,9 +36,15 @@ def test_plan_agent():
     #     streaming=True,
     #     callbacks=[ReasonerStreamingCallback()]
     # )
-    search_model = ChatGemini(
-        model="gemini-2.5-pro-exp-03-25",
+    # search_model = ChatGemini(
+    #     model="gemini-2.5-pro-exp-03-25",
+    #     temperature=0,
+    #     callbacks=[ReasonerStreamingCallback()]
+    # )
+    search_model = ChatOpenAI(
+        model="chatgpt-4o-latest",
         temperature=0,
+        streaming=True,
         callbacks=[ReasonerStreamingCallback()]
     )
 

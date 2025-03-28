@@ -56,7 +56,7 @@ class SearchAgentGraph(BaseAgent):
         self.tools_by_name = {tool.name: tool for tool in self.tools}
         self.tool_calling_schema = [convert_to_openai_tool(tool) for tool in self.tools]
         
-        self.db_events = DBEvents()
+        # self.db_events = DBEvents()
         if mode == "CLI":
             self.cli_events = CLIModeEvents()
         

@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puzzle Fact Check API Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        #app {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        .input-section, .output-section {
+            flex: 1;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 14px;
+            resize: vertical;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            overflow: auto;
+            max-height: 600px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
+        .event-log {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+        .event-item {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .event-extract-start {
+            background-color: #e3f2fd;
+        }
+        .event-extract-end {
+            background-color: #e1f5fe;
+        }
+        .event-evaluate-start {
+            background-color: #fff8e1;
+        }
+        .event-evaluate-end {
+            background-color: #fffde7;
+        }
+        .event-report-start {
+            background-color: #e8f5e9;
+        }
+        .event-report-end {
+            background-color: #f1f8e9;
+        }
+        .event-decision {
+            background-color: #f3e5f5;
+        }
+        .event-error {
+            background-color: #ffebee;
+        }
+        .event-feedback {
+            background-color: #e0f7fa;
+        }
+        .event-wait {
+            background-color: #ede7f6;
+        }
+        .feedback-section {
+            display: none;
+            padding: 15px;
+            background-color: #e8eaf6;
+            border-radius: 4px;
+            margin-top: 15px;
+        }
+        .show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>Puzzle Fact Check API Demo</h1>
+    <div id="app">
+        <div class="container">
+            <div class="input-section">
+                <h2>输入新闻文本</h2>
+                <textarea id="news-text" placeholder="在此输入需要核查的新闻文本...">最近有网络流传说法称，2025 年初，美国共和党议员Riley Moore通过了一项新法案，将禁止中国公民以学生身份来美国。这项法案会导致每年大约30万中国学生将无法获得F、J、M类签证，从而无法到美国学习或参与学术交流。</textarea>
+                <div>
+                    <button id="create-agent-btn">创建 Agent</button>
+                    <button id="start-btn" disabled>开始核查</button>
+                </div>
+            </div>
+            <div class="output-section">
+                <h2>事件日志</h2>
+                <div class="event-log" id="event-log"></div>
+            </div>
+        </div>
+        <div>
+            <h2>最终报告</h2>
+            <pre id="final-report"></pre>
+        </div>
+    </div>
+
+    <script>
+        // 应用状态
+        const state = {
+            sessionId: null,
+            eventSource: null,
+            isRunning: false,
+            events: []
+        };
+
+        // DOM 元素
+        const newsTextArea = document.getElementById('news-text');
+        const createAgentBtn = document.getElementById('create-agent-btn');
+        const startBtn = document.getElementById('start-btn');
+        const eventLog = document.getElementById('event-log');
+        const finalReport = document.getElementById('final-report');
+
+        // API 基础 URL - 根据实际部署情况修改
+        const API_BASE_URL = 'http://localhost:8000/api';
+
+        // 创建 Agent
+        createAgentBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL}/agents`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model_name: 'gpt-4o',
+                        model_provider: 'openai'
+                    })
+                });
+                
+                const data = await response.json();
+                state.sessionId = data.session_id;
+                
+                addEventToLog({
+                    event: 'agent_created',
+                    data: { message: `Agent 创建成功: ${state.sessionId}` }
+                });
+                
+                startBtn.disabled = false;
+                createAgentBtn.disabled = true;
+                
+                // 开始监听 SSE 事件
+                startEventStream();
+                
+            } catch (error) {
+                console.error('创建 Agent 失败:', error);
+                addEventToLog({
+                    event: 'error',
+                    data: { message: `创建 Agent 失败: ${error.message}` }
+                });
+            }
+        });
+
+        // 开始核查
+        startBtn.addEventListener('click', async () => {
+            if (!state.sessionId) {
+                alert('请先创建 Agent');
+                return;
+            }
+            
+            const newsText = newsTextArea.value.trim();
+            if (!newsText) {
+                alert('请输入需要核查的新闻文本');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/agents/${state.sessionId}/run`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        news_text: newsText
+                    })
+                });
+                
+                const data = await response.json();
+                
+                state.isRunning = true;
+                startBtn.disabled = true;
+                
+                addEventToLog({
+                    event: 'run_started',
+                    data: { message: '开始执行核查流程' }
+                });
+                
+            } catch (error) {
+                console.error('启动核查失败:', error);
+                addEventToLog({
+                    event: 'error',
+                    data: { message: `启动核查失败: ${error.message}` }
+                });
+            }
+        });
+
+        // 开始 SSE 事件流
+        function startEventStream() {
+            if (state.eventSource) {
+                state.eventSource.close();
+            }
+            
+            state.eventSource = new EventSource(`${API_BASE_URL}/agents/${state.sessionId}/events`);
+            
+            // 心跳事件 - 保持连接
+            state.eventSource.addEventListener('heartbeat', (event) => {
+                // console.log('心跳事件:', JSON.parse(event.data));
+            });
+            
+            // 提取核查点事件
+            state.eventSource.addEventListener('extract_check_point_start', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'extract_check_point_start',
+                    data: data
+                });
+            });
+            
+            state.eventSource.addEventListener('extract_check_point_end', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'extract_check_point_end',
+                    data: data
+                });
+            });
+            
+            // 元数据提取代理事件
+            state.eventSource.addEventListener('extract_basic_metadata_start', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'extract_basic_metadata_start',
+                    data: data
+                });
+            });
+            
+            state.eventSource.addEventListener('extract_basic_metadata_end', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'extract_basic_metadata_end',
+                    data: data
+                });
+            });
+            
+            state.eventSource.addEventListener('extract_knowledge_start', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'extract_knowledge_start',
+                    data: data
+                });
+            });
+            
+            state.eventSource.addEventListener('extract_knowledge_end', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'extract_knowledge_end',
+                    data: data
+                });
+            });
+            
+            state.eventSource.addEventListener('retrieve_knowledge_start', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'retrieve_knowledge_start',
+                    data: data
+                });
+            });
+            
+            state.eventSource.addEventListener('retrieve_knowledge_end', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'retrieve_knowledge_end',
+                    data: data
+                });
+            });
+            
+            // 搜索代理事件
+            state.eventSource.addEventListener('search_agent_start', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'search_agent_start',
+                    data: data
+                });
+            });
+            
+            state.eventSource.addEventListener('evaluate_status_start', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'evaluate_status_start',
+                    data: data
+                });
+            });
+            
+            state.eventSource.addEventListener('status_evaluation_end', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'status_evaluation_end',
+                    data: data
+                });
+            });
+            
+            state.eventSource.addEventListener('tool_start', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'tool_start',
+                    data: data
+                });
+            });
+            
+            state.eventSource.addEventListener('tool_result', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'tool_result',
+                    data: data
+                });
+            });
+            
+            state.eventSource.addEventListener('generate_answer_start', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'generate_answer_start',
+                    data: data
+                });
+            });
+            
+            state.eventSource.addEventListener('generate_answer_end', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'generate_answer_end',
+                    data: data
+                });
+            });
+            
+            // 评估检索结果事件
+            state.eventSource.addEventListener('evaluate_search_result_start', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'evaluate_search_result_start',
+                    data: data
+                });
+            });
+            
+            state.eventSource.addEventListener('evaluate_search_result_end', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'evaluate_search_result_end',
+                    data: data
+                });
+            });
+            
+            // 撰写报告事件
+            state.eventSource.addEventListener('write_fact_checking_report_start', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'write_fact_checking_report_start',
+                    data: data
+                });
+            });
+            
+            state.eventSource.addEventListener('write_fact_checking_report_end', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'write_fact_checking_report_end',
+                    data: data
+                });
+                
+                // 显示最终报告
+                finalReport.textContent = data.report;
+            });
+            
+            // LLM 决策事件
+            state.eventSource.addEventListener('llm_decision', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'llm_decision',
+                    data: data
+                });
+            });
+            
+            // 任务完成事件
+            state.eventSource.addEventListener('task_complete', (event) => {
+                const data = JSON.parse(event.data);
+                
+                addEventToLog({
+                    event: 'task_complete',
+                    data: data
+                });
+                
+                state.isRunning = false;
+                createAgentBtn.disabled = false;
+                startBtn.disabled = true;
+            });
+            
+            // 错误事件
+            state.eventSource.addEventListener('error', (event) => {
+                console.error('SSE 错误:', event);
+                
+                if (event.data) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        addEventToLog({
+                            event: 'error',
+                            data: data
+                        });
+                    } catch (e) {
+                        addEventToLog({
+                            event: 'error',
+                            data: { message: 'SSE 解析错误: ' + (event.data || '未知错误') }
+                        });
+                    }
+                } else {
+                    addEventToLog({
+                        event: 'error',
+                        data: { message: 'SSE 连接错误' }
+                    });
+                }
+                
+                // 尝试重新连接
+                setTimeout(() => {
+                    if (state.isRunning) {
+                        startEventStream();
+                    }
+                }, 3000);
+            });
+        }
+
+        // 添加事件到日志
+        function addEventToLog(eventObj) {
+            state.events.push(eventObj);
+            
+            const eventItem = document.createElement('div');
+            eventItem.className = `event-item event-${eventObj.event}`;
+            
+            // 根据事件类型设置内容
+            let content = '';
+            switch (eventObj.event) {
+                case 'agent_created':
+                case 'run_started':
+                    content = `<strong>${eventObj.data.message}</strong>`;
+                    break;
+                    
+                case 'extract_check_point_start':
+                    content = `<strong>🧠 LLM 开始提取核查点</strong>`;
+                    break;
+                    
+                case 'extract_check_point_end':
+                    content = `<strong>✅ 提取核查点完成</strong>`;
+                    if (eventObj.data.check_points && eventObj.data.check_points.items) {
+                        const checkPoints = eventObj.data.check_points.items;
+                        content += `<p>共找到 ${checkPoints.length} 个核查点</p>`;
+                        checkPoints.forEach((cp, idx) => {
+                            if (cp.is_verification_point) {
+                                content += `<p><strong>核查点 ${idx+1}:</strong> ${cp.content}</p>`;
+                                content += `<p><strong>核查理由:</strong> ${cp.importance}</p>`;
+                                if (cp.retrieval_step && cp.retrieval_step.length > 0) {
+                                    content += `<p><strong>检索计划:</strong></p>`;
+                                    cp.retrieval_step.forEach((step, stepIdx) => {
+                                        content += `<p>- 计划 ${stepIdx+1}: ${step.purpose}</p>`;
+                                    });
+                                }
+                            }
+                        });
+                    }
+                    break;
+                
+                // 元数据提取代理事件显示
+                case 'extract_basic_metadata_start':
+                    content = `<strong>🔍 开始提取新闻基本元数据</strong>`;
+                    break;
+                
+                case 'extract_basic_metadata_end':
+                    content = `<strong>✅ 提取新闻基本元数据完成</strong>`;
+                    if (eventObj.data.basic_metadata) {
+                        const metadata = eventObj.data.basic_metadata;
+                        content += `<p><strong>新闻类型:</strong> ${metadata.news_type || '未知'}</p>`;
+                        content += `<p><strong>标题:</strong> ${metadata.title || '未知'}</p>`;
+                        content += `<p><strong>时间:</strong> ${metadata.time || '未知'}</p>`;
+                    }
+                    break;
+                
+                case 'extract_knowledge_start':
+                    content = `<strong>🔍 开始提取知识元素</strong>`;
+                    break;
+                
+                case 'extract_knowledge_end':
+                    content = `<strong>✅ 提取知识元素完成</strong>`;
+                    if (eventObj.data.knowledges && eventObj.data.knowledges.length) {
+                        content += `<p>共找到 ${eventObj.data.knowledges.length} 个知识元素</p>`;
+                    }
+                    break;
+                
+                case 'retrieve_knowledge_start':
+                    content = `<strong>🔍 开始检索知识元素定义</strong>`;
+                    break;
+                
+                case 'retrieve_knowledge_end':
+                    content = `<strong>✅ 检索知识元素定义完成</strong>`;
+                    if (eventObj.data.retrieved_knowledge) {
+                        const knowledge = eventObj.data.retrieved_knowledge;
+                        content += `<p><strong>术语:</strong> ${knowledge.term || '未知'}</p>`;
+                        content += `<p><strong>定义:</strong> ${knowledge.definition || '未知'}</p>`;
+                    }
+                    break;
+                
+                // 搜索代理事件显示
+                case 'search_agent_start':
+                    content = `<strong>🔎 搜索代理开始执行</strong>`;
+                    content += `<p><strong>核查内容:</strong> ${eventObj.data.content}</p>`;
+                    content += `<p><strong>检索目的:</strong> ${eventObj.data.purpose}</p>`;
+                    break;
+                
+                case 'evaluate_status_start':
+                    content = `<strong>🤔 ${eventObj.data.message}</strong>`;
+                    break;
+                
+                case 'status_evaluation_end':
+                    content = `<strong>✅ 搜索状态评估完成</strong>`;
+                    if (eventObj.data.status) {
+                        const status = eventObj.data.status;
+                        content += `<p><strong>评估:</strong> ${status.evaluation}</p>`;
+                        content += `<p><strong>下一步:</strong> ${status.next_step}</p>`;
+                    }
+                    break;
+                
+                case 'tool_start':
+                    content = `<strong>🛠️ 开始使用工具:</strong> ${eventObj.data.tool_name}`;
+                    content += `<p><strong>输入:</strong> ${eventObj.data.input}</p>`;
+                    break;
+                
+                case 'tool_result':
+                    content = `<strong>✅ 工具调用结果:</strong>`;
+                    content += `<p>${eventObj.data.output}</p>`;
+                    break;
+                
+                case 'generate_answer_start':
+                    content = `<strong>🧠 ${eventObj.data.message}</strong>`;
+                    break;
+                
+                case 'generate_answer_end':
+                    content = `<strong>✅ 生成搜索结论完成</strong>`;
+                    if (eventObj.data.result) {
+                        const result = eventObj.data.result;
+                        content += `<p><strong>结论:</strong> ${result.conclusion}</p>`;
+                        content += `<p><strong>信心:</strong> ${result.confidence}</p>`;
+                    }
+                    break;
+                    
+                case 'evaluate_search_result_start':
+                    content = `<strong>🧠 LLM 开始评估检索结果</strong>`;
+                    break;
+                    
+                case 'evaluate_search_result_end':
+                    content = `<strong>✅ 评估检索结果完成</strong>`;
+                    if (eventObj.data.verification_result) {
+                        const vr = eventObj.data.verification_result;
+                        content += `<p><strong>验证结果:</strong> ${vr.verified ? '通过' : '未通过'}</p>`;
+                        content += `<p><strong>推理过程:</strong> ${vr.reasoning}</p>`;
+                    }
+                    break;
+                    
+                case 'write_fact_checking_report_start':
+                    content = `<strong>🧠 LLM 开始撰写核查报告</strong>`;
+                    break;
+                    
+                case 'write_fact_checking_report_end':
+                    content = `<strong>✅ 撰写核查报告完成</strong>`;
+                    break;
+                    
+                case 'llm_decision':
+                    content = `<strong>🧠 LLM 做出决策:</strong> ${eventObj.data.decision}`;
+                    if (eventObj.data.reason) {
+                        content += `<p>决策理由: ${eventObj.data.reason}</p>`;
+                    }
+                    break;
+                    
+                case 'task_complete':
+                    content = `<strong>🎉 任务完成:</strong> ${eventObj.data.message}`;
+                    break;
+                    
+                case 'error':
+                    content = `<strong>❌ 错误:</strong> ${eventObj.data.message || JSON.stringify(eventObj.data)}`;
+                    break;
+                    
+                default:
+                    content = `<strong>${eventObj.event}:</strong> ${JSON.stringify(eventObj.data)}`;
+            }
+            
+            eventItem.innerHTML = content;
+            eventLog.appendChild(eventItem);
+            eventLog.scrollTop = eventLog.scrollHeight;
+        }
+    </script>
+</body>
+</html> 

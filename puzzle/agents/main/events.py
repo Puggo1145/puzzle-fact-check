@@ -43,6 +43,14 @@ class DBEvents:
         db_integration.initialize_with_news_text(news_text)
 
 
+class APIMode:
+    """
+    API模式事件处理，主要用于标记agent运行在API模式下
+    """
+    def __init__(self):
+        pass
+
+
 class CLIModeEvents:
     """
     Main Agent CLI Mode 回调，主要用于在 terminal 显示 LLM 的推理过程

@@ -15,7 +15,6 @@ from langgraph.checkpoint.memory import MemorySaver
 from .prompts import (
     fact_check_plan_prompt_template,
     fact_check_plan_output_parser,
-    human_feedback_prompt_template,
     evaluate_search_result_output_parser,
     evaluate_search_result_prompt_template,
     write_fact_checking_report_prompt_template,
@@ -27,7 +26,7 @@ from ..metadata_extractor.states import MetadataState
 from utils.exceptions import AgentExecutionException
 
 from pubsub import pub
-from .events import MainAgentEvents, CLIModeEvents, DBEvents
+from .events import MainAgentEvents, CLIModeEvents, DBEvents, APIMode
 
 from typing import List, Optional, Any, Dict, Literal
 from .states import (
@@ -74,9 +73,13 @@ class MainAgent(BaseAgent):
         self.current_retrieval_task_index = 0  # 跟踪当前检索任务的索引
         self.total_retrieval_tasks_nums = 0  # 总任务数
         
-        self.db_events = DBEvents()
+        # self.db_events = DBEvents()
         if mode == "CLI":
             self.cli_events = CLIModeEvents()
+        elif mode == "API":
+            # API 模式下只创建一个空的APIMode实例
+            # 实际的事件处理由service.py中的SSEModeEvents处理
+            self.api_mode = APIMode()
 
     def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(FactCheckPlanState)
@@ -85,26 +88,16 @@ class MainAgent(BaseAgent):
         graph_builder.add_node("invoke_metadata_extract_agent", self.invoke_metadata_extract_agent)
         graph_builder.add_node("extract_check_point", self.extract_check_point)
         graph_builder.add_node("invoke_search_agent", self.invoke_search_agent)
-        graph_builder.add_node("human_verification", self.human_verification)
-        graph_builder.add_node(
-            node="evaluate_search_result", 
-            action=self.evaluate_search_result, 
-            retry=RetryPolicy(
-                max_attempts=3,
-                retry_on=ValueError
-            )
-        )
+        graph_builder.add_node("evaluate_search_result", self.evaluate_search_result)
         graph_builder.add_node("write_fact_checking_report", self.write_fact_checking_report)
 
         graph_builder.set_entry_point("initialization")
         graph_builder.add_edge("initialization", "invoke_metadata_extract_agent")
         graph_builder.add_edge("invoke_metadata_extract_agent", "extract_check_point")
-        graph_builder.add_edge("extract_check_point", "human_verification")
-
         graph_builder.add_conditional_edges(
-            "human_verification",
+            "extract_check_point",
             self.should_continue_to_retrieval,
-            ["extract_check_point", END, "invoke_search_agent"],
+            ["invoke_search_agent", END]
         )
         graph_builder.add_edge("invoke_search_agent", "evaluate_search_result")
         graph_builder.add_conditional_edges(
@@ -163,17 +156,6 @@ class MainAgent(BaseAgent):
                 knowledges=state.metadata.serialize_retrieved_knowledges_for_llm(), # type: ignore
             )
         ]
-        
-        # 如果存在人类反馈，将人类反馈嵌入此处
-        if state.human_feedback and state.check_points:
-            human_feedback_prompt = human_feedback_prompt_template.format(
-                human_feedback=state.human_feedback
-            )
-            messages_with_feedback: List[BaseMessage] = [
-                AIMessage(str(state.check_points)),
-                human_feedback_prompt,
-            ]
-            messages.extend(messages_with_feedback)
 
         response = self.model.invoke(messages)
         check_points: CheckPoints = fact_check_plan_output_parser.invoke(response)
@@ -185,22 +167,8 @@ class MainAgent(BaseAgent):
         formatted_check_points = state.get_formatted_check_points(check_points)
         
         return {
-            "check_points": formatted_check_points,
-            # 清除上一轮的反馈
-            "human_feedback": "",
+            "check_points": formatted_check_points
         }
-
-    def human_verification(self, state: FactCheckPlanState):
-        """
-        Human-in-the-loop
-        将检索方案交给人类进行核验，根据反馈开始核查或更新检索方案
-        """
-        result = interrupt({"check_points": state.check_points})
-
-        if result == "revise":
-            return Command(goto="extract_check_point")
-        else:
-            return Command(resume="")
 
     def should_continue_to_retrieval(self, state: FactCheckPlanState):
         """
@@ -208,10 +176,6 @@ class MainAgent(BaseAgent):
         如果有 check point 和 basic_metadata，则创建检索任务
         如果没有，则结束图的执行
         """
-        # 如果存在人类反馈，重新提取核查点
-        if state.human_feedback:
-            return "extract_check_point"
-
         # 没有核查点或元数据，结束图执行
         if (
             len(state.check_points) == 0
@@ -479,35 +443,6 @@ class MainAgent(BaseAgent):
             raise ValueError("Agent 缺少 thread_id 配置")
 
         result = self.graph.invoke(input, config, **kwargs)
-
-        if self.mode == "CLI":
-            thread_config = config.get("configurable", {})
-            while True:
-                states = self.graph.get_state({"configurable": thread_config})
-                interrupts = (
-                    states.tasks[0].interrupts if len(states.tasks) > 0 else False
-                )
-                if interrupts:
-                    result = get_user_feedback()
-
-                    if result["action"] == "continue":
-                        self.graph.invoke(
-                            Command(resume="continue"),
-                            config={"configurable": thread_config},
-                        )
-                    else:
-                        self.graph.invoke(
-                            Command(
-                                resume="revise",
-                                update={
-                                    "human_feedback": result["feedback"],
-                                },
-                            ),
-                            config={"configurable": thread_config},
-                        )
-                else:
-                    break
-
         return result
 
 def cli_select_option(options: List[Dict[str, str]], hint: str):

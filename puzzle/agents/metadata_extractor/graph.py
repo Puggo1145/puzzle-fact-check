@@ -34,7 +34,7 @@ class MetadataExtractAgentGraph(BaseAgent):
         self.tools = [SearchWikipediaTool()]
         self.model_with_tools = self.model.bind_tools(tools=self.tools)
         
-        self.db_events = DBEvents()
+        # self.db_events = DBEvents()
         if mode == "CLI":
             self.cli_events = CLIModeEvents()
         
