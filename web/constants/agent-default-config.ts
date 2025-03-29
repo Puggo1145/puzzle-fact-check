@@ -4,21 +4,62 @@ export interface ModelOption {
   id: string;
   name: string;
   provider: string;
+  modelType: "reasoning" | "non_reasoning" | "light";
 }
 export const AVAILABLE_MODELS: ModelOption[] = [
   // OpenAI
-  { id: 'chatgpt-4o-latest', name: 'GPT-4o Latest', provider: 'openai' },
-  { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' },
-  { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai' },
+  {
+    id: 'chatgpt-4o-latest', 
+    name: 'GPT-4o Latest', 
+    provider: 'openai', 
+    modelType: "non_reasoning" 
+  },
+  { 
+    id: 'gpt-4o', 
+    name: 'GPT-4o', 
+    provider: 'openai', 
+    modelType: "non_reasoning" 
+  },
+  { 
+    id: 'gpt-4o-mini', 
+    name: 'GPT-4o Mini', 
+    provider: 'openai', 
+    modelType: "light" 
+  },
 
   // Qwen
-  { id: 'qwq-plus-latest', name: 'QWQ Plus Latest', provider: 'qwen' },
-  { id: 'qwen-plus-latest', name: 'Qwen Plus Latest', provider: 'qwen' },
-  { id: 'qwen-turbo', name: 'Qwen Turbo', provider: 'qwen' },
+  { 
+    id: 'qwq-plus-latest', 
+    name: 'QWQ 32B', 
+    provider: 'qwen', 
+    modelType: "reasoning" 
+  },
+  { 
+    id: 'qwen-plus-latest', 
+    name: 'Qwen Plus', 
+    provider: 'qwen', 
+    modelType: "non_reasoning" 
+  },
+  { 
+    id: 'qwen-turbo', 
+    name: 'Qwen Turbo', 
+    provider: 'qwen', 
+    modelType: "light" 
+  },
 
   // DeepSeek
-  { id: 'deepseek-reasoner', name: 'DeepSeek R1', provider: 'deepseek' },
-  { id: 'deepseek-chat', name: 'DeepSeek V3', provider: 'deepseek' },
+  { 
+    id: 'deepseek-reasoner', 
+    name: 'DeepSeek R1', 
+    provider: 'deepseek', 
+    modelType: "reasoning"
+  },
+  { 
+    id: 'deepseek-chat', 
+    name: 'DeepSeek V3', 
+    provider: 'deepseek', 
+    modelType: "non_reasoning" 
+  },
 ];
 
 export interface AgentBaseConfig {
@@ -38,7 +79,7 @@ export const DEFAULT_MAIN_AGENT_CONFIG: MainAgentConfig = {
 
 export interface MetadataExtractorConfig extends AgentBaseConfig {}
 export const DEFAULT_METADATA_EXTRACTOR_CONFIG: MetadataExtractorConfig = {
-  modelName: 'qwen-plus-latest',
+  modelName: 'qwen-turbo',
   modelProvider: 'qwen'
 };
 
@@ -47,8 +88,8 @@ export interface SearchAgentConfig extends AgentBaseConfig {
   selectedTools: string[]
 }
 export const DEFAULT_SEARCHER_CONFIG: SearchAgentConfig = {
-  modelName: 'qwq-plus-latest',
+  modelName: 'qwen-plus-latest',
   modelProvider: 'qwen',
-  maxSearchTokens: 15000,
+  maxSearchTokens: 12000,
   selectedTools: []
 }; 

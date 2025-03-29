@@ -33,7 +33,7 @@ export default function Home() {
       {/* Hero and Input Panel Container - always in the same place */}
       <div className={cn(
         " w-full transition-all duration-500 ease-in-out",
-        isActive ? "max-w-lg mt-8" : "max-w-2xl flex-1 flex flex-col justify-center"
+        isActive ? "mt-6" : "max-w-2xl flex-1 flex flex-col justify-center"
       )}>
         <Hero />
         <InputPanel />

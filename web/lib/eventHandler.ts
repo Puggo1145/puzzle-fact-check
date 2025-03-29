@@ -72,11 +72,6 @@ export function setupEventSource(
   // Start timeout checker - check every 10 seconds
   const timeoutCheckerId = setInterval(checkForTimeout, 10000);
   
-  eventSource.addEventListener('heartbeat', () => {
-    // Keep connection alive
-    updateLastEventTime();
-  });
-  
   // Add time update logic for all event types
   const setupEventTypeListener = <T extends EventType>(eventType: T) => {
     eventSource.addEventListener(eventType, (event) => {
@@ -160,86 +155,25 @@ export function setupEventSource(
     }, 500);
   });
   
-  // Error event
-  eventSource.addEventListener('error', (event: MessageEvent) => {
-    // Error events also update last event time
-    updateLastEventTime();
+  // Handle connection errors
+  eventSource.addEventListener('error', (event) => {
+    console.error('EventSource encountered an error:', event);
     
-    if (event.data) {
-      try {
-        const data = JSON.parse(event.data);
-        addEvent({ 
-          event: 'error', 
-          data 
-        } as TypedEvent<'error'>);
-        
-        // Check if it's a model error or a validation error, if so close the connection
-        const errorMessage = data.message || '';
-        if (
-          errorMessage.includes('OpenAI API') || 
-          errorMessage.includes('模型API错误') || 
-          errorMessage.includes('配额') || 
-          errorMessage.includes('速率限制') ||
-          errorMessage.includes('validation error') ||
-          errorMessage.includes('pydantic')
-        ) {
-          console.log('Model API error or validation error in SSE, closing connection');
-          // Clear timeout checker
-          clearInterval(timeoutCheckerId);
-          
-          eventSource.close();
-          
-          // Add interrupted event after error event to ensure UI state updates correctly
-          setTimeout(() => {
-            addEvent({ 
-              event: 'task_interrupted', 
-              data: { message: errorMessage.includes('validation error') ? 
-                '由于数据验证错误，任务已被中断' : 
-                '由于模型API错误，任务已被中断' } 
-            } as TypedEvent<'task_interrupted'>);
-            
-            // Call the status change callback
-            onStatusChange('interrupted');
-          }, 100);
-        }
-      } catch {
-        addEvent({
-          event: 'error',
-          data: { message: 'SSE 解析错误: ' + (event.data || '未知错误') }
-        } as TypedEvent<'error'>);
-      }
-    } else {
-      // EventSource connection error, could be network issues or server closed the connection
-      console.error('SSE connection error without data');
-      
-      // Clear timeout checker
-      clearInterval(timeoutCheckerId);
-      
-      // Add error event
-      addEvent({
-        event: 'error',
-        data: { message: 'SSE 连接错误，任务可能已被终止' }
-      } as TypedEvent<'error'>);
-      
-      // Add interrupted event to update UI state
-      setTimeout(() => {
-        addEvent({ 
-          event: 'task_interrupted', 
-          data: { message: '连接中断，任务已终止' } 
-        } as TypedEvent<'task_interrupted'>);
-        
-        // Call the status change callback
-        onStatusChange('interrupted');
-      }, 100);
-    }
+    // Add error event to the log
+    addEvent({
+      event: 'error',
+      data: { message: '与服务器的连接中断，请检查您的网络连接或稍后再试。' }
+    } as TypedEvent<'error'>);
+    
+    // Update status to interrupted rather than staying in running
+    onStatusChange('interrupted');
+    
+    // Close the connection
+    eventSource.close();
   });
   
   eventSource.addEventListener('close', () => {
     clearInterval(timeoutCheckerId);
-  });
-  
-  eventSource.addEventListener('heartbeat', () => {
-    updateLastEventTime();
   });
   
   return eventSource;
@@ -249,10 +183,19 @@ export function setupEventSource(
  * Process the received event and update state accordingly
  */
 export function processEvent<T extends EventType>(event: TypedEvent<T>): { status: AgentStatus; sessionId: null; eventSource: null } | null {
-  // If it's a completion or interruption event, update the running status and close the event stream
-  if (event.event === 'task_complete' || event.event === 'task_interrupted') {
+  // If it's a completion event, update to completed status
+  if (event.event === 'task_complete') {
     return {
-      status: event.event === 'task_complete' ? 'completed' : 'interrupted',
+      status: 'completed',
+      sessionId: null,
+      eventSource: null
+    };
+  }
+  
+  // If it's an interruption event, update to interrupted status
+  if (event.event === 'task_interrupted') {
+    return {
+      status: 'interrupted',
       sessionId: null,
       eventSource: null
     };
@@ -273,7 +216,7 @@ export function processEvent<T extends EventType>(event: TypedEvent<T>): { statu
       errorMessage.includes('validation error') ||
       errorMessage.includes('pydantic')
     ) {
-      // For model API errors or validation errors, treat it like an interruption
+      // For model API errors or validation errors, transition to interrupted
       return {
         status: 'interrupted',
         sessionId: null,

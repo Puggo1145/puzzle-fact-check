@@ -8,7 +8,7 @@ import {
 import * as api from '@/api/agent-session';
 import { setupEventSource as setupEventSourceHandler, processEvent } from '@/lib/eventHandler';
 import type { AgentState } from '../types/types';
-import type { Event, EventType, TypedEvent } from '../types/events';
+import type { EventType, TypedEvent } from '../types/events';
 
 export const useAgentStore = create<AgentState>((set, get) => ({
   sessionId: null,
@@ -56,6 +56,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       status: 'running',
       finalReport: '',
     });
+
+    // add selected tools to search agent config
+    searcherConfig.selectedTools = selectedTools
     
     try {
       const data = await api.createAndRunAgent(
@@ -103,13 +106,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         errorMessage = error instanceof Error ? error.message : String(error);
       }
       
-      set({ 
-        status: 'idle',
-        events: [...get().events, {
-          event: 'error',
-          data: { message: errorMessage }
-        } as TypedEvent<'error'>]
-      });
+      // Add error event
+      get().addEvent({
+        event: 'error',
+        data: { message: errorMessage }
+      } as TypedEvent<'error'>);
+      
+      // Then transition to interrupted (not directly to idle)
+      set({ status: 'interrupted' });
     }
   },
 

@@ -9,7 +9,7 @@ import time
 import pubsub.pub as pub
 import openai
 
-from .models import CreateAgentConfig
+from .model import CreateAgentConfig
 from agents.main.graph import MainAgent
 from agents.main.events import MainAgentEvents
 from agents.main.states import CheckPoints, RetrievalResultVerification
@@ -338,36 +338,36 @@ class AgentService:
     
     def _get_model_instance_from_provider(
         self, 
-        model_provider: str,
-        model_name: str,
-        model_temperature: float = 0.0,
-        model_streaming: bool = True
+        provider: str,
+        model: str,
+        temperature: float = 0.0,
+        streaming: bool = True
     ) -> BaseChatOpenAI:
-        """根据模型提供商获取模型"""
+        """根据模型提供商获取模型，并注入从环境加载的API密钥"""
         from models import ChatQwen
         from langchain_openai import ChatOpenAI
         from langchain_deepseek import ChatDeepSeek
         
-        if model_provider == "openai":
+        if provider == "openai":
             return ChatOpenAI(
-                model=model_name, 
-                temperature=model_temperature, 
-                streaming=model_streaming
+                model=model, 
+                temperature=temperature, 
+                streaming=streaming,
             )
-        elif model_provider == "qwen":
+        elif provider == "qwen":
             return ChatQwen(
-                model=model_name, 
-                temperature=model_temperature, 
-                streaming=model_streaming
+                model=model, 
+                temperature=temperature, 
+                streaming=streaming,
             )
-        elif model_provider == "deepseek":
+        elif provider == "deepseek":
             return ChatDeepSeek(
-                model=model_name, 
-                temperature=model_temperature, 
-                streaming=model_streaming
+                model=model, 
+                temperature=temperature, 
+                streaming=streaming,
             )
         else:
-            raise ValueError(f"不支持的模型提供商: {model_provider}")
+            raise ValueError(f"不支持的模型提供商: {provider}")
         
     def run_agent(
         self, 
@@ -420,7 +420,6 @@ class AgentService:
                             "data": {"message": "任务被中断"}
                         })
                     return
-                
                 # 使用轮询方式检查中断状态
                 def should_continue():
                     # 安全检查 - 如果会话已不存在，返回False

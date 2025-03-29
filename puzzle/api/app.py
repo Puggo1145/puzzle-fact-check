@@ -8,7 +8,7 @@ import threading
 from pydantic import ValidationError
 
 from .service import agent_service
-from .models import FactCheckRequest
+from .model import FactCheckRequest
 
 # 配置日志
 logging.basicConfig(
@@ -75,8 +75,15 @@ def get_agent_events(session_id):
     def generate():
         event_count = 0
         task_completed = False
+        connection_closed = False
+        
         try:
             while True:
+                # 如果连接关闭，立即退出
+                if connection_closed:
+                    logger.info(f"Connection marked as closed for {client_id}, stopping stream")
+                    break
+                
                 # 如果任务已经完成，停止生成事件和心跳
                 if task_completed:
                     logger.info(f"Task completed for session {session_id}, stopping event stream")
@@ -120,9 +127,16 @@ def get_agent_events(session_id):
                         error_data = json.dumps({"error": f"处理事件错误: {str(e)}"})
                         yield f"event: error\ndata: {error_data}\n\n"
                 else:
-                    # 如果没有事件，发送一个 heartbeat 事件保持连接
-                    yield f"event: heartbeat\ndata: {json.dumps({'time': time.time()})}\n\n"
-                    time.sleep(1.0)  # 避免 CPU 过载
+                    # 短暂等待，避免CPU过载
+                    time.sleep(0.1)
+        except GeneratorExit:
+            # 浏览器关闭连接或客户端主动断开连接时会触发
+            logger.info(f"Client disconnected: GeneratorExit for {client_id}")
+            connection_closed = True
+        except Exception as e:
+            logger.error(f"Error in SSE stream for {client_id}: {str(e)}")
+            logger.error(traceback.format_exc())
+            connection_closed = True
         finally:
             # 当生成器关闭时，清理连接
             logger.info(f"SSE stream ended for client {client_id}, session {session_id}")
@@ -143,7 +157,12 @@ def get_agent_events(session_id):
                 logger.info(f"No more connections for session {session_id}, marking as disconnected")
                 agent_service.handle_client_disconnect(session_id)
     
-    return Response(generate(), mimetype="text/event-stream")
+    # 设置响应头，确保SSE连接不会被缓存
+    response = Response(generate(), mimetype="text/event-stream")
+    response.headers['Cache-Control'] = 'no-cache, no-transform'
+    response.headers['Connection'] = 'keep-alive'
+    response.headers['X-Accel-Buffering'] = 'no'  # 禁用Nginx缓冲
+    return response
 
 @app.route('/api/agents/<session_id>/interrupt', methods=['POST'])
 def interrupt_agent(session_id):

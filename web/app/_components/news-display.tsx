@@ -28,7 +28,7 @@ export const NewsDisplay = () => {
             break;
         case 'interrupted':
             StatusIcon = AlertTriangle;
-            statusText = "已中断";
+            statusText = "核查已中断";
             statusColor = "text-amber-500";
             break;
         case 'completed':
