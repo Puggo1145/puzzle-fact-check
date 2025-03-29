@@ -24,7 +24,7 @@ export type EventType =
     | 'task_interrupted'
     | 'error';
 
-export interface Event<T> {
+export interface Event<T=any> {
     event: EventType;
     data?: T;
 }

@@ -8,7 +8,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { ModelOption } from '@/lib/store';
+import { ModelOption } from '@/constants/agent-default-config';
 import { BrainIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

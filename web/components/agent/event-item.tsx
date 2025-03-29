@@ -16,7 +16,6 @@ import type {
   Status,
   SearchResult,
   Evidence,
-  FactCheckReportData
 } from '@/types/events';
 import {
   BrainCircuitIcon,
@@ -37,7 +36,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export const EventItem = ({ event }: { event: Event<any> }) => {
+// @eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const EventItem = ({ event }: { event: Event }) => {
   const { event: eventType, data } = event;
 
   const getEventIcon = () => {

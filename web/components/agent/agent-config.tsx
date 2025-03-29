@@ -3,15 +3,20 @@
 import React, { useMemo } from 'react';
 import { ModelSelector } from './model-selector';
 import { NumberInput } from './number-input';
-import type { AgentConfig, ModelOption } from '@/lib/store';
+import type { ModelOption } from '@/constants/agent-default-config';
+import type { 
+  MainAgentConfig,
+  MetadataExtractorConfig,
+  SearchAgentConfig
+} from '@/constants/agent-default-config';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { BotIcon, SearchIcon, InfoIcon } from 'lucide-react';
 
 interface AgentConfigProps {
   agentType: 'main' | 'metadata' | 'searcher';
-  config: AgentConfig;
+  config: MainAgentConfig | MetadataExtractorConfig | SearchAgentConfig;
   availableModels: ModelOption[];
-  onChange: (updatedConfig: Partial<AgentConfig>) => void;
+  onChange: (updatedConfig: Partial<MainAgentConfig | MetadataExtractorConfig | SearchAgentConfig>) => void;
   disabled?: boolean;
 }
 
@@ -75,11 +80,15 @@ export const AgentConfigPanel: React.FC<AgentConfigProps> = ({
   };
 
   const handleMaxRetriesChange = (value: number) => {
-    onChange({ maxRetries: value });
+    if (agentType === 'main') {
+      onChange({ maxRetries: value } as Partial<MainAgentConfig>);
+    }
   };
 
   const handleMaxSearchTokensChange = (value: number) => {
-    onChange({ maxSearchTokens: value });
+    if (agentType === 'searcher') {
+      onChange({ maxSearchTokens: value } as Partial<SearchAgentConfig>);
+    }
   };
 
   return (
@@ -109,7 +118,7 @@ export const AgentConfigPanel: React.FC<AgentConfigProps> = ({
           <div className="grid grid-cols-2 gap-2">
             {agentType === 'main' && (
               <NumberInput
-                value={config.maxRetries ?? 3}
+                value={(config as MainAgentConfig).maxRetries ?? 3}
                 onChange={handleMaxRetriesChange}
                 min={1}
                 max={10}
@@ -122,7 +131,7 @@ export const AgentConfigPanel: React.FC<AgentConfigProps> = ({
             {agentType === 'searcher' && (
               <>
                 <NumberInput
-                  value={config.maxSearchTokens ?? 10000}
+                  value={(config as SearchAgentConfig).maxSearchTokens ?? 10000}
                   onChange={handleMaxSearchTokensChange}
                   min={1000}
                   max={100000}

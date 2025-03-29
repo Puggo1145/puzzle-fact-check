@@ -238,7 +238,7 @@ export function setupEventSource(
     clearInterval(timeoutCheckerId);
   });
   
-  eventSource.addEventListener('heartbeat', (event) => {
+  eventSource.addEventListener('heartbeat', () => {
     updateLastEventTime();
   });
   

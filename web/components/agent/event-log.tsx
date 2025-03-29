@@ -66,7 +66,7 @@ export const EventLog: React.FC = () => {
               {status === 'running' || status === 'interrupting' ? "加载中..." : "点击开始核查以查看 Agent 执行过程"}
             </div>
           ) : (
-            events.map((event: Event<any>, index: number) => (
+            events.map((event: Event, index: number) => (
               <EventItem key={index} event={event} />
             ))
           )}
