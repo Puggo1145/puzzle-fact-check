@@ -5,18 +5,18 @@ from db import db_integration
 from .states import BasicMetadata, Knowledge, Knowledges
 
 class MetadataExtractAgentEvents(Enum):
-    STORE_BASIC_METADATA = "metadata_extractor.store_basic_metadata"
-    STORE_RETRIEVED_KNOWLEDGE = "metadata_extractor.store_retrieved_knowledge"
-    PRINT_EXTRACT_BASIC_METADATA_START = (
-        "metadata_extractor.print_extract_basic_metadata_start"
+    STORE_BASIC_METADATA = "store_basic_metadata"
+    STORE_RETRIEVED_KNOWLEDGE = "store_retrieved_knowledge"
+    EXTRACT_BASIC_METADATA_START = (
+        "extract_basic_metadata_start"
     )
-    PRINT_EXTRACT_BASIC_METADATA_END = (
-        "metadata_extractor.print_extract_basic_metadata_end"
+    EXTRACT_BASIC_METADATA_END = (
+        "extract_basic_metadata_end"
     )
-    PRINT_EXTRACT_KNOWLEDGE_START = "metadata_extractor.print_extract_knowledge_start"
-    PRINT_EXTRACT_KNOWLEDGE_END = "metadata_extractor.print_extract_knowledge_end"
-    PRINT_RETRIEVE_KNOWLEDGE_START = "metadata_extractor.print_retrieve_knowledge_start"
-    PRINT_RETRIEVE_KNOWLEDGE_END = "metadata_extractor.print_retrieve_knowledge_end"
+    EXTRACT_KNOWLEDGE_START = "extract_knowledge_start"
+    EXTRACT_KNOWLEDGE_END = "extract_knowledge_end"
+    RETRIEVE_KNOWLEDGE_START = "retrieve_knowledge_start"
+    RETRIEVE_KNOWLEDGE_END = "retrieve_knowledge_end"
 
 
 class DBEvents:
@@ -70,29 +70,29 @@ class CLIModeEvents:
         # LLM start events
         pub.subscribe(
             self.print_basic_metadata_start,
-            MetadataExtractAgentEvents.PRINT_EXTRACT_BASIC_METADATA_START.value,
+            MetadataExtractAgentEvents.EXTRACT_BASIC_METADATA_START.value,
         )
         pub.subscribe(
             self.print_knowledge_start,
-            MetadataExtractAgentEvents.PRINT_EXTRACT_KNOWLEDGE_START.value,
+            MetadataExtractAgentEvents.EXTRACT_KNOWLEDGE_START.value,
         )
         pub.subscribe(
             self.print_retrieve_knowledge_start,
-            MetadataExtractAgentEvents.PRINT_RETRIEVE_KNOWLEDGE_START.value,
+            MetadataExtractAgentEvents.RETRIEVE_KNOWLEDGE_START.value,
         )
 
         # LLM end events
         pub.subscribe(
             self.print_basic_metadata_end,
-            MetadataExtractAgentEvents.PRINT_EXTRACT_BASIC_METADATA_END.value,
+            MetadataExtractAgentEvents.EXTRACT_BASIC_METADATA_END.value,
         )
         pub.subscribe(
             self.print_knowledge_end,
-            MetadataExtractAgentEvents.PRINT_EXTRACT_KNOWLEDGE_END.value,
+            MetadataExtractAgentEvents.EXTRACT_KNOWLEDGE_END.value,
         )
         pub.subscribe(
             self.print_retrieve_knowledge_end,
-            MetadataExtractAgentEvents.PRINT_RETRIEVE_KNOWLEDGE_END.value,
+            MetadataExtractAgentEvents.RETRIEVE_KNOWLEDGE_END.value,
         )
 
     def _print_colored(self, text, color="blue", bold=False):
@@ -190,7 +190,7 @@ class CLIModeEvents:
             for item in metadata.how:
                 self._print_colored(f"  • {item}", "blue")
 
-    def _print_knowledges(self, knowledges):
+    def _print_knowledges(self, knowledges: Knowledges):
         """打印知识元信息"""
         self._print_colored("\n🧩 知识元列表:", "cyan", True)
 
@@ -203,16 +203,13 @@ class CLIModeEvents:
             self._print_colored(f"  术语: {item.term}", "cyan")
             self._print_colored(f"  类别: {item.category}", "cyan")
 
-            if hasattr(item, "definition") and item.definition:
-                self._print_colored(f"  定义: {item.definition}", "cyan")
-
-            if hasattr(item, "importance") and item.importance:
-                self._print_colored(f"  重要性: {item.importance}", "cyan")
+            if hasattr(item, "description") and item.description:
+                self._print_colored(f"  定义: {item.description}", "cyan")
 
             if hasattr(item, "source") and item.source:
                 self._print_colored(f"  来源: {item.source}", "cyan")
 
-    def _print_retrieved_knowledge(self, knowledge):
+    def _print_retrieved_knowledge(self, knowledge: Knowledge):
         """打印检索到的知识元定义"""
         self._print_colored("\n📚 知识元检索结果:", "green", True)
 

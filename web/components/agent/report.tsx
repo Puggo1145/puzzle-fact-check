@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
-import { useAgentStore } from '@/lib/store';
+import { useAgentStore } from '@/stores/use-agent-store';
 import {
   Card,
   CardContent,

@@ -1,7 +1,23 @@
 'use client';
 
-import React from 'react';
-import { Event } from '@/lib/store';
+import type {
+  Event,
+  CheckPoints,
+  CheckPoint,
+  BasicMetadata,
+  Knowledge,
+  LLMDecisionData,
+  ToolStartData,
+  RetrievalResultVerification,
+  TaskCompleteData,
+  TaskInterruptedData,
+  ErrorData,
+  SearchAgentStartData,
+  Status,
+  SearchResult,
+  Evidence,
+  FactCheckReportData
+} from '@/types/events';
 import {
   BrainCircuitIcon,
   CheckCircleIcon,
@@ -16,39 +32,17 @@ import {
   WrenchIcon,
   ClipboardListIcon,
   BookOpenIcon,
-  SparklesIcon,
   StopCircleIcon,
   SparkleIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface EventItemProps {
-  event: Event;
-}
-
-// Define interfaces for the checkpoint data
-interface CheckPointStep {
-  purpose: string;
-  [key: string]: unknown;
-}
-
-interface CheckPoint {
-  is_verification_point: boolean;
-  content: string;
-  importance?: string;
-  retrieval_step?: CheckPointStep[];
-  [key: string]: unknown;
-}
-
-export const EventItem: React.FC<EventItemProps> = ({ event }) => {
+export const EventItem = ({ event }: { event: Event<any> }) => {
   const { event: eventType, data } = event;
-  
+
   const getEventIcon = () => {
     switch (eventType) {
-      case 'agent_created':
-        return <SparklesIcon className="size-4" />;
-      case 'run_started':
-      case 'task_start':
+      case 'agent_start':
         return <PlayIcon className="size-4" />;
       case 'extract_check_point_start':
       case 'extract_check_point_end':
@@ -63,8 +57,8 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
         return <BookOpenIcon className="size-4" />;
       case 'search_agent_start':
         return <SearchIcon className="size-4" />;
-      case 'evaluate_status_start':
-      case 'status_evaluation_end':
+      case 'evaluate_current_status_start':
+      case 'evaluate_current_status_end':
         return <BrainCircuitIcon className="size-4" />;
       case 'tool_start':
       case 'tool_result':
@@ -75,7 +69,7 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
       case 'evaluate_search_result_start':
         return <SparkleIcon className="size-4" />;
       case 'evaluate_search_result_end':
-        return data?.verification_result?.verified ? <ThumbsUpIcon className="size-4" /> : <ThumbsDownIcon className="size-4" />;
+        return (data as RetrievalResultVerification).verified ? <ThumbsUpIcon className="size-4" /> : <ThumbsDownIcon className="size-4" />;
       case 'write_fact_checking_report_start':
       case 'write_fact_checking_report_end':
         return <FileTextIcon className="size-4" />;
@@ -91,19 +85,15 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
         return <ClipboardListIcon className="size-4" />;
     }
   };
-  
+
   const getEventTitle = () => {
     switch (eventType) {
-      case 'agent_created':
-        return data.message;
-      case 'run_started':
-        return '开始核查流程';
-      case 'task_start':
-        return data.message || '任务开始执行';
+      case 'agent_start':
+        return '事实核查开始';
       case 'extract_check_point_start':
-        return '正在提取核查点（这可能需要一些时间）';
+        return '正在提取核查点，这可能需要一些时间...';
       case 'extract_check_point_end':
-        return '核查点提取成功';
+        return '核查点提取完成';
       case 'extract_basic_metadata_start':
         return '开始提取新闻元数据';
       case 'extract_basic_metadata_end':
@@ -111,51 +101,54 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
       case 'extract_knowledge_start':
         return '开始提取知识元';
       case 'extract_knowledge_end':
-        return '知识元素提取完成';
+        return '知识元提取完成';
       case 'retrieve_knowledge_start':
         return '开始检索知识定义';
       case 'retrieve_knowledge_end':
         return '知识定义检索完成';
       case 'search_agent_start':
-        return '搜索代理已激活';
-      case 'evaluate_status_start':
-        return data.message || '评估搜索状态';
-      case 'status_evaluation_end':
-        return '搜索状态评估完成';
+        return '检索智能体已激活';
+      case 'evaluate_current_status_start':
+        return '正在评估当前检索状态...';
+      case 'evaluate_current_status_end':
+        return '检索状态评估完成';
       case 'tool_start':
-        return `使用工具: ${data.tool_name}`;
+        const toolData = data as ToolStartData;
+        return `使用工具: ${toolData?.tool_name || ''}`;
       case 'tool_result':
         return '工具执行完成';
       case 'generate_answer_start':
-        return data.message || '开始生成回答';
+        return '正在生成检索结论...';
       case 'generate_answer_end':
-        return '回答生成完成';
+        return '检索结论生成完成';
       case 'evaluate_search_result_start':
-        return '开始评估搜索结果';
+        return '正在评估检索结果...';
       case 'evaluate_search_result_end':
-        return '搜索结果评估完成';
+        return '检索结果评估完成';
       case 'write_fact_checking_report_start':
-        return '开始撰写核查报告';
+        return '开始撰写核查报告...';
       case 'write_fact_checking_report_end':
         return '核查报告撰写完成';
       case 'llm_decision':
-        return `LLM 决策: ${data.decision}`;
+        const decisionData = data as LLMDecisionData;
+        return `LLM 决策: ${decisionData?.decision || ''}`;
       case 'task_complete':
-        return data.message || '任务完成';
+        const completeData = data as TaskCompleteData;
+        return completeData?.message || '任务完成';
       case 'task_interrupted':
-        return data.message || '任务已中断';
+        const interruptData = data as TaskInterruptedData;
+        return interruptData?.message || '任务已中断';
       case 'error':
-        return data.message || '发生错误';
+        const errorData = data as ErrorData;
+        return errorData?.message || '发生错误';
       default:
         return eventType;
     }
   };
-  
+
   const getEventClass = () => {
     switch (eventType) {
-      case 'agent_created':
-      case 'run_started':
-      case 'task_start':
+      case 'agent_start':
         return 'bg-blue-50 border-blue-100 text-blue-700';
       case 'extract_check_point_start':
       case 'extract_check_point_end':
@@ -168,18 +161,17 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
       case 'retrieve_knowledge_end':
         return 'bg-purple-50 border-purple-100 text-purple-700';
       case 'search_agent_start':
-      case 'evaluate_status_start':
-      case 'status_evaluation_end':
+      case 'evaluate_current_status_start':
+      case 'evaluate_current_status_end':
       case 'generate_answer_start':
-        case 'generate_answer_end':
-            return 'bg-cyan-50 border-cyan-100 text-cyan-700';
+      case 'generate_answer_end':
+        return 'bg-cyan-50 border-cyan-100 text-cyan-700';
       case 'tool_start':
-        return 'bg-blue-50 border-blue-100 text-blue-700';
       case 'tool_result':
         return 'bg-blue-50 border-blue-100 text-blue-700';
       case 'evaluate_search_result_start':
       case 'evaluate_search_result_end':
-        return data?.verification_result?.verified 
+        return (data as RetrievalResultVerification)?.verified
           ? 'bg-green-50 border-green-100 text-green-700'
           : 'bg-amber-50 border-amber-100 text-amber-700';
       case 'write_fact_checking_report_start':
@@ -197,28 +189,29 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
         return 'bg-gray-50 border-gray-100 text-gray-700';
     }
   };
-  
+
   const renderEventDetail = () => {
     switch (eventType) {
       case 'extract_check_point_end':
-        if (data.check_points?.items?.length) {
+        const checkPoints = data as CheckPoints;
+        if (checkPoints.items?.length) {
           return (
             <div className="mt-2 space-y-2">
               <p className="text-sm font-medium">
-                Found {data.check_points.items.length} verification points:
+                找到 {checkPoints.items.length} 个核查点:
               </p>
-              {data.check_points.items
+              {checkPoints.items
                 .filter((cp: CheckPoint) => cp.is_verification_point)
                 .map((cp: CheckPoint, idx: number) => (
                   <div key={idx} className="p-2 bg-white rounded-md border">
-                    <p className="text-sm font-medium">Point {idx + 1}: {cp.content}</p>
+                    <p className="text-sm font-medium">核查点 {idx + 1}: {cp.content}</p>
                     {cp.importance && (
-                      <p className="text-xs text-gray-600">Reason: {cp.importance}</p>
+                      <p className="text-xs text-gray-600">重要性: {cp.importance}</p>
                     )}
                     {cp.retrieval_step && cp.retrieval_step.length > 0 && (
                       <div className="mt-1">
-                        <p className="text-xs font-medium">Retrieval plan:</p>
-                        {cp.retrieval_step.map((step: CheckPointStep, stepIdx: number) => (
+                        <p className="text-xs font-medium">检索步骤:</p>
+                        {cp.retrieval_step.map((step, stepIdx: number) => (
                           <p key={stepIdx} className="text-xs text-gray-600">• {step.purpose}</p>
                         ))}
                       </div>
@@ -229,166 +222,208 @@ export const EventItem: React.FC<EventItemProps> = ({ event }) => {
           );
         }
         return null;
-        
+
       case 'extract_basic_metadata_end':
-        if (data.basic_metadata) {
-          return (
-            <div className="mt-2 space-y-1">
-              <p className="text-xs"><span className="font-medium">Type:</span> {data.basic_metadata.news_type || 'Unknown'}</p>
-              <p className="text-xs"><span className="font-medium">Title:</span> {data.basic_metadata.title || 'Unknown'}</p>
-              <p className="text-xs"><span className="font-medium">Time:</span> {data.basic_metadata.time || 'Unknown'}</p>
-              {data.basic_metadata.who && data.basic_metadata.who.length > 0 && (
-                <p className="text-xs"><span className="font-medium">Who:</span> {data.basic_metadata.who.join(', ')}</p>
-              )}
-              {data.basic_metadata.where && data.basic_metadata.where.length > 0 && (
-                <p className="text-xs"><span className="font-medium">Where:</span> {data.basic_metadata.where.join(', ')}</p>
-              )}
-            </div>
-          );
-        }
-        return null;
-        
-      case 'extract_knowledge_end':
-        if (data.knowledges?.length) {
-          return (
-            <p className="mt-2 text-xs">
-              Found {data.knowledges.length} knowledge elements
-            </p>
-          );
-        }
-        return null;
-        
-      case 'retrieve_knowledge_end':
-        if (data.retrieved_knowledge) {
-          const knowledge = data.retrieved_knowledge;
-          return (
-            <div className="mt-2 space-y-1">
-              <p className="text-xs"><span className="font-medium">Term:</span> {knowledge.term || 'Unknown'}</p>
-              <p className="text-xs"><span className="font-medium">Definition:</span> {
-                // 首先尝试使用definition字段，如果没有则尝试description字段
-                knowledge.definition || knowledge.description || 'Unknown'
-              }</p>
-              {knowledge.category && (
-                <p className="text-xs"><span className="font-medium">Category:</span> {knowledge.category}</p>
-              )}
-              {knowledge.source && (
-                <p className="text-xs"><span className="font-medium">Source:</span> {knowledge.source}</p>
-              )}
-            </div>
-          );
-        }
-        return null;
-        
-      case 'search_agent_start':
+        const basicMetadata = data as BasicMetadata;
         return (
           <div className="mt-2 space-y-1">
-            <p className="text-xs"><span className="font-medium">Content:</span> {data.content}</p>
-            <p className="text-xs"><span className="font-medium">Purpose:</span> {data.purpose}</p>
-          </div>
-        );
-        
-      case 'status_evaluation_end':
-        if (data.status) {
-          return (
-            <div className="mt-2 space-y-1">
-              <p className="text-xs"><span className="font-medium">Evaluation:</span> {data.status.evaluation || 'No evaluation available'}</p>
-              <p className="text-xs"><span className="font-medium">Next step:</span> {data.status.next_step || 'No next step defined'}</p>
-              {data.status.missing_information && (
-                <p className="text-xs"><span className="font-medium">Missing info:</span> {data.status.missing_information}</p>
-              )}
-              {data.status.memory && (
-                <p className="text-xs"><span className="font-medium">Memory:</span> {data.status.memory}</p>
-              )}
-              {data.status.action && data.status.action !== 'answer' && Array.isArray(data.status.action) && (
-                <p className="text-xs"><span className="font-medium">Action:</span> Use tool{data.status.action.length > 1 ? 's' : ''}</p>
-              )}
-              {data.status.action === 'answer' && (
-                <p className="text-xs"><span className="font-medium">Action:</span> Generate answer</p>
-              )}
-            </div>
-          );
-        }
-        return null;
-        
-      case 'tool_start':
-        return (
-          <p className="mt-2 text-xs">
-            <span className="font-medium">Input:</span> {data.input}
-          </p>
-        );
-        
-      case 'tool_result':
-        return (
-          <div className="mt-2">
-            <p className="text-xs font-medium">Result:</p>
-            <div className="mt-1 p-2 bg-white rounded-md border text-xs font-mono whitespace-pre-wrap overflow-x-auto max-h-32">
-              {typeof data.output === 'string' ? data.output : JSON.stringify(data.output, null, 2)}
-            </div>
-          </div>
-        );
-        
-      case 'generate_answer_end':
-        if (data.result) {
-          return (
-            <div className="mt-2 space-y-1">
-              <p className="text-xs"><span className="font-medium">Conclusion:</span> {data.result.conclusion}</p>
-              <p className="text-xs"><span className="font-medium">Confidence:</span> {data.result.confidence}</p>
-            </div>
-          );
-        }
-        return null;
-        
-      case 'evaluate_search_result_end':
-        if (data.verification_result) {
-          const vr = data.verification_result;
-          return (
-            <div className="mt-2 space-y-1">
-              <p className="text-xs">
-                <span className="font-medium">Result:</span> {vr.verified ? 'Verified ✓' : 'Not Verified ×'}
-              </p>
-              <p className="text-xs"><span className="font-medium">Reasoning:</span> {vr.reasoning}</p>
-            </div>
-          );
-        }
-        return null;
-        
-      case 'llm_decision':
-        if (data.reason) {
-          return (
-            <p className="mt-2 text-xs">
-              <span className="font-medium">Reason:</span> {data.reason}
+            <p className="text-xs"><span className="font-medium">新闻类型: </span>
+              {basicMetadata.news_type || '未知'}
             </p>
+            <p className="text-xs"><span className="font-medium">人物: </span>
+              {Array.isArray(basicMetadata.who) ? basicMetadata.who.join(', ') : '无'}
+            </p>
+            <p className="text-xs"><span className="font-medium">时间: </span>
+              {Array.isArray(basicMetadata.when) ? basicMetadata.when.join(', ') : '无'}
+            </p>
+            <p className="text-xs"><span className="font-medium">地点: </span>
+              {Array.isArray(basicMetadata.where) ? basicMetadata.where.join(', ') : '无'}
+            </p>
+            <p className="text-xs"><span className="font-medium">事件: </span>
+              {Array.isArray(basicMetadata.what) ? basicMetadata.what.join(', ') : '无'}
+            </p>
+            <p className="text-xs"><span className="font-medium">原因: </span>
+              {Array.isArray(basicMetadata.why) ? basicMetadata.why.join(', ') : '无'}
+            </p>
+            <p className="text-xs"><span className="font-medium">过程: </span>
+              {Array.isArray(basicMetadata.how) ? basicMetadata.how.join(', ') : '无'}
+            </p>
+          </div>
+        );
+
+      case 'extract_knowledge_end':
+        const knowledges = data as Knowledge[];
+        if (knowledges.length) {
+          return (
+            <div className="mt-2 space-y-2">
+              <p className="text-sm font-medium">
+                提取到 {knowledges.length} 个知识元:
+              </p>
+              {knowledges.map((knowledge: Knowledge, idx: number) => (
+                <div key={idx} className="p-2 bg-white rounded-md border">
+                  <p className="text-xs"><span className="font-medium">术语:</span> {knowledge.term}</p>
+                  <p className="text-xs"><span className="font-medium">类别:</span> {knowledge.category}</p>
+                  {knowledge.description && (
+                    <p className="text-xs"><span className="font-medium">描述:</span> {knowledge.description}</p>
+                  )}
+                  {knowledge.source && (
+                    <p className="text-xs"><span className="font-medium">来源:</span> {knowledge.source}</p>
+                  )}
+                </div>
+              ))}
+            </div>
           );
         }
         return null;
-        
+
+      case 'retrieve_knowledge_end':
+        const retrievedKnowledge = data as Knowledge;
+        return (
+          <div className="mt-2 space-y-1">
+            <p className="text-xs"><span className="font-medium">术语:</span> {retrievedKnowledge.term}</p>
+            <p className="text-xs"><span className="font-medium">类别:</span> {retrievedKnowledge.category}</p>
+            <p className="text-xs"><span className="font-medium">定义:</span> {retrievedKnowledge.description || '未检索到定义'}</p>
+            {retrievedKnowledge.source && (
+              <p className="text-xs"><span className="font-medium">来源:</span> {retrievedKnowledge.source}</p>
+            )}
+          </div>
+        );
+
+      case 'search_agent_start':
+        const searchData = data as SearchAgentStartData;
+        if (searchData) {
+          return (
+            <div className="mt-2 space-y-1">
+              <p className="text-xs"><span className="font-medium">内容:</span> {searchData.content}</p>
+              <p className="text-xs"><span className="font-medium">目的:</span> {searchData.purpose}</p>
+              {searchData.expected_sources && searchData.expected_sources.length > 0 && (
+                <p className="text-xs">
+                  <span className="font-medium">预期来源:</span> {searchData.expected_sources.join(', ')}
+                </p>
+              )}
+            </div>
+          );
+        }
+        return null;
+
+      case 'evaluate_current_status_end':
+        const statusData = data as Status;
+        if (statusData) {
+          return (
+            <div className="mt-2 space-y-1">
+              <p className="text-xs"><span className="font-medium">评估:</span> {statusData.evaluation}</p>
+              <p className="text-xs"><span className="font-medium">缺失信息:</span> {statusData.missing_information}</p>
+              {statusData.memory && (
+                <p className="text-xs"><span className="font-medium">记忆:</span> {statusData.memory}</p>
+              )}
+              <p className="text-xs"><span className="font-medium">下一步:</span> {statusData.next_step}</p>
+              
+              {statusData.new_evidence && statusData.new_evidence.length > 0 && (
+                <div className="mt-1">
+                  <p className="text-xs font-medium">新证据:</p>
+                  {statusData.new_evidence.map((evidence: Evidence, idx: number) => (
+                    <div key={idx} className="p-2 bg-white rounded-md border mt-1">
+                      <p className="text-xs"><span className="font-medium">内容:</span> {evidence.content}</p>
+                      <p className="text-xs"><span className="font-medium">关系:</span> {evidence.relationship === 'support' ? '支持' : '反驳'}</p>
+                      <p className="text-xs"><span className="font-medium">推理:</span> {evidence.reasoning}</p>
+                      {evidence.source && Object.keys(evidence.source).length > 0 && (
+                        <p className="text-xs"><span className="font-medium">来源:</span> {Object.entries(evidence.source).map(([k, v]) => `${k}: ${v}`).join(', ')}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        }
+        return null;
+
+      case 'evaluate_search_result_end':
+        const verificationResult = data as RetrievalResultVerification;
+        return (
+          <div className="mt-2 space-y-1">
+            <p className="text-xs"><span className="font-medium">核验结论:</span> {verificationResult.verified ? '认可' : '不认可'}</p>
+            <p className="text-xs"><span className="font-medium">推理:</span> {verificationResult.reasoning}</p>
+            {verificationResult.updated_purpose && (
+              <p className="text-xs"><span className="font-medium">更新后的检索目的:</span> {verificationResult.updated_purpose}</p>
+            )}
+            {verificationResult.updated_expected_sources && (
+              <p className="text-xs"><span className="font-medium">更新后的检索预期来源:</span> {verificationResult.updated_expected_sources.join(', ')}</p>
+            )}
+          </div>
+        );
+
+      case 'generate_answer_end':
+        const resultData = data as SearchResult;
+        if (resultData) {
+          return (
+            <div className="mt-2 space-y-1">
+              <p className="text-xs"><span className="font-medium">概要:</span> {resultData.summary}</p>
+              <p className="text-xs"><span className="font-medium">结论:</span> {resultData.conclusion}</p>
+              <p className="text-xs"><span className="font-medium">置信度:</span> {resultData.confidence}</p>
+            </div>
+          );
+        }
+        return null;
+
+      case 'tool_start':
+        const toolData = data as ToolStartData;
+        if (toolData) {
+          return (
+            <div className="mt-2 space-y-1">
+              <p className="text-xs break-all"><span className="font-medium">输入:</span> {toolData.input}</p>
+            </div>
+          );
+        }
+        return null;
+
+      case 'tool_result':
+        if (data) {
+          return (
+            <div className="mt-2 space-y-1">
+              <p className="text-xs break-all">
+                <span className="font-medium">输出:</span>
+                {data}
+              </p>
+            </div>
+          );
+        }
+        return null;
+
+      case 'llm_decision':
+        const decisionData = data as LLMDecisionData;
+        if (decisionData) {
+          return (
+            <div className="mt-2 space-y-1">
+              <p className="text-xs"><span className="font-medium">决策:</span> {decisionData.decision}</p>
+              {decisionData.reason && (
+                <p className="text-xs"><span className="font-medium">原因:</span> {decisionData.reason}</p>
+              )}
+            </div>
+          );
+        }
+        return null;
+
       default:
         return null;
     }
   };
-  
+
   return (
-    <div className={cn("p-3 rounded-lg border", getEventClass())}>
-      <div className="flex gap-2 items-start">
-        <div className="mt-0.5 flex-shrink-0">
-          {getEventIcon()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium">{getEventTitle()}</p>
-          {renderEventDetail()}
-        </div>
-        <div className="flex-shrink-0 text-xs text-gray-500">
-          {event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : ''}
-        </div>
+    <div className={cn("p-3 rounded-md border transition-colors", getEventClass())}>
+      <div className="flex items-center gap-2">
+        {getEventIcon()}
+        <div className="text-sm font-medium">{getEventTitle()}</div>
       </div>
+      {renderEventDetail()}
     </div>
   );
 };
 
-// Custom Play icon since it's not in lucide-react by default
 const PlayIcon = ({ className }: { className?: string }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
+    className={className}
     width="24"
     height="24"
     viewBox="0 0 24 24"
@@ -397,8 +432,7 @@ const PlayIcon = ({ className }: { className?: string }) => (
     strokeWidth="2"
     strokeLinecap="round"
     strokeLinejoin="round"
-    className={className}
   >
-    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+    <polygon points="5 3 19 12 5 21 5 3" />
   </svg>
 ); 

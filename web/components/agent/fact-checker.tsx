@@ -1,11 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useAgentStore } from '@/lib/store';
-import { EventLog } from './event-log';
-import { Report } from './report';
-import { AgentConfigPanel } from './agent-config';
-import { Button } from '../ui/button';
+import { useState, useEffect } from 'react';
+// ui
+import { Button } from '@/components/ui/button';
+// components
+import { EventLog } from '@/components/agent/event-log';
+import { Report } from '@/components/agent/report';
+import { AgentConfigPanel } from '@/components/agent/agent-config';
+// stores
+import { useAgentStore } from '@/stores/use-agent-store';
+// icons
 import { ArrowUpIcon, RefreshCw, CogIcon, XIcon, StopCircleIcon } from 'lucide-react';
 
 export const FactChecker: React.FC = () => {
@@ -17,17 +21,15 @@ export const FactChecker: React.FC = () => {
     interruptAgent,
     resetState,
     closeEventSource,
-    // Agent configurations
+    // Agent configs
     mainAgentConfig,
     metadataExtractorConfig,
     searcherConfig,
-    // Available models
     availableModels,
-    // Action handlers
     setMainAgentConfig,
     setMetadataExtractorConfig,
     setSearcherConfig,
-    createAndRunAgent // New combined method
+    createAndRunAgent
   } = useAgentStore();
   
   // Derive isRunning and isInterrupting from status

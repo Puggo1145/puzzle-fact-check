@@ -1,7 +1,7 @@
 "use client"
 
 import { SparkleIcon } from "lucide-react"
-import { useAgentStore } from "@/lib/store"
+import { useAgentStore } from "@/stores/use-agent-store"
 import { cn } from "@/lib/utils"
 
 export const Hero = () => {

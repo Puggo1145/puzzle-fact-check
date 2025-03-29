@@ -34,8 +34,8 @@ class MetadataExtractAgentGraph(BaseAgent):
         self.tools = [SearchWikipediaTool()]
         self.model_with_tools = self.model.bind_tools(tools=self.tools)
         
-        # self.db_events = DBEvents()
         if mode == "CLI":
+            self.db_events = DBEvents()
             self.cli_events = CLIModeEvents()
         
     def _build_graph(self) -> CompiledStateGraph:
@@ -64,13 +64,14 @@ class MetadataExtractAgentGraph(BaseAgent):
         Returns:
             包含新闻基本元数据的字典，包括新闻类型和六要素
         """
-        pub.sendMessage(MetadataExtractAgentEvents.PRINT_EXTRACT_BASIC_METADATA_START.value)
+        pub.sendMessage(MetadataExtractAgentEvents.EXTRACT_BASIC_METADATA_START.value)
         
         prompt = basic_metadata_extractor_prompt_template.format(news_text=state.news_text)
         basic_metadata = self.model.with_structured_output(BasicMetadata).invoke(prompt)
+        print(basic_metadata)
         
         pub.sendMessage(
-            MetadataExtractAgentEvents.PRINT_EXTRACT_BASIC_METADATA_END.value,
+            MetadataExtractAgentEvents.EXTRACT_BASIC_METADATA_END.value,
             basic_metadata=basic_metadata
         )
         pub.sendMessage(
@@ -87,13 +88,13 @@ class MetadataExtractAgentGraph(BaseAgent):
         Returns:
             包含知识元素的字典
         """
-        pub.sendMessage(MetadataExtractAgentEvents.PRINT_EXTRACT_KNOWLEDGE_START.value)
+        pub.sendMessage(MetadataExtractAgentEvents.EXTRACT_KNOWLEDGE_START.value)
         
         prompt = knowledge_extraction_prompt_template.format(news_text=state.news_text)
         knowledges = self.model.with_structured_output(Knowledges).invoke(prompt)
         
         pub.sendMessage(
-            MetadataExtractAgentEvents.PRINT_EXTRACT_KNOWLEDGE_END.value,
+            MetadataExtractAgentEvents.EXTRACT_KNOWLEDGE_END.value,
             knowledges=knowledges
         )
         
@@ -113,7 +114,7 @@ class MetadataExtractAgentGraph(BaseAgent):
         """
         使用维基百科检索每个知识元的定义
         """
-        pub.sendMessage(MetadataExtractAgentEvents.PRINT_RETRIEVE_KNOWLEDGE_START.value)
+        pub.sendMessage(MetadataExtractAgentEvents.RETRIEVE_KNOWLEDGE_START.value)
         
         sub_graph = create_react_agent(
             model=self.model,
@@ -129,7 +130,7 @@ class MetadataExtractAgentGraph(BaseAgent):
         retrieved_knowledge: Knowledge = response["structured_response"]
         
         pub.sendMessage(
-            MetadataExtractAgentEvents.PRINT_RETRIEVE_KNOWLEDGE_END.value,
+            MetadataExtractAgentEvents.RETRIEVE_KNOWLEDGE_END.value,
             retrieved_knowledge=retrieved_knowledge
         )
         pub.sendMessage(

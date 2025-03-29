@@ -4,12 +4,12 @@ from pydantic import BaseModel, Field
 
 class BasicMetadata(BaseModel):
     news_type: str = Field(description="新闻类型")
-    who: Optional[List[str]] = Field(description="新闻中的主要人物或组织", default=None)
-    when: Optional[List[str]] = Field(description="事件发生时间", default=None)
-    where: Optional[List[str]] = Field(description="事件发生地点", default=None)
-    what: Optional[List[str]] = Field(description="新闻中发生的主要事件", default=None)
-    why: Optional[List[str]] = Field(description="事件发生原因", default=None)
-    how: Optional[List[str]] = Field(description="事件发生过程", default=None)
+    who: Optional[List[Optional[str]]] = Field(description="新闻中的主要人物或组织", default=None)
+    when: Optional[List[Optional[str]]] = Field(description="事件发生时间", default=None)
+    where: Optional[List[Optional[str]]] = Field(description="事件发生地点", default=None)
+    what: Optional[List[Optional[str]]] = Field(description="新闻中发生的主要事件", default=None)
+    why: Optional[List[Optional[str]]] = Field(description="事件发生原因", default=None)
+    how: Optional[List[Optional[str]]] = Field(description="事件发生过程", default=None)
     
     def serialize_for_llm(self) -> Dict[str, Any]:
         """将 BasicMetadata 序列化为 LLM 友好的字典格式"""

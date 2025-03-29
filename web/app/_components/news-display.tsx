@@ -1,6 +1,6 @@
 "use client"
 
-import { useAgentStore } from "@/lib/store";
+import { useAgentStore } from "@/stores/use-agent-store";
 import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 

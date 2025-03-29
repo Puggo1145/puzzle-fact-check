@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { useAgentStore } from '@/lib/store';
+import { useAgentStore } from '@/stores/use-agent-store';
 import { EventItem } from './event-item';
 import { ChevronDownIcon, ChevronUpIcon } from 'lucide-react';
+import { Event } from '@/types/events';
 
 export const EventLog: React.FC = () => {
   const { events, status, finalReport } = useAgentStore();
@@ -65,7 +66,7 @@ export const EventLog: React.FC = () => {
               {status === 'running' || status === 'interrupting' ? "加载中..." : "点击开始核查以查看 Agent 执行过程"}
             </div>
           ) : (
-            events.map((event, index) => (
+            events.map((event: Event<any>, index: number) => (
               <EventItem key={index} event={event} />
             ))
           )}

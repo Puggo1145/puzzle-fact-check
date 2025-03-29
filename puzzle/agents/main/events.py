@@ -8,20 +8,20 @@ from .states import RetrievalResultVerification, CheckPoints
 
 class MainAgentEvents(Enum):
     # DB 相关事件
-    STORE_NEWS_TEXT = "main.store_news_text"
+    STORE_NEWS_TEXT = "store_news_text"
     
     # Node 开始事件
-    EXTRACT_CHECK_POINT_START = "main.extract_check_point_start"
-    EVALUATE_SEARCH_RESULT_START = "main.evaluate_search_result_start"
-    WRITE_FACT_CHECKING_REPORT_START = "main.write_fact_checking_report_start"
+    EXTRACT_CHECK_POINT_START = "extract_check_point_start"
+    EVALUATE_SEARCH_RESULT_START = "evaluate_search_result_start"
+    WRITE_FACT_CHECKING_REPORT_START = "write_fact_checking_report_start"
     
     # Node 结束事件
-    EXTRACT_CHECK_POINT_END = "main.extract_check_point_end"
-    EVALUATE_SEARCH_RESULT_END = "main.evaluate_search_result_end"
-    WRITE_FACT_CHECKING_REPORT_END = "main.write_fact_checking_report_end"
+    EXTRACT_CHECK_POINT_END = "extract_check_point_end"
+    EVALUATE_SEARCH_RESULT_END = "evaluate_search_result_end"
+    WRITE_FACT_CHECKING_REPORT_END = "write_fact_checking_report_end"
     
     # LLM 决策
-    LLM_DECISION = "main.llm_decision"
+    LLM_DECISION = "llm_decision"
     
 
 class DBEvents:
@@ -41,14 +41,6 @@ class DBEvents:
 
     def store_news_text_to_db(self, news_text: str) -> None:
         db_integration.initialize_with_news_text(news_text)
-
-
-class APIMode:
-    """
-    API模式事件处理，主要用于标记agent运行在API模式下
-    """
-    def __init__(self):
-        pass
 
 
 class CLIModeEvents:

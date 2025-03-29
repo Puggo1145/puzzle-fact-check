@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import { Fira_Sans, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
+// components
 import { Header } from "@/components/header";
+// providers
 import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
 
 const firaSans = Fira_Sans({
   subsets: ["latin"],
@@ -31,13 +34,14 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`bg-muted ${firaSans.variable} ${playfairDisplay.variable}`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <div className="w-full h-screen flex flex-col items-center">
+          <div className="w-screen h-screen flex flex-col">
             <Header />
-            <div className="flex-1 w-full overflow-hidden">
+            <div className="w-full flex-1">
               {children}
             </div>
           </div>
         </ThemeProvider>
+        <Toaster />
       </body>
     </html>
   );

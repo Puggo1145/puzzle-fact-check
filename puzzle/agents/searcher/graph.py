@@ -134,7 +134,7 @@ class SearchAgentGraph(BaseAgent):
             expected_sources=state.expected_sources,
         )
         pub.sendMessage(
-            SearchAgentEvents.PRINT_SEARCH_AGENT_START.value,
+            SearchAgentEvents.SEARCH_AGENT_START.value,
             content=state.content,
             purpose=state.purpose,
             expected_sources=state.expected_sources,
@@ -145,7 +145,7 @@ class SearchAgentGraph(BaseAgent):
     def check_token_usage(self, state: SearchAgentState):
         """检查 token 是否超出最大窗口"""
         pub.sendMessage(
-            SearchAgentEvents.PRINT_TOKEN_USAGE.value,
+            SearchAgentEvents.COUNT_TOKEN_USAGE.value,
             current_tokens=self.token_usage
         )
         
@@ -228,7 +228,7 @@ class SearchAgentGraph(BaseAgent):
 
         # 发送LLM开始评估状态的事件
         pub.sendMessage(
-            SearchAgentEvents.PRINT_EVALUATE_STATUS_START.value,
+            SearchAgentEvents.EVALUATE_CURRENT_STATUS_START.value,
             model_name=self.model.model_name
         )
 
@@ -239,7 +239,7 @@ class SearchAgentGraph(BaseAgent):
         
         # 发送LLM评估状态结束的事件
         pub.sendMessage(
-            SearchAgentEvents.PRINT_STATUS_EVALUATION_END.value,
+            SearchAgentEvents.EVALUATE_CURRENT_STATUS_END.value,
             status=new_status
         )
         
@@ -254,7 +254,7 @@ class SearchAgentGraph(BaseAgent):
         
         # 发送token使用情况事件
         pub.sendMessage(
-            SearchAgentEvents.PRINT_TOKEN_USAGE.value,
+            SearchAgentEvents.COUNT_TOKEN_USAGE.value,
             current_tokens=self.token_usage
         )
         
@@ -269,7 +269,7 @@ class SearchAgentGraph(BaseAgent):
         for tool_call in tool_calls:
             # 发送工具开始执行事件
             pub.sendMessage(
-                SearchAgentEvents.PRINT_TOOL_START.value,
+                SearchAgentEvents.TOOL_START.value,
                 tool_name=tool_call["name"],
                 input_str=json.dumps(tool_call["args"], ensure_ascii=False)
             )
@@ -279,7 +279,7 @@ class SearchAgentGraph(BaseAgent):
                 tool_result = self.tools_by_name[tool_call["name"]].invoke(tool_call["args"])
                 
                 pub.sendMessage(
-                    SearchAgentEvents.PRINT_TOOL_RESULT.value,
+                    SearchAgentEvents.TOOL_RESULT.value,
                     output=tool_result
                 )
                 
@@ -296,7 +296,7 @@ class SearchAgentGraph(BaseAgent):
                 # 添加错误信息到结果
                 error_result = f"工具名称: {tool_call['name']}\n错误:\n{str(e)}"
                 pub.sendMessage(
-                    SearchAgentEvents.PRINT_TOOL_ERROR.value,
+                    SearchAgentEvents.TOOL_ERROR.value,
                     error=error_result
                 )
                 tool_calling_results.append(error_result)
@@ -325,7 +325,7 @@ class SearchAgentGraph(BaseAgent):
 
         # 发送LLM开始生成答案的事件
         pub.sendMessage(
-            SearchAgentEvents.PRINT_GENERATE_ANSWER_START.value,
+            SearchAgentEvents.GENERATE_ANSWER_START.value,
             model_name=self.model.model_name
         )
 
@@ -335,7 +335,7 @@ class SearchAgentGraph(BaseAgent):
         self.token_usage += count_tokens(messages + [response])
         
         pub.sendMessage(
-            SearchAgentEvents.PRINT_GENERATE_ANSWER_END.value,
+            SearchAgentEvents.GENERATE_ANSWER_END.value,
             result=answer
         )
         pub.sendMessage(
@@ -343,7 +343,7 @@ class SearchAgentGraph(BaseAgent):
             result=answer
         )
         pub.sendMessage(
-            SearchAgentEvents.PRINT_TOKEN_USAGE.value,
+            SearchAgentEvents.COUNT_TOKEN_USAGE.value,
             current_tokens=self.token_usage
         )
         

@@ -7,10 +7,7 @@ Main agent 是 Puzzle Fact Check 的主模型，其主要负责：
 """
 
 from agents.base import BaseAgent
-from langchain_core.messages import AIMessage, BaseMessage
 from langgraph.graph.state import CompiledStateGraph, StateGraph, END
-from langgraph.types import interrupt, Command
-from langgraph.pregel import RetryPolicy
 from langgraph.checkpoint.memory import MemorySaver
 from .prompts import (
     fact_check_plan_prompt_template,
@@ -26,7 +23,7 @@ from ..metadata_extractor.states import MetadataState
 from utils.exceptions import AgentExecutionException
 
 from pubsub import pub
-from .events import MainAgentEvents, CLIModeEvents, DBEvents, APIMode
+from .events import MainAgentEvents, CLIModeEvents, DBEvents
 
 from typing import List, Optional, Any, Dict, Literal
 from .states import (
@@ -74,13 +71,9 @@ class MainAgent(BaseAgent):
         self.total_retrieval_tasks_nums = 0  # 总任务数
         self._interrupted = False  # 中断标志
         
-        # self.db_events = DBEvents()
         if mode == "CLI":
+            self.db_events = DBEvents()
             self.cli_events = CLIModeEvents()
-        elif mode == "API":
-            # API 模式下只创建一个空的APIMode实例
-            # 实际的事件处理由service.py中的SSEModeEvents处理
-            self.api_mode = APIMode()
 
     def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(FactCheckPlanState)
@@ -124,7 +117,7 @@ class MainAgent(BaseAgent):
         
         # Check for interruption in a safer way
         if self._check_interruption():
-            return interrupt({"status": "interrupted", "message": "任务已被中断"})
+            return {"status": "interrupted", "message": "任务已被中断"}
         
         return state
 
@@ -152,7 +145,7 @@ class MainAgent(BaseAgent):
         """
         # Check for interruption
         if self._check_interruption():
-            return interrupt({"status": "interrupted", "message": "任务已被中断"})
+            return {"status": "interrupted", "message": "任务已被中断"}
         
         pub.sendMessage(MainAgentEvents.EXTRACT_CHECK_POINT_START.value)
 
@@ -202,7 +195,7 @@ class MainAgent(BaseAgent):
         """根据检索规划调用子检索模型执行深度检索"""        
         # Check for interruption
         if self._check_interruption():
-            return interrupt({"status": "interrupted", "message": "任务已被中断"})
+            return {"status": "interrupted", "message": "任务已被中断"}
         
         current_task = self._get_current_retrieval_task(state)
         if not current_task:
@@ -245,7 +238,7 @@ class MainAgent(BaseAgent):
         """主模型对当前 search agent 的检索结论进行复核推理"""
         # Check for interruption
         if self._check_interruption():
-            return interrupt({"status": "interrupted", "message": "任务已被中断"})
+            return {"status": "interrupted", "message": "任务已被中断"}
                 
         current_task = self._get_current_retrieval_task(state)
         if not current_task:
@@ -346,7 +339,7 @@ class MainAgent(BaseAgent):
             pub.sendMessage(
                 MainAgentEvents.LLM_DECISION.value, 
                 decision="继续下一个任务", 
-                reason="继续执行下一个检索任务"
+                reason=current_step.verification.reasoning
             )
         
         # 重置重试计数器和更新当前检索任务索引，准备处理下一个任务
@@ -359,7 +352,7 @@ class MainAgent(BaseAgent):
         """main agent 认可全部核查结论将核查结果写入报告"""
         # Check for interruption
         if self._check_interruption():
-            return interrupt({"status": "interrupted", "message": "任务已被中断"})
+            return {"status": "interrupted", "message": "任务已被中断"}
                 
         pub.sendMessage(MainAgentEvents.WRITE_FACT_CHECKING_REPORT_START.value)
         
@@ -482,7 +475,7 @@ class MainAgent(BaseAgent):
             def invoke_with_interrupt_check(*args, **kw):
                 # 在每次图执行前检查是否应该继续
                 if callable(should_continue) and not should_continue():
-                    return interrupt({"status": "interrupted", "message": "任务已被中断"})
+                    return {"status": "interrupted", "message": "任务已被中断"}
                 return orig_invoke(*args, **kw)
             
             # 临时替换invoke方法添加中断检查

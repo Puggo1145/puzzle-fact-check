@@ -1,27 +1,22 @@
 from typing import Dict, Any, List, Optional, Union
+from langchain_openai.chat_models.base import BaseChatOpenAI
+
 from queue import Queue
 import uuid
 import threading
 import traceback
 import time
-import json
 import pubsub.pub as pub
 import openai
 
+from .models import CreateAgentConfig
 from agents.main.graph import MainAgent
 from agents.main.events import MainAgentEvents
 from agents.main.states import CheckPoints, RetrievalResultVerification
+from agents.searcher.states import Status
 from agents.metadata_extractor.events import MetadataExtractAgentEvents
-from agents.searcher.events import SearchAgentEvents
-
-# 定义一个模拟客户端类
-class MockClient:
-    def create(self, *args, **kwargs):
-        raise RuntimeError("Agent已被中断")
-    
-    def close(self, *args, **kwargs):
-        pass
-
+from agents.metadata_extractor.states import BasicMetadata, Knowledge, Knowledges
+from agents.searcher.events import SearchAgentEvents, SearchResult
 class SSEModeEvents:
     """
     与 CLIModeEvents 类似，但输出为 SSE 事件流，用于前端实时显示
@@ -29,10 +24,8 @@ class SSEModeEvents:
     def __init__(self, event_queue: Queue):
         self.event_queue = event_queue
         self.start_time = None
-        self.token_usage = 0
-        self.has_thinking_started = False
-        self.has_content_started = False
-        self.current_node = None
+        # self.has_thinking_started = False
+        # self.has_content_started = False
         
         self.setup_subscribers()
 
@@ -74,60 +67,60 @@ class SSEModeEvents:
         # 元数据提取代理事件
         pub.subscribe(
             self.on_extract_basic_metadata_start,
-            MetadataExtractAgentEvents.PRINT_EXTRACT_BASIC_METADATA_START.value,
+            MetadataExtractAgentEvents.EXTRACT_BASIC_METADATA_START.value,
         )
         pub.subscribe(
             self.on_extract_basic_metadata_end,
-            MetadataExtractAgentEvents.PRINT_EXTRACT_BASIC_METADATA_END.value,
+            MetadataExtractAgentEvents.EXTRACT_BASIC_METADATA_END.value,
         )
         pub.subscribe(
             self.on_extract_knowledge_start,
-            MetadataExtractAgentEvents.PRINT_EXTRACT_KNOWLEDGE_START.value,
+            MetadataExtractAgentEvents.EXTRACT_KNOWLEDGE_START.value,
         )
         pub.subscribe(
             self.on_extract_knowledge_end,
-            MetadataExtractAgentEvents.PRINT_EXTRACT_KNOWLEDGE_END.value,
+            MetadataExtractAgentEvents.EXTRACT_KNOWLEDGE_END.value,
         )
         pub.subscribe(
             self.on_retrieve_knowledge_start,
-            MetadataExtractAgentEvents.PRINT_RETRIEVE_KNOWLEDGE_START.value,
+            MetadataExtractAgentEvents.RETRIEVE_KNOWLEDGE_START.value,
         )
         pub.subscribe(
             self.on_retrieve_knowledge_end,
-            MetadataExtractAgentEvents.PRINT_RETRIEVE_KNOWLEDGE_END.value,
+            MetadataExtractAgentEvents.RETRIEVE_KNOWLEDGE_END.value,
         )
         
         # 搜索代理事件
         pub.subscribe(
             self.on_search_agent_start,
-            SearchAgentEvents.PRINT_SEARCH_AGENT_START.value,
+            SearchAgentEvents.SEARCH_AGENT_START.value,
         )
         pub.subscribe(
             self.on_evaluate_status_start,
-            SearchAgentEvents.PRINT_EVALUATE_STATUS_START.value,
+            SearchAgentEvents.EVALUATE_CURRENT_STATUS_START.value,
         )
         pub.subscribe(
             self.on_status_evaluation_end,
-            SearchAgentEvents.PRINT_STATUS_EVALUATION_END.value,
+            SearchAgentEvents.EVALUATE_CURRENT_STATUS_END.value,
         )
         pub.subscribe(
             self.on_tool_start,
-            SearchAgentEvents.PRINT_TOOL_START.value,
+            SearchAgentEvents.TOOL_START.value,
         )
         pub.subscribe(
             self.on_tool_result,
-            SearchAgentEvents.PRINT_TOOL_RESULT.value,
+            SearchAgentEvents.TOOL_RESULT.value,
         )
         pub.subscribe(
             self.on_generate_answer_start,
-            SearchAgentEvents.PRINT_GENERATE_ANSWER_START.value,
+            SearchAgentEvents.GENERATE_ANSWER_START.value,
         )
         pub.subscribe(
             self.on_generate_answer_end,
-            SearchAgentEvents.PRINT_GENERATE_ANSWER_END.value,
+            SearchAgentEvents.GENERATE_ANSWER_END.value,
         )
 
-    def send_event(self, event_type: str, data: Dict[str, Any]):
+    def send_event(self, event_type: str, data: Optional[Any] = None):
         """发送事件到队列"""
         try:
             self.event_queue.put({
@@ -141,208 +134,147 @@ class SSEModeEvents:
     
     # LLM 开始事件处理
     def on_extract_check_point_start(self):
-        self.current_node = "extract_check_point"
-        self.send_event("extract_check_point_start", {
-            "message": "LLM 开始提取核查点"
-        })
+        self.send_event(
+            MainAgentEvents.EXTRACT_CHECK_POINT_START.value, 
+        )
     
     def on_evaluate_search_result_start(self):
-        self.current_node = "evaluate_search_result"
-        self.send_event("evaluate_search_result_start", {
-            "message": "LLM 开始评估检索结果"
-        })
+        self.send_event(
+            MainAgentEvents.EVALUATE_SEARCH_RESULT_START.value, 
+        )
     
     def on_write_report_start(self):
-        self.current_node = "write_fact_checking_report"
-        self.send_event("write_fact_checking_report_start", {
-            "message": "LLM 开始撰写核查报告"
-        })
+        self.send_event(
+            MainAgentEvents.WRITE_FACT_CHECKING_REPORT_START.value, 
+        )
     
     # LLM 结束事件处理
     def on_extract_check_point_end(self, check_points_result: CheckPoints):
-        try:
-            self.send_event("extract_check_point_end", {
-                "check_points": check_points_result.model_dump()
-            })
-        except Exception as e:
-            print(f"Error in extract_check_point_end: {e}")
-            print(traceback.format_exc())
-            # 尝试替代方案
-            serialized_data = {}
-            try:
-                serialized_data = {"items": [cp.model_dump() for cp in check_points_result.items]}
-            except:
-                serialized_data = {"error": "无法序列化核查点数据"}
-            
-            self.send_event("extract_check_point_end", {
-                "check_points": serialized_data
-            })
-    
+        self.send_event(
+            MainAgentEvents.EXTRACT_CHECK_POINT_END.value, 
+            check_points_result.model_dump()
+        )
+
     def on_evaluate_search_result_end(self, verification_result: RetrievalResultVerification):
-        try:
-            self.send_event("evaluate_search_result_end", {
-                "verification_result": verification_result.model_dump()
-            })
-        except Exception as e:
-            print(f"Error in evaluate_search_result_end: {e}")
-            print(traceback.format_exc())
-            # 尝试替代方案
-            self.send_event("evaluate_search_result_end", {
-                "verification_result": {
-                    "reasoning": getattr(verification_result, "reasoning", "无法获取推理过程"),
-                    "verified": getattr(verification_result, "verified", False)
-                }
-            })
-    
+        self.send_event(
+            MainAgentEvents.EVALUATE_SEARCH_RESULT_END.value, 
+            verification_result.model_dump()
+        )
+        
     def on_write_report_end(self, response_text: str):
-        self.send_event("write_fact_checking_report_end", {
-            "report": response_text
-        })
+        self.send_event(
+            MainAgentEvents.WRITE_FACT_CHECKING_REPORT_END.value, 
+            {
+                "report": response_text
+            }
+        )
     
     def on_llm_decision(
         self, 
         decision: str,
         reason: str | None = None
     ):
-        self.send_event("llm_decision", {
-            "decision": decision,
-            "reason": reason
-        })
+        self.send_event(
+            MainAgentEvents.LLM_DECISION.value, 
+            {
+                "decision": decision,
+                "reason": reason
+            }
+        )
 
     # 元数据提取代理事件处理器
     def on_extract_basic_metadata_start(self):
-        self.send_event("extract_basic_metadata_start", {
-            "message": "开始提取新闻基本元数据"
-        })
+        self.send_event(
+            MetadataExtractAgentEvents.EXTRACT_BASIC_METADATA_START.value, 
+        )
     
-    def on_extract_basic_metadata_end(self, basic_metadata):
-        # 确保所有必要字段都被包含，包括标题和时间
-        serialized_data = self._make_serializable(basic_metadata)
-        
-        # 确保是字典类型且包含所需字段
-        if isinstance(serialized_data, dict):
-            # 确保news_type, title等字段存在，防止前端显示Unknown
-            if "news_type" not in serialized_data:
-                serialized_data["news_type"] = ""
-            if "title" not in serialized_data:
-                serialized_data["title"] = ""
-            if "time" not in serialized_data:
-                # 从when数据中提取时间（如果存在）
-                if "when" in serialized_data and serialized_data["when"] and len(serialized_data["when"]) > 0:
-                    serialized_data["time"] = serialized_data["when"][0]
-                else:
-                    serialized_data["time"] = ""
-            
-        self.send_event("extract_basic_metadata_end", {
-            "basic_metadata": serialized_data
-        })
+    def on_extract_basic_metadata_end(self, basic_metadata: BasicMetadata):
+        self.send_event(
+            MetadataExtractAgentEvents.EXTRACT_BASIC_METADATA_END.value, 
+            basic_metadata.model_dump()
+        )
     
     def on_extract_knowledge_start(self):
-        self.send_event("extract_knowledge_start", {
-            "message": "开始提取知识元素"
-        })
+        self.send_event(
+            MetadataExtractAgentEvents.EXTRACT_KNOWLEDGE_START.value, 
+        )
     
-    def on_extract_knowledge_end(self, knowledges):
-        self.send_event("extract_knowledge_end", {
-            "knowledges": self._make_serializable(knowledges)
-        })
+    def on_extract_knowledge_end(self, knowledges: Knowledges):
+        self.send_event(
+            MetadataExtractAgentEvents.EXTRACT_KNOWLEDGE_END.value, 
+            [item.model_dump() for item in knowledges.items]
+        )
     
     def on_retrieve_knowledge_start(self):
-        self.send_event("retrieve_knowledge_start", {
-            "message": "开始检索知识元素定义"
-        })
+        self.send_event(
+            MetadataExtractAgentEvents.RETRIEVE_KNOWLEDGE_START.value, 
+        )
     
-    def on_retrieve_knowledge_end(self, retrieved_knowledge):
-        # 确保定义和其他必要字段可以被前端读取
-        serialized_data = self._make_serializable(retrieved_knowledge)
-        
-        # 确保是字典类型且包含所需字段
-        if isinstance(serialized_data, dict):
-            # 如果description字段存在，复制到definition字段以匹配前端期望
-            if "description" in serialized_data and serialized_data["description"]:
-                serialized_data["definition"] = serialized_data["description"]
-            elif "definition" not in serialized_data or not serialized_data["definition"]:
-                serialized_data["definition"] = ""
-                
-            # 确保term字段存在
-            if "term" not in serialized_data:
-                serialized_data["term"] = ""
+    def on_retrieve_knowledge_end(self, retrieved_knowledge: Knowledge):
+        self.send_event(
+            MetadataExtractAgentEvents.RETRIEVE_KNOWLEDGE_END.value, 
+            retrieved_knowledge.model_dump()
+        )
             
-        self.send_event("retrieve_knowledge_end", {
-            "retrieved_knowledge": serialized_data
-        })
-    
     # 搜索代理事件处理器
-    def on_search_agent_start(self, content, purpose, expected_sources):
-        self.send_event("search_agent_start", {
-            "content": content,
-            "purpose": purpose,
-            "expected_sources": expected_sources
-        })
+    def on_search_agent_start(
+        self, 
+        content: str, 
+        purpose: str, 
+        expected_sources: list[str]
+    ):
+        self.send_event(
+            SearchAgentEvents.SEARCH_AGENT_START.value, 
+            {
+                "content": content,
+                "purpose": purpose,
+                "expected_sources": expected_sources
+            }
+        )
     
-    def on_evaluate_status_start(self, model_name):
-        self.send_event("evaluate_status_start", {
-            "message": f"检索代理({model_name})正在评估搜索状态"
-        })
+    def on_evaluate_status_start(self, model_name: str):
+        self.send_event(
+            SearchAgentEvents.EVALUATE_CURRENT_STATUS_START.value, 
+        )
     
-    def on_status_evaluation_end(self, status):
-        # 确保评估和下一步信息完整
-        serialized_data = self._make_serializable(status)
-        
-        # 确保是字典类型且包含所需字段
-        if isinstance(serialized_data, dict):
-            # 确保evaluation和next_step字段存在
-            if "evaluation" not in serialized_data:
-                serialized_data["evaluation"] = ""
-            if "next_step" not in serialized_data:
-                serialized_data["next_step"] = ""
-            
-        # 这些检查在序列化后数据可能不再适用，使用原始对象属性
-        if hasattr(status, "missing_information") and status.missing_information and isinstance(serialized_data, dict):
-            serialized_data["missing_information"] = status.missing_information
-            
-        if hasattr(status, "memory") and status.memory and isinstance(serialized_data, dict):
-            serialized_data["memory"] = status.memory
-            
-        self.send_event("status_evaluation_end", {
-            "status": serialized_data
-        })
+    def on_status_evaluation_end(self, status: Status):
+        self.send_event(
+            SearchAgentEvents.EVALUATE_CURRENT_STATUS_END.value, 
+            status.model_dump()
+        )
     
-    def on_tool_start(self, tool_name, input_str):
-        self.send_event("tool_start", {
-            "tool_name": tool_name,
-            "input": input_str
-        })
+    def on_tool_start(
+        self, 
+        tool_name: str, 
+        input_str: str
+    ):
+        self.send_event(
+            SearchAgentEvents.TOOL_START.value, 
+            {
+                "tool_name": tool_name,
+                "input": input_str
+            }
+        )
     
-    def on_tool_result(self, output):
-        self.send_event("tool_result", {
-            "output": str(output)[:1000] + ("..." if len(str(output)) > 1000 else "")
-        })
+    def on_tool_result(
+        self, 
+        output: Dict
+    ):
+        self.send_event(
+            SearchAgentEvents.TOOL_RESULT.value, 
+            str(output)[:1000] + ("..." if len(str(output)) > 1000 else "")
+        )
     
-    def on_generate_answer_start(self, model_name):
-        self.send_event("generate_answer_start", {
-            "message": f"检索代理({model_name})开始生成答案"
-        })
+    def on_generate_answer_start(self, model_name: str):
+        self.send_event(
+            SearchAgentEvents.GENERATE_ANSWER_START.value, 
+        )
     
-    def on_generate_answer_end(self, result):
-        self.send_event("generate_answer_end", {
-            "result": self._make_serializable(result)
-        })
-
-    def _make_serializable(self, obj: Any) -> Union[Dict[str, Any], List[Any], str, int, float, bool, None]:
-        """将对象转换为可JSON序列化的格式"""
-        if hasattr(obj, "model_dump"):
-            return obj.model_dump()
-        elif hasattr(obj, "__dict__"):
-            return {k: self._make_serializable(v) for k, v in obj.__dict__.items() if not k.startswith("_")}
-        elif isinstance(obj, list):
-            return [self._make_serializable(item) for item in obj]
-        elif isinstance(obj, dict):
-            return {k: self._make_serializable(v) for k, v in obj.items()}
-        elif isinstance(obj, (str, int, float, bool, type(None))):
-            return obj
-        else:
-            return str(obj)
+    def on_generate_answer_end(self, result: SearchResult):
+        self.send_event(
+            SearchAgentEvents.GENERATE_ANSWER_END.value, 
+            result.model_dump()
+        )
 
 
 class AgentService:
@@ -357,133 +289,37 @@ class AgentService:
         # Add a dictionary to store thread cancellation events
         self.cancellation_events: Dict[str, threading.Event] = {}
     
-    def create_agent(self, config: Dict[str, Any]) -> str:
+    def create_agent(self, config: CreateAgentConfig) -> str:
         """创建一个新的 Agent 实例，返回唯一标识符"""
         session_id = str(uuid.uuid4())
         event_queue = Queue()
-        
-        # 从配置中获取模型，如果没有则使用默认配置
-        from models import ChatQwen
-        from langchain_openai import ChatOpenAI
-        from langchain_deepseek import ChatDeepSeek
-        
-        model_name = config.get("model_name", "chatgpt-4o-latest")
-        model_provider = config.get("model_provider", "openai")
-        
-        if model_provider == "openai":
-            # OpenAI 模型从 langchain_openai 导入
-            try:
-                model = ChatOpenAI(
-                    model=model_name,
-                    temperature=0,
-                    streaming=True
-                )
-                
-                # 如果当前配置为主要智能体，可以使用 gpt-4o-mini 作为元数据提取器
-                metadata_model = ChatOpenAI(
-                    model="gpt-4o-mini", 
-                    temperature=0,
-                    streaming=True
-                )
-                
-                search_model = ChatOpenAI(
-                    model=model_name,
-                    temperature=0,
-                    streaming=True
-                )
-            except Exception as e:
-                print(f"Error initializing OpenAI model: {e}")
-                raise ValueError(f"创建 OpenAI 模型失败: {e}")
-                
-        elif model_provider == "qwen":
-            # Qwen 模型从本地 models 文件夹导入
-            try:
-                model = ChatQwen(
-                    model=model_name,
-                    streaming=True
-                )
-                
-                # 元数据提取器可以使用 qwen-turbo
-                # 验证模型是否适用于元数据提取器
-                metadata_model_name = model_name if model_name != "qwen-turbo" else "qwen-turbo"
-                if metadata_model_name in ["qwq-plus-latest"]:
-                    # 改用 qwen-turbo 作为备选
-                    metadata_model_name = "qwen-turbo"
-                
-                metadata_model = ChatQwen(
-                    model=metadata_model_name,
-                    streaming=True
-                )
-                
-                search_model = ChatQwen(
-                    model=model_name,
-                    streaming=True
-                )
-            except Exception as e:
-                print(f"Error initializing Qwen model: {e}")
-                raise ValueError(f"创建 Qwen 模型失败: {e}")
-                
-        elif model_provider == "deepseek":
-            # DeepSeek 模型从 langchain_deepseek 导入
-            try:
-                model = ChatDeepSeek(
-                    model=model_name,
-                    temperature=0,
-                    streaming=True
-                )
-                
-                # 验证模型是否适用于元数据提取器
-                metadata_model_name = model_name
-                if metadata_model_name in ["deepseek-reasoner"]:
-                    # 改用 deepseek-chat 作为备选
-                    metadata_model_name = "deepseek-chat"
-                
-                metadata_model = ChatDeepSeek(
-                    model=metadata_model_name,
-                    temperature=0,
-                    streaming=True
-                )
-                
-                search_model = ChatDeepSeek(
-                    model=model_name,
-                    temperature=0,
-                    streaming=True
-                )
-            except Exception as e:
-                print(f"Error initializing DeepSeek model: {e}")
-                raise ValueError(f"创建 DeepSeek 模型失败: {e}")
-                
-        else:
-            # 默认使用 OpenAI
-            try:
-                model = ChatOpenAI(
-                    model="chatgpt-4o-latest",
-                    temperature=0,
-                    streaming=True
-                )
-                
-                metadata_model = ChatOpenAI(
-                    model="gpt-4o-mini", 
-                    temperature=0,
-                    streaming=True
-                )
-                
-                search_model = ChatOpenAI(
-                    model="chatgpt-4o-latest",
-                    temperature=0,
-                    streaming=True
-                )
-            except Exception as e:
-                print(f"Error initializing default OpenAI model: {e}")
-                raise ValueError(f"创建默认 OpenAI 模型失败: {e}")
-        
+
+        main_agent_model = self._get_model_instance_from_provider(
+            config.main_agent.model_provider,
+            config.main_agent.model_name,
+            config.main_agent.temperature,
+            config.main_agent.streaming
+        )
+        metadata_extractor_model = self._get_model_instance_from_provider(
+            config.metadata_extractor.model_provider,
+            config.metadata_extractor.model_name,
+            config.metadata_extractor.temperature,
+            config.metadata_extractor.streaming
+        )
+        search_agent_model = self._get_model_instance_from_provider(
+            config.searcher.model_provider,
+            config.searcher.model_name,
+            config.searcher.temperature,
+            config.searcher.streaming
+        )
+
         agent = MainAgent(
-            model=model,
-            metadata_extract_model=metadata_model,
-            search_model=search_model,
+            model=main_agent_model,
+            metadata_extract_model=metadata_extractor_model,
+            search_model=search_agent_model,
             mode="API",
-            max_search_tokens=config.get("searcher", {}).get("max_search_tokens", 10000),
-            max_retries=config.get("main_agent", {}).get("max_retries", 1),
+            max_search_tokens=config.searcher.max_search_tokens,
+            max_retries=config.main_agent.max_retries,
         )
         
         # 注册 SSE 事件处理
@@ -500,7 +336,44 @@ class AgentService:
         
         return session_id
     
-    def run_agent(self, session_id: str, news_text: str, config: Dict[str, Any] | None = None):
+    def _get_model_instance_from_provider(
+        self, 
+        model_provider: str,
+        model_name: str,
+        model_temperature: float = 0.0,
+        model_streaming: bool = True
+    ) -> BaseChatOpenAI:
+        """根据模型提供商获取模型"""
+        from models import ChatQwen
+        from langchain_openai import ChatOpenAI
+        from langchain_deepseek import ChatDeepSeek
+        
+        if model_provider == "openai":
+            return ChatOpenAI(
+                model=model_name, 
+                temperature=model_temperature, 
+                streaming=model_streaming
+            )
+        elif model_provider == "qwen":
+            return ChatQwen(
+                model=model_name, 
+                temperature=model_temperature, 
+                streaming=model_streaming
+            )
+        elif model_provider == "deepseek":
+            return ChatDeepSeek(
+                model=model_name, 
+                temperature=model_temperature, 
+                streaming=model_streaming
+            )
+        else:
+            raise ValueError(f"不支持的模型提供商: {model_provider}")
+        
+    def run_agent(
+        self, 
+        session_id: str, 
+        news_text: str, 
+    ):
         """在后台线程运行 agent"""
         if session_id not in self.agent_instances:
             raise ValueError(f"Agent with session_id {session_id} not found")
@@ -512,13 +385,9 @@ class AgentService:
         
         # 向前端发送任务开始的事件
         self.event_queues[session_id].put({
-            "event": "task_start",
-            "data": {"message": "开始核查任务"}
+            "event": "agent_start",
+            "data": None
         })
-        
-        # 应用配置
-        if config:
-            self._apply_agent_config(session_id, config)
         
         def run_agent_task():
             # 捕获会话ID，防止在Thread中丢失引用
@@ -527,8 +396,7 @@ class AgentService:
                 # 获取agent实例
                 agent = self.agent_instances.get(local_session_id)
                 if agent is None:
-                    print(f"Agent instance for session {local_session_id} not found, task aborted")
-                    return
+                    raise ValueError(f"Agent instance for session {local_session_id} not found, task aborted")
                     
                 cancellation_event = self.cancellation_events.get(local_session_id)
                 if cancellation_event is None:
@@ -677,143 +545,6 @@ class AgentService:
         thread.start()
         self.agent_threads[session_id] = thread
     
-    def _apply_agent_config(self, session_id: str, config: Dict[str, Any]):
-        """应用从前端传递的配置"""
-        try:
-            agent = self.agent_instances[session_id]
-            
-            # 从配置中导入必要的模型适配器
-            from models import ChatQwen
-            from langchain_openai import ChatOpenAI
-            from langchain_deepseek import ChatDeepSeek
-            
-            # 检查是否有主智能体配置
-            if "main_agent" in config:
-                main_config = config["main_agent"]
-                
-                # 设置重试次数
-                if "max_retries" in main_config:
-                    agent.max_retries = main_config["max_retries"]
-                
-                # 设置模型
-                if "model_name" in main_config and "model_provider" in main_config:
-                    model_name = main_config["model_name"]
-                    model_provider = main_config["model_provider"]
-                    
-                    # 验证模型是否适用于主智能体
-                    if model_name in ["gpt-4o-mini", "qwen-turbo"]:
-                        raise ValueError(f"模型 {model_name} 不适用于主智能体")
-                    
-                    # 创建新模型实例
-                    if model_provider == "openai":
-                        agent.model = ChatOpenAI(
-                            model=model_name,
-                            temperature=0,
-                            streaming=True
-                        )
-                    elif model_provider == "qwen":
-                        agent.model = ChatQwen(
-                            model=model_name,
-                            streaming=True
-                        )
-                    elif model_provider == "deepseek":
-                        agent.model = ChatDeepSeek(
-                            model=model_name,
-                            temperature=0,
-                            streaming=True
-                        )
-            
-            # 检查是否有元数据提取器配置
-            if "metadata_extractor" in config:
-                metadata_config = config["metadata_extractor"]
-                
-                # 设置模型
-                if "model_name" in metadata_config and "model_provider" in metadata_config:
-                    model_name = metadata_config["model_name"]
-                    model_provider = metadata_config["model_provider"]
-                    
-                    # 验证模型是否适用于元数据提取器
-                    if model_name in ["deepseek-reasoner", "qwq-plus-latest"]:
-                        raise ValueError(f"模型 {model_name} 不适用于元数据提取器")
-                    
-                    # 创建新模型实例
-                    if model_provider == "openai":
-                        agent.metadata_extract_agent.model = ChatOpenAI(
-                            model=model_name,
-                            temperature=0,
-                            streaming=True
-                        )
-                    elif model_provider == "qwen":
-                        agent.metadata_extract_agent.model = ChatQwen(
-                            model=model_name,
-                            streaming=True
-                        )
-                    elif model_provider == "deepseek":
-                        agent.metadata_extract_agent.model = ChatDeepSeek(
-                            model=model_name,
-                            temperature=0,
-                            streaming=True
-                        )
-            
-            # 检查是否有搜索代理配置
-            if "searcher" in config:
-                searcher_config = config["searcher"]
-                
-                # 设置最大搜索tokens
-                if "max_search_tokens" in searcher_config:
-                    agent.search_agent.max_search_tokens = searcher_config["max_search_tokens"]
-                
-                # 设置工具选择
-                if "selected_tools" in searcher_config:
-                    # 使用当前搜索代理实例的模型和tokens重新创建搜索代理实例
-                    from agents.searcher.graph import SearchAgentGraph
-                    selected_tools = searcher_config["selected_tools"]
-                    
-                    # 备份当前模型和最大tokens
-                    current_model = agent.search_agent.model
-                    current_max_tokens = agent.search_agent.max_search_tokens
-                    
-                    # 创建新的搜索代理实例，传入选择的工具
-                    agent.search_agent = SearchAgentGraph(
-                        model=current_model,
-                        max_search_tokens=current_max_tokens,
-                        mode="API",
-                        selected_tools=selected_tools
-                    )
-                
-                # 设置模型
-                if "model_name" in searcher_config and "model_provider" in searcher_config:
-                    model_name = searcher_config["model_name"]
-                    model_provider = searcher_config["model_provider"]
-                    
-                    # 验证模型是否适用于搜索智能体
-                    if model_name in ["gpt-4o-mini", "qwen-turbo"]:
-                        raise ValueError(f"模型 {model_name} 不适用于搜索智能体")
-                    
-                    # 创建新模型实例
-                    if model_provider == "openai":
-                        agent.search_agent.model = ChatOpenAI(
-                            model=model_name,
-                            temperature=0,
-                            streaming=True
-                        )
-                    elif model_provider == "qwen":
-                        agent.search_agent.model = ChatQwen(
-                            model=model_name,
-                            streaming=True
-                        )
-                    elif model_provider == "deepseek":
-                        agent.search_agent.model = ChatDeepSeek(
-                            model=model_name,
-                            temperature=0,
-                            streaming=True
-                        )
-            
-        except Exception as e:
-            print(f"Error applying config: {e}")
-            print(traceback.format_exc())
-            raise ValueError(f"应用配置失败: {e}")
-    
     def interrupt_agent(self, session_id: str) -> bool:
         """中断正在执行的智能体任务"""
         if session_id not in self.agent_instances:
@@ -853,7 +584,6 @@ class AgentService:
                         if agent.model.client is not None and hasattr(agent.model.client, 'close'):
                             agent.model.client.close()
                         # 使用预定义的MockClient类替代None
-                        agent.model.client = MockClient()
                 except Exception as e:
                     print(f"关闭主模型客户端失败: {e}")
                 
@@ -862,7 +592,6 @@ class AgentService:
                     if hasattr(agent, 'metadata_extract_agent') and hasattr(agent.metadata_extract_agent, 'model') and hasattr(agent.metadata_extract_agent.model, 'client'):
                         if agent.metadata_extract_agent.model.client is not None and hasattr(agent.metadata_extract_agent.model.client, 'close'):
                             agent.metadata_extract_agent.model.client.close()
-                        agent.metadata_extract_agent.model.client = MockClient()
                 except Exception as e:
                     print(f"关闭元数据提取模型客户端失败: {e}")
                 
@@ -871,7 +600,6 @@ class AgentService:
                     if hasattr(agent, 'search_agent') and hasattr(agent.search_agent, 'model') and hasattr(agent.search_agent.model, 'client'):
                         if agent.search_agent.model.client is not None and hasattr(agent.search_agent.model.client, 'close'):
                             agent.search_agent.model.client.close()
-                        agent.search_agent.model.client = MockClient()
                 except Exception as e:
                     print(f"关闭搜索模型客户端失败: {e}")
             
@@ -1005,9 +733,9 @@ class AgentService:
         解决 Pydantic 模型和自定义类型的JSON序列化问题
         """
         try:
-            # 如果对象有 model_dump 方法 (Pydantic v2+)
-            if hasattr(obj, 'model_dump'):
-                return obj.model_dump()
+            # 如果对象有 model_dump_json 方法 (Pydantic v2+)
+            if hasattr(obj, 'model_dump_json'):
+                return obj.model_dump_json()
             # 如果对象有 dict 方法 (Pydantic v1)
             elif hasattr(obj, 'dict'):
                 return obj.dict()
@@ -1053,8 +781,6 @@ class AgentService:
                 if hasattr(agent.model, 'client'):
                     if hasattr(agent.model.client, 'close'):
                         agent.model.client.close()
-                    # 替换客户端对象，防止后续使用
-                    agent.model.client = MockClient()
             except Exception as e:
                 print(f"关闭主模型客户端失败: {e}")
             
@@ -1063,7 +789,6 @@ class AgentService:
                 if hasattr(agent.metadata_extract_agent, 'model') and hasattr(agent.metadata_extract_agent.model, 'client'):
                     if hasattr(agent.metadata_extract_agent.model.client, 'close'):
                         agent.metadata_extract_agent.model.client.close()
-                    agent.metadata_extract_agent.model.client = MockClient()
             except Exception as e:
                 print(f"关闭元数据提取模型客户端失败: {e}")
             
@@ -1072,7 +797,6 @@ class AgentService:
                 if hasattr(agent.search_agent, 'model') and hasattr(agent.search_agent.model, 'client'):
                     if hasattr(agent.search_agent.model.client, 'close'):
                         agent.search_agent.model.client.close()
-                    agent.search_agent.model.client = MockClient()
             except Exception as e:
                 print(f"关闭搜索模型客户端失败: {e}")
             

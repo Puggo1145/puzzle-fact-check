@@ -5,7 +5,7 @@ import { NewsDisplay } from "./_components/news-display";
 import { InputPanel } from "./_components/input-panel/input-panel";
 import { EventLog } from "@/components/agent/event-log";
 import { Report } from "@/components/agent/report";
-import { useAgentStore } from "@/lib/store";
+import { useAgentStore } from "@/stores/use-agent-store";
 import { cn } from "@/lib/utils";
 
 export default function Home() {
@@ -15,14 +15,14 @@ export default function Home() {
   const isActive = status !== 'idle' || Boolean(finalReport) || events.length > 0;
 
   return (
-    <div className="container pt-0 h-full flex flex-col relative mx-auto">
-      {/* Unified expandable box for fact-checking content */}
+    
+    <div className="container relative w-full h-full flex flex-col items-center mx-auto">
       <div 
         className={cn(
-          "flex flex-col gap-6 transition-all duration-700 ease-in-out mb-6",
+          "w-full flex flex-col gap-6 transition-all duration-500 ease-in-out",
           isActive 
-            ? "flex-1 overflow-y-auto pb-6 border-b" 
-            : "h-[0vh] overflow-hidden"
+            ? "h-[80vh] overflow-y-auto" 
+            : "h-0 overflow-hidden"
         )}
       >
         <NewsDisplay />
@@ -32,8 +32,8 @@ export default function Home() {
 
       {/* Hero and Input Panel Container - always in the same place */}
       <div className={cn(
-        "max-w-2xl w-full mx-auto transition-all duration-500 ease-in-out",
-        isActive ? "mb-12" : "flex-1 flex flex-col justify-center"
+        " w-full transition-all duration-500 ease-in-out",
+        isActive ? "max-w-lg mt-8" : "max-w-2xl flex-1 flex flex-col justify-center"
       )}>
         <Hero />
         <InputPanel />

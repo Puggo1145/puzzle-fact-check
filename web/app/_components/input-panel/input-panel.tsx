@@ -18,7 +18,7 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { useAgentStore } from "@/lib/store";
+import { useAgentStore } from "@/stores/use-agent-store";
 import { AgentConfigPanel } from "@/components/agent/agent-config";
 
 // Import extracted components

@@ -6,20 +6,20 @@ from .states import SearchResult
 
 class SearchAgentEvents(Enum):
     # DB 相关事件
-    STORE_CHECK_POINT = "searcher.store_check_point"
-    STORE_SEARCH_EVIDENCES = "searcher.store_search_evidences"
-    STORE_SEARCH_RESULT = "searcher.store_search_result"
+    STORE_CHECK_POINT = "store_check_point"
+    STORE_SEARCH_EVIDENCES = "store_search_evidences"
+    STORE_SEARCH_RESULT = "store_search_result"
     
     # CLI 显示相关事件
-    PRINT_SEARCH_AGENT_START = "searcher.print_search_agent_start"
-    PRINT_TOKEN_USAGE = "searcher.print_token_usage"
-    PRINT_TOOL_START = "searcher.print_tool_start"
-    PRINT_TOOL_RESULT = "searcher.print_tool_result"
-    PRINT_TOOL_ERROR = "searcher.print_tool_error"
-    PRINT_EVALUATE_STATUS_START = "searcher.print_evaluate_status_start"
-    PRINT_GENERATE_ANSWER_START = "searcher.print_generate_answer_start"
-    PRINT_STATUS_EVALUATION_END = "searcher.print_status_evaluation_end"
-    PRINT_GENERATE_ANSWER_END = "searcher.print_generate_answer_end"
+    SEARCH_AGENT_START = "search_agent_start"
+    COUNT_TOKEN_USAGE = "count_token_usage"
+    TOOL_START = "tool_start"
+    TOOL_RESULT = "tool_result"
+    TOOL_ERROR = "tool_error"
+    EVALUATE_CURRENT_STATUS_START = "evaluate_current_status_start"
+    GENERATE_ANSWER_START = "generate_answer_start"
+    EVALUATE_CURRENT_STATUS_END = "evaluate_current_status_end"
+    GENERATE_ANSWER_END = "generate_answer_end"
 
 
 class DBEvents:
@@ -94,43 +94,43 @@ class CLIModeEvents:
         # Chain events
         pub.subscribe(
             self.print_search_agent_start,
-            SearchAgentEvents.PRINT_SEARCH_AGENT_START.value,
+            SearchAgentEvents.SEARCH_AGENT_START.value,
         )
         pub.subscribe(
             self.track_token_usage,
-            SearchAgentEvents.PRINT_TOKEN_USAGE.value,
+            SearchAgentEvents.COUNT_TOKEN_USAGE.value,
         )
         
         # Tool events
         pub.subscribe(
             self.print_tool_start,
-            SearchAgentEvents.PRINT_TOOL_START.value,
+            SearchAgentEvents.TOOL_START.value,
         )
         pub.subscribe(
             self.print_tool_result,
-            SearchAgentEvents.PRINT_TOOL_RESULT.value,
+            SearchAgentEvents.TOOL_RESULT.value,
         )
         pub.subscribe(
             self.print_tool_error,
-            SearchAgentEvents.PRINT_TOOL_ERROR.value,
+            SearchAgentEvents.TOOL_ERROR.value,
         )
         
         # LLM events
         pub.subscribe(
             self.print_evaluate_status_start,
-            SearchAgentEvents.PRINT_EVALUATE_STATUS_START.value,
+            SearchAgentEvents.EVALUATE_CURRENT_STATUS_START.value,
         )
         pub.subscribe(
             self.print_status_evaluation_end,
-            SearchAgentEvents.PRINT_STATUS_EVALUATION_END.value,
+            SearchAgentEvents.EVALUATE_CURRENT_STATUS_END.value,
         )
         pub.subscribe(
             self.print_generate_answer_start,
-            SearchAgentEvents.PRINT_GENERATE_ANSWER_START.value,
+            SearchAgentEvents.GENERATE_ANSWER_START.value,
         )
         pub.subscribe(
             self.print_generate_answer_end,
-            SearchAgentEvents.PRINT_GENERATE_ANSWER_END.value,
+            SearchAgentEvents.GENERATE_ANSWER_END.value,
         )
 
     def _print_colored(self, text, color="blue", bold=False):
