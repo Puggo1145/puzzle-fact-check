@@ -75,6 +75,7 @@ class FactCheckPlanState(BaseModel):
     news_text: str = Field(description="待核查的新闻文本")
     metadata: Optional[MetadataState] = Field(description="新闻元数据", default=None)
     check_points: List[CheckPoint] = Field(default_factory=list)
+    report: str = Field(description="核查报告", default="")
     
     def get_formatted_check_points(self, check_points: CheckPoints) -> List[CheckPoint]:
         """

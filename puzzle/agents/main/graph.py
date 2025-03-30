@@ -22,9 +22,6 @@ from ..metadata_extractor.graph import MetadataExtractAgentGraph
 from ..metadata_extractor.states import MetadataState
 from utils.exceptions import AgentExecutionException
 
-from pubsub import pub
-from .events import MainAgentEvents, CLIModeEvents, DBEvents
-
 from typing import List, Optional, Any, Dict, Literal
 from .states import (
     FactCheckPlanState,
@@ -34,7 +31,6 @@ from .states import (
     CheckPoints,
     RetrievalStep,
 )
-from langchain_core.runnables import RunnableConfig
 from langchain_openai.chat_models.base import BaseChatOpenAI
 
 
@@ -44,22 +40,17 @@ class MainAgent(BaseAgent):
         model: BaseChatOpenAI,
         metadata_extract_model: BaseChatOpenAI,
         search_model: BaseChatOpenAI,
-        mode: Literal["CLI", "API"] = "CLI",
         max_search_tokens: int = 5000,
         max_retries: int = 1, # main agent 在一个任务上允许的最多重试次数
     ):
         super().__init__(
-            mode=mode,
             model=model,
         )
         
-        self.mode = mode
         self.metadata_extract_agent = MetadataExtractAgentGraph(
-            mode=mode,
             model=metadata_extract_model,
         )
         self.search_agent = SearchAgentGraph(
-            mode=mode,
             model=search_model,
             max_search_tokens=max_search_tokens,
         )
@@ -69,24 +60,21 @@ class MainAgent(BaseAgent):
         self.max_retries = max_retries
         self.current_retrieval_task_index = 0  # 跟踪当前检索任务的索引
         self.total_retrieval_tasks_nums = 0  # 总任务数
-        self._interrupted = False  # 中断标志
         
-        if mode == "CLI":
-            self.db_events = DBEvents()
-            self.cli_events = CLIModeEvents()
+        # if mode == "CLI":
+        #     self.db_events = DBEvents()
+        #     self.cli_events = CLIModeEvents()
 
     def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(FactCheckPlanState)
 
-        graph_builder.add_node("initialization", self.initialization)
         graph_builder.add_node("invoke_metadata_extract_agent", self.invoke_metadata_extract_agent)
         graph_builder.add_node("extract_check_point", self.extract_check_point)
         graph_builder.add_node("invoke_search_agent", self.invoke_search_agent)
         graph_builder.add_node("evaluate_search_result", self.evaluate_search_result)
         graph_builder.add_node("write_fact_checking_report", self.write_fact_checking_report)
 
-        graph_builder.set_entry_point("initialization")
-        graph_builder.add_edge("initialization", "invoke_metadata_extract_agent")
+        graph_builder.set_entry_point("invoke_metadata_extract_agent")
         graph_builder.add_edge("invoke_metadata_extract_agent", "extract_check_point")
         graph_builder.add_conditional_edges(
             "extract_check_point",
@@ -109,18 +97,6 @@ class MainAgent(BaseAgent):
             checkpointer=MemorySaver(),
         )
         
-    def initialization(self, state: FactCheckPlanState):
-        pub.sendMessage(
-            MainAgentEvents.STORE_NEWS_TEXT.value,
-            news_text=state.news_text
-        )
-        
-        # Check for interruption in a safer way
-        if self._check_interruption():
-            return {"status": "interrupted", "message": "任务已被中断"}
-        
-        return state
-
     def invoke_metadata_extract_agent(self, state: FactCheckPlanState):
         result = self.metadata_extract_agent.graph.invoke({"news_text": state.news_text})
         metadata = MetadataState(**result)
@@ -143,12 +119,6 @@ class MainAgent(BaseAgent):
         Returns:
             核查方案 JSON
         """
-        # Check for interruption
-        if self._check_interruption():
-            return {"status": "interrupted", "message": "任务已被中断"}
-        
-        pub.sendMessage(MainAgentEvents.EXTRACT_CHECK_POINT_START.value)
-
         messages = [
             fact_check_plan_prompt_template.format(
                 news_text=state.news_text,
@@ -161,10 +131,6 @@ class MainAgent(BaseAgent):
 
         response = self.model.invoke(messages)
         check_points: CheckPoints = fact_check_plan_output_parser.invoke(response)
-        pub.sendMessage(
-            MainAgentEvents.EXTRACT_CHECK_POINT_END.value,
-            check_points_result=check_points
-        )
         
         formatted_check_points = state.get_formatted_check_points(check_points)
         
@@ -193,10 +159,6 @@ class MainAgent(BaseAgent):
 
     def invoke_search_agent(self, state: FactCheckPlanState):
         """根据检索规划调用子检索模型执行深度检索"""        
-        # Check for interruption
-        if self._check_interruption():
-            return {"status": "interrupted", "message": "任务已被中断"}
-        
         current_task = self._get_current_retrieval_task(state)
         if not current_task:
             raise AgentExecutionException(
@@ -236,10 +198,6 @@ class MainAgent(BaseAgent):
 
     def evaluate_search_result(self, state: FactCheckPlanState):
         """主模型对当前 search agent 的检索结论进行复核推理"""
-        # Check for interruption
-        if self._check_interruption():
-            return {"status": "interrupted", "message": "任务已被中断"}
-                
         current_task = self._get_current_retrieval_task(state)
         if not current_task:
             raise AgentExecutionException(
@@ -261,8 +219,6 @@ class MainAgent(BaseAgent):
                 message="无法找到当前检索步骤的结果",
             )
 
-        pub.sendMessage(MainAgentEvents.EVALUATE_SEARCH_RESULT_START.value)
-        
         # 评估当前检索结果
         response = self.model.invoke([
             evaluate_search_result_prompt_template.format(
@@ -290,11 +246,6 @@ class MainAgent(BaseAgent):
 
         updated_check_points = self._batch_update_retrieval_steps(state, updates)
         
-        pub.sendMessage(
-            MainAgentEvents.EVALUATE_SEARCH_RESULT_END.value,
-            verification_result=verification_result
-        )
-        
         return {"check_points": updated_check_points}
 
     def should_retry_or_continue(self, state: FactCheckPlanState) -> Literal["retry", "next", "finish"]:        
@@ -303,11 +254,6 @@ class MainAgent(BaseAgent):
         """
         # 检查是否已经处理完所有任务
         if self.current_retrieval_task_index >= self.total_retrieval_tasks_nums - 1:
-            pub.sendMessage(
-                MainAgentEvents.LLM_DECISION.value, 
-                decision="完成检索", 
-                reason="所有检索任务均已完成"
-            )
             return "finish"
         
         current_task = self._get_current_retrieval_task(state)
@@ -320,27 +266,11 @@ class MainAgent(BaseAgent):
 
         # 主模型对当前检索结果不满意，且 search agent 重试次数未超过最大重试次数，重试当前检索
         if not current_step.verification.verified and self.retries <= self.max_retries:
-            pub.sendMessage(
-                MainAgentEvents.LLM_DECISION.value, 
-                decision="重试当前检索", 
-                reason=current_step.verification.reasoning
-            )
             return "retry"
 
-        # 主模型不认可当前检索结果，但 search agent 重试次数超过最大重试次数，继续下一个任务
-        if not current_step.verification.verified and self.retries > self.max_retries:
-            pub.sendMessage(
-                MainAgentEvents.LLM_DECISION.value, 
-                decision="继续下一个任务", 
-                reason=current_step.verification.reasoning
-            )
-        else:
-        # 主模型认可当前检索结果，search agent 继续下一个任务
-            pub.sendMessage(
-                MainAgentEvents.LLM_DECISION.value, 
-                decision="继续下一个任务", 
-                reason=current_step.verification.reasoning
-            )
+        # 无论主模型是否认可当前检索结果，只要 search agent 重试次数超过最大重试次数，继续下一个任务
+        # if not current_step.verification.verified and self.retries > self.max_retries:
+        #     return "next"
         
         # 重置重试计数器和更新当前检索任务索引，准备处理下一个任务
         self.retries = 0
@@ -350,25 +280,14 @@ class MainAgent(BaseAgent):
     
     def write_fact_checking_report(self, state: FactCheckPlanState):
         """main agent 认可全部核查结论将核查结果写入报告"""
-        # Check for interruption
-        if self._check_interruption():
-            return {"status": "interrupted", "message": "任务已被中断"}
-                
-        pub.sendMessage(MainAgentEvents.WRITE_FACT_CHECKING_REPORT_START.value)
-        
-        response = self.model.invoke([
+        report = self.model.invoke([
             write_fact_checking_report_prompt_template.format(
                 news_text=state.news_text, 
                 check_points=state.check_points
             )
         ])
         
-        pub.sendMessage(
-            MainAgentEvents.WRITE_FACT_CHECKING_REPORT_END.value,
-            response_text=response.content
-        )
-
-        return state
+        return {"report": report}
     
     def _get_current_retrieval_task(self, state: FactCheckPlanState) -> SearchAgentState:
         """获取要执行的检索任务"""
@@ -446,121 +365,19 @@ class MainAgent(BaseAgent):
     def find_retrieval_step(self, state: FactCheckPlanState, retrieval_step_id: str) -> Optional[RetrievalStep]:
         """查找指定 id 的 retrieval step"""
         for check_point in state.check_points:
-            for step in check_point.retrieval_step: # type: ignore
+            if not check_point.retrieval_step:
+                raise AgentExecutionException(
+                    agent_type="main",
+                    message=f"核查点下找不到指定 id 为 {retrieval_step_id} 的检索步骤",
+                )
+            
+            for step in check_point.retrieval_step:
                 if step.id == retrieval_step_id:
                     return step
         return None
 
-    # 重写 invoke 方法以支持 CLI 模式，令 Main Agent 能够在内部处理 human-in-the-loop 流程
-    def invoke(self, input: Any, config: Optional[RunnableConfig] = None, **kwargs):
-        if not config or not config.get("configurable"):
-            raise ValueError("Agent 缺少 thread_id 配置")
-        
-        # 从配置中获取中断检查回调
-        should_continue = config.get("configurable", {}).get("should_continue", lambda: True)
-        
-        try:
-            # 在执行前检查是否应该继续
-            if callable(should_continue) and not should_continue():
-                pub.sendMessage(
-                    MainAgentEvents.LLM_DECISION.value,
-                    decision="任务中断",
-                    reason="收到用户中断信号"
-                )
-                return {"status": "interrupted", "message": "任务已被中断"}
-            
-            # 修改图表执行策略，加入中断检查
-            orig_invoke = self.graph.invoke
-            
-            def invoke_with_interrupt_check(*args, **kw):
-                # 在每次图执行前检查是否应该继续
-                if callable(should_continue) and not should_continue():
-                    return {"status": "interrupted", "message": "任务已被中断"}
-                return orig_invoke(*args, **kw)
-            
-            # 临时替换invoke方法添加中断检查
-            self.graph.invoke = invoke_with_interrupt_check
-            
-            # 执行图
-            result = self.graph.invoke(input, config, **kwargs)
-            
-            # 恢复原始方法
-            self.graph.invoke = orig_invoke
-            
-            # 执行完成后再次检查是否被中断
-            if callable(should_continue) and not should_continue():
-                return {"status": "interrupted", "message": "任务已被中断"}
-            
-            return result
-        except Exception as e:
-            # 出现异常时恢复原始方法
-            if hasattr(self, '_orig_invoke'):
-                self.graph.invoke = getattr(self, '_orig_invoke')
-            raise e
 
-    def cancel_running_tasks(self):
-        """
-        取消所有正在运行的任务，包括API调用和子代理任务
-        在收到中断信号时由AgentService调用
-        """
-        try:
-            # 设置中断标志
-            self._interrupted = True
-            
-            # 尝试取消metadata extract agent的任务
-            try:
-                # 安全地尝试调用子代理的取消方法，即使方法不存在也不会抛出异常
-                if self.metadata_extract_agent and hasattr(self.metadata_extract_agent, 'cancel_running_tasks'):
-                    getattr(self.metadata_extract_agent, 'cancel_running_tasks')()
-            except Exception as e:
-                print(f"无法取消metadata extract agent任务: {e}")
-            
-            # 尝试取消search agent的任务
-            try:
-                if self.search_agent and hasattr(self.search_agent, 'cancel_running_tasks'):
-                    getattr(self.search_agent, 'cancel_running_tasks')()
-            except Exception as e:
-                print(f"无法取消search agent任务: {e}")
-            
-            # 发布中断事件通知其他组件
-            pub.sendMessage(
-                MainAgentEvents.LLM_DECISION.value,
-                decision="任务中断",
-                reason="收到用户中断信号"
-            )
-            
-            # 如果模型支持中断，则中断当前正在进行的模型调用
-            try:
-                if hasattr(self.model, 'client') and hasattr(self.model.client, 'close'):
-                    self.model.client.close()
-            except Exception as e:
-                print(f"无法关闭模型客户端连接: {e}")
-            
-            return True
-        except Exception as e:
-            print(f"取消任务时出错: {e}")
-            return False
-
-    def _check_interruption(self) -> bool:
-        """检查是否应该中断执行"""
-        try:
-            # 尝试从线程本地存储获取运行配置
-            thread_local = getattr(self.graph, "_thread_local", None)
-            if thread_local and hasattr(thread_local, "run_config"):
-                run_config = thread_local.run_config
-                should_continue = run_config.get("configurable", {}).get("should_continue")
-                if callable(should_continue) and not should_continue():
-                    return True
-                
-            # 快速检查如果中断状态已经设置
-            if hasattr(self, "_interrupted") and self._interrupted:
-                return True
-                
-            return False
-        except Exception:
-            # 任何错误都不应中断任务
-            return False
-
+# TODO: 支持 CLI Mode
 def cli_select_option(options: List[Dict[str, str]], hint: str):
     """实现命令行选择功能"""
     import readchar

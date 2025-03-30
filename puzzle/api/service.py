@@ -317,7 +317,6 @@ class AgentService:
             model=main_agent_model,
             metadata_extract_model=metadata_extractor_model,
             search_model=search_agent_model,
-            mode="API",
             max_search_tokens=config.searcher.max_search_tokens,
             max_retries=config.main_agent.max_retries,
         )

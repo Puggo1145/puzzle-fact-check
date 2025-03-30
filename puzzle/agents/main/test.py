@@ -56,7 +56,7 @@ def test_plan_agent():
     )
 
     thread_config = {"thread_id": "test_id"}
-    main_agent.invoke(
+    main_agent.graph.invoke(
         example_initial_state,
         {"configurable": thread_config},
     )

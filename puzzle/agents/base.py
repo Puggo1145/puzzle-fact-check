@@ -11,10 +11,8 @@ class BaseAgent:
     def __init__(
         self,
         model: BaseChatOpenAI,
-        mode: Literal["CLI", "API"] = "CLI",
     ) -> None:
         
-        self.mode = mode
         self.model = model
         self.graph = self._build_graph()
         
