@@ -38,7 +38,7 @@ export const EventLog: React.FC = () => {
   };
   
   return (
-    <div className="w-full flex-1 flex flex-col overflow-hidden">
+    <div className="mt-4 w-full flex flex-col overflow-hidden">
       <div 
         className="flex items-center justify-between p-3 border rounded-t-lg cursor-pointer"
         onClick={toggleCollapse}

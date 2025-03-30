@@ -35,7 +35,7 @@ class SearchAgentGraph(BaseAgent):
         self,
         model: BaseChatOpenAI,
         max_search_tokens: int,
-        selected_tools: Optional[List[str]] = None,
+        selected_tools: List[str] = [],
     ):
         super().__init__(model=model)
 
@@ -67,7 +67,7 @@ class SearchAgentGraph(BaseAgent):
         #     self.db_events = DBEvents()
         #     self.cli_events = CLIModeEvents()
     
-    def _get_tools(self, selected_tools: Optional[List[str]] = None) -> List[Any]:
+    def _get_tools(self, selected_tools: List[str] = []) -> List[Any]:
         """
         根据选择的工具配置返回工具列表
         

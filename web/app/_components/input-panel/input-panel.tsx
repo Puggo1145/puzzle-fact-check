@@ -3,7 +3,6 @@
 import {
     useState,
     useMemo,
-    useEffect
 } from "react";
 // icons
 import {
@@ -51,10 +50,6 @@ export const InputPanel = () => {
     const INTERRUPTING = useMemo(() => status === 'interrupting', [status]);
     const INTERRUPTED = useMemo(() => status === 'interrupted', [status]);
     const COMPLETED = useMemo(() => status === 'completed', [status]);
-
-    useEffect(() => {
-        console.log('status', status);
-    }, [status])
 
     const handleRunAgent = async () => {
         if (!hasNewsText) return;

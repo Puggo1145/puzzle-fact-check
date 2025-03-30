@@ -212,7 +212,7 @@ export const SearchAgentConfigPanel: React.FC<SearchAgentConfigProps> = ({
         <NumberInput
           value={config.maxSearchTokens ?? 10000}
           onChange={handleMaxSearchTokensChange}
-          min={1000}
+          min={5000}
           max={100000}
           step={1000}
           disabled={disabled}

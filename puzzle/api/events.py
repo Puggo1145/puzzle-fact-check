@@ -1,6 +1,7 @@
 """
 Agent SSE Event Models
 """
+
 import re
 from pydantic import BaseModel
 from agents.main.states import CheckPoint, RetrievalResultVerification
@@ -16,8 +17,8 @@ def convert_name_to_event(name: str) -> str:
     OnExtractCheckPointStart -> on_extract_check_point_start
     """
     # 将驼峰式命名转换为下划线式命名
-    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-    s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
+    s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
+    s2 = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1)
     # 转换为小写并返回
     return s2.lower()
 
@@ -25,43 +26,47 @@ def convert_name_to_event(name: str) -> str:
 class BaseEvent(BaseModel):
     event: Optional[str] = None
     data: Any
-    
+
     def __init__(self, **data):
         if "event" not in data:
             data["event"] = convert_name_to_event(self.__class__.__name__)
         super().__init__(**data)
 
 
-# invoke_metadata_extract_agent
-class OnExtractBasicMetadataStart(BaseEvent):
+class OnAgentStart(BaseEvent):
     data: None = None
 
 
-class OnExtractBasicMetadataEnd(BaseEvent):
+# invoke_metadata_extract_agent
+class ExtractBasicMetadataStart(BaseEvent):
+    data: None = None
+
+
+class ExtractBasicMetadataEnd(BaseEvent):
     data: BasicMetadata
 
 
-class OnExtractKnowledgeStart(BaseEvent):
+class ExtractKnowledgeStart(BaseEvent):
     data: None = None
 
 
-class OnExtractKnowledgeEnd(BaseEvent):
+class ExtractKnowledgeEnd(BaseEvent):
     data: List[Knowledge]
 
 
-class OnRetrieveKnowledgeStart(BaseEvent):
+class RetrieveKnowledgeStart(BaseEvent):
     data: None = None
 
 
-class OnRetrieveKnowledgeEnd(BaseEvent):
+class RetrieveKnowledgeEnd(BaseEvent):
     data: Knowledge
 
 
-class OnExtractCheckPointStart(BaseEvent):
+class ExtractCheckPointStart(BaseEvent):
     data: None = None
 
 
-class OnExtractCheckPointEnd(BaseEvent):
+class ExtractCheckPointEnd(BaseEvent):
     data: List[CheckPoint]
 
 
@@ -71,47 +76,32 @@ class SearchAgentInput(BaseModel):
     purpose: str
     expected_sources: List[str]
 
-class OnSearchAgentStart(BaseEvent):
+
+class SearchAgentStart(BaseEvent):
     data: SearchAgentInput
 
 
-class OnEvaluateCurrentStatusStart(BaseEvent):
+class EvaluateCurrentStatusStart(BaseEvent):
     data: None = None
 
 
-class OnEvaluateCurrentStatusEnd(BaseEvent):
+class EvaluateCurrentStatusEnd(BaseEvent):
     data: Status
 
 
-class ToolStartData(BaseModel):
-    tool_name: str
-    input_str: str
-
-class OnToolStart(BaseEvent):
-    data: ToolStartData
-
-
-class ToolEndData(BaseModel):
-    tool_name: str
-    output_str: str
-
-class OnToolEnd(BaseEvent):
-    data: ToolEndData
-
-
-class OnGenerateAnswerStart(BaseEvent):
+class GenerateAnswerStart(BaseEvent):
     data: None = None
 
 
-class OnGenerateAnswerEnd(BaseEvent):
+class GenerateAnswerEnd(BaseEvent):
     data: SearchResult
 
 
-class OnEvaluateSearchResultStart(BaseEvent):
+class EvaluateSearchResultStart(BaseEvent):
     data: None = None
 
 
-class OnEvaluateSearchResultEnd(BaseEvent):
+class EvaluateSearchResultEnd(BaseEvent):
     data: RetrievalResultVerification
 
 
@@ -119,11 +109,11 @@ class LLMDecisionData(BaseModel):
     decision: str
 
 
-class OnLLMDecision(BaseEvent):
+class LLMDecision(BaseEvent):
     data: LLMDecisionData
 
 
-class OnWriteFactCheckReportStart(BaseEvent):
+class WriteFactCheckReportStart(BaseEvent):
     data: None = None
 
 
@@ -131,5 +121,43 @@ class FactCheckReportData(BaseModel):
     report: str
 
 
-class OnWriteFactCheckReportEnd(BaseEvent):
+class WriteFactCheckReportEnd(BaseEvent):
     data: FactCheckReportData
+
+
+class ToolStartData(BaseModel):
+    tool_name: str
+    input_str: str
+
+
+class ToolStart(BaseEvent):
+    data: ToolStartData
+
+
+class ToolEndData(BaseModel):
+    tool_name: str
+    output_str: str
+
+
+class ToolEnd(BaseEvent):
+    data: ToolEndData
+
+
+class TaskComplete(BaseEvent):
+    data: None = None
+
+
+class InterruptData(BaseModel):
+    message: str
+
+
+class TaskInterrupted(BaseEvent):
+    data: InterruptData
+
+
+class ErrorData(BaseModel):
+    message: str
+
+
+class Error(BaseEvent):
+    data: ErrorData

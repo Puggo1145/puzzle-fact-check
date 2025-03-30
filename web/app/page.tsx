@@ -6,6 +6,7 @@ import { InputPanel } from "./_components/input-panel/input-panel";
 import { EventLog } from "@/components/agent/event-log";
 import { Report } from "@/components/agent/report";
 import { useAgentStore } from "@/stores/use-agent-store";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 export default function Home() {
@@ -15,24 +16,24 @@ export default function Home() {
   const isActive = status !== 'idle' || Boolean(finalReport) || events.length > 0;
 
   return (
-    
     <div className="container relative w-full h-full flex flex-col items-center mx-auto">
-      <div 
+      <ScrollArea
         className={cn(
-          "w-full flex flex-col gap-6 transition-all duration-500 ease-in-out",
-          isActive 
-            ? "h-[80vh] overflow-y-auto" 
-            : "h-0 overflow-hidden"
+          "w-full transition-all duration-500 ease-in-out px-4",
+          isActive
+            ? "h-[80vh]"
+            : "h-[0vh]"
         )}
       >
         <NewsDisplay />
         <EventLog />
         <Report />
-      </div>
+        <ScrollBar />
+      </ScrollArea>
 
       {/* Hero and Input Panel Container - always in the same place */}
       <div className={cn(
-        " w-full transition-all duration-500 ease-in-out",
+        "w-full transition-all duration-500 ease-in-out mb-8",
         isActive ? "mt-6" : "max-w-2xl flex-1 flex flex-col justify-center"
       )}>
         <Hero />

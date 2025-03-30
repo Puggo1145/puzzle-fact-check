@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 
 export function Header() {
   return (
-    <header className="z-50 px-4 py-6 w-full flex items-center justify-between">
+    <header className="z-50 px-4 py-4 w-full flex items-center justify-between">
       <Logo />
       <div className="flex items-center gap-2">
         <Button

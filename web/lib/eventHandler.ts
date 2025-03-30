@@ -17,6 +17,7 @@ export function setupEventSource(
   // Timeout check variables
   let lastEventTime = Date.now();
   const TIMEOUT_DURATION = 180 * 1000; // 3 分钟无下一个事件响应则超时
+  let isStreamClosed = false; // Add flag to track if stream is closed
   
   // Define function to update last event time
   const updateLastEventTime = () => {
@@ -25,6 +26,17 @@ export function setupEventSource(
   
   // Define function to check for timeout
   const checkForTimeout = () => {
+    // If stream is closed, don't check for timeout
+    if (isStreamClosed) {
+      console.log('Stream is closed, skipping timeout check');
+      
+      // Clear timeout checker if stream is closed
+      if (timeoutCheckerId) {
+        clearInterval(timeoutCheckerId);
+      }
+      return;
+    }
+    
     const currentTime = Date.now();
     const timeSinceLastEvent = currentTime - lastEventTime;
     
@@ -77,14 +89,16 @@ export function setupEventSource(
     eventSource.addEventListener(eventType, (event) => {
       // Update last event time
       updateLastEventTime();
-      
-      // Previous event handling logic
+
+      if (!event.data) {
+        return;
+      }
+
       try {
         const data = JSON.parse(event.data);
         addEvent({ event: eventType, data } as TypedEvent<T>);
         
-        // Handle special report type events
-        if (eventType === 'write_fact_checking_report_end' && data.report) {
+        if (eventType === 'write_fact_check_report_end' && data.report) {
           setFinalReport(data.report);
         }
       } catch(e) {
@@ -101,14 +115,37 @@ export function setupEventSource(
     'extract_knowledge_start', 'extract_knowledge_end',
     'retrieve_knowledge_start', 'retrieve_knowledge_end',
     'search_agent_start', 'evaluate_current_status_start', 'evaluate_current_status_end',
-    'tool_start', 'tool_result',
+    'tool_start', 'tool_end',
     'generate_answer_start', 'generate_answer_end',
     'evaluate_search_result_start', 'evaluate_search_result_end',
-    'write_fact_checking_report_start', 'write_fact_checking_report_end',
+    'write_fact_check_report_start', 'write_fact_check_report_end',
     'llm_decision', 'task_complete', 'task_interrupted',
+    'error',
   ];
   
   eventTypes.forEach(eventType => setupEventTypeListener(eventType));
+  
+  // Handle heartbeat events
+  eventSource.addEventListener('heartbeat', () => {
+    // Update last event time to prevent timeout
+    updateLastEventTime();
+  });
+  
+  // Handle stream_closed event
+  eventSource.addEventListener('stream_closed', () => {
+    // Mark stream as closed to prevent timeout checks
+    isStreamClosed = true;
+    
+    // Clear timeout checker when stream is closed
+    if (timeoutCheckerId) {
+      clearInterval(timeoutCheckerId);
+    }
+    
+    // Close the connection
+    setTimeout(() => {
+      eventSource.close();
+    }, 100);
+  });
   
   // Special handling for task_complete and task_interrupted events
   eventSource.addEventListener('task_complete', (event) => {
@@ -125,6 +162,9 @@ export function setupEventSource(
     
     // Call the status change callback
     onStatusChange('completed');
+    
+    // Mark stream as closed to prevent error handling when connection closes
+    isStreamClosed = true;
     
     // Close EventSource connection
     if (data && data.message === "核查任务完成") {
@@ -149,6 +189,9 @@ export function setupEventSource(
     // Call the status change callback
     onStatusChange('interrupted');
     
+    // Mark stream as closed to prevent error handling when connection closes
+    isStreamClosed = true;
+    
     // Close EventSource connection
     setTimeout(() => {
       eventSource.close();
@@ -157,23 +200,39 @@ export function setupEventSource(
   
   // Handle connection errors
   eventSource.addEventListener('error', (event) => {
-    console.error('EventSource encountered an error:', event);
+    // Update last event time
+    updateLastEventTime();
     
-    // Add error event to the log
-    addEvent({
-      event: 'error',
-      data: { message: '与服务器的连接中断，请检查您的网络连接或稍后再试。' }
-    } as TypedEvent<'error'>);
+    // Only show error if the stream isn't intentionally closed
+    // This prevents showing error when connection closes normally after task_complete
+    if (!isStreamClosed) {
+      console.error('EventSource encountered an error:', event);
+      // Add error event to the log
+      addEvent({
+        event: 'error',
+        data: { message: '与服务器的连接中断，请检查您的网络连接或稍后再试。' }
+      } as TypedEvent<'error'>);
+      
+      // Update status to interrupted rather than staying in running
+      onStatusChange('interrupted');
+    }
     
-    // Update status to interrupted rather than staying in running
-    onStatusChange('interrupted');
-    
-    // Close the connection
-    eventSource.close();
+    // Close the connection if not already closed
+    if (eventSource.readyState !== EventSource.CLOSED) {
+      eventSource.close();
+    }
   });
   
   eventSource.addEventListener('close', () => {
-    clearInterval(timeoutCheckerId);
+    console.log('EventSource close event triggered');
+    
+    // Mark stream as closed to prevent timeout checks
+    isStreamClosed = true;
+    
+    // Clear the timeout checker
+    if (timeoutCheckerId) {
+      clearInterval(timeoutCheckerId);
+    }
   });
   
   return eventSource;
@@ -203,26 +262,12 @@ export function processEvent<T extends EventType>(event: TypedEvent<T>): { statu
   
   // Special handling for error events
   if (event.event === 'error') {
-    // Safe type assertion since we've already checked event.event === 'error'
-    const errorData = event.data as { message: string } | undefined;
-    const errorMessage = errorData?.message || '';
-    
-    // Check if it's a model API related error or a validation error
-    if (
-      errorMessage.includes('OpenAI API') || 
-      errorMessage.includes('模型API错误') || 
-      errorMessage.includes('配额') || 
-      errorMessage.includes('速率限制') ||
-      errorMessage.includes('validation error') ||
-      errorMessage.includes('pydantic')
-    ) {
-      // For model API errors or validation errors, transition to interrupted
-      return {
-        status: 'interrupted',
-        sessionId: null,
-        eventSource: null
-      };
-    }
+    // All error events should transition to interrupted state
+    return {
+      status: 'interrupted',
+      sessionId: null,
+      eventSource: null
+    };
   }
   
   return null;

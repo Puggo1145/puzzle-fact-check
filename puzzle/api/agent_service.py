@@ -1,5 +1,5 @@
 import json
-from typing import cast
+from typing import cast, Callable, Optional
 
 import uuid
 from agents.main.graph import MainAgent
@@ -69,9 +69,11 @@ def pretier_print_event(sse_event: BaseEvent):
     print(f"data: {sse_event.data}")
     print("-" * 100)
 
-async def run_main_agent(news_text: str, config: CreateAgentConfig):
-    thread_id = str(uuid.uuid4())
-
+async def run_main_agent(
+    news_text: str, 
+    config: CreateAgentConfig, 
+    thread_id: str,
+):
     model = get_model_instance_from_provider(
         config.main_agent.model_provider,
         config.main_agent.model_name,
@@ -97,6 +99,7 @@ async def run_main_agent(news_text: str, config: CreateAgentConfig):
         search_model=searcher_model,
         max_retries=config.main_agent.max_retries,
         max_search_tokens=config.searcher.max_search_tokens,
+        selected_tools=config.searcher.selected_tools,
     )
 
     try:
@@ -114,153 +117,136 @@ async def run_main_agent(news_text: str, config: CreateAgentConfig):
             if filter_graph_events(kind, name, node, metadata):
                 continue
 
+            sse_event = None
+            
             if (
                 kind == "on_chain_start"
                 and node == "invoke_metadata_extract_agent"
                 and name == "extract_basic_metadata"
             ):
-                sse_event = OnExtractBasicMetadataStart()
-                pretier_print_event(sse_event)
+                yield ExtractBasicMetadataStart().model_dump()
             elif (
                 kind == "on_chain_end"
                 and node == "invoke_metadata_extract_agent"
                 and name == "extract_basic_metadata"
             ):
                 basic_metadata = data.get("output", {})["basic_metadata"]
-                sse_event = OnExtractBasicMetadataEnd(data=basic_metadata)
-                pretier_print_event(sse_event)
+                yield ExtractBasicMetadataEnd(data=basic_metadata).model_dump()
             elif (
                 kind == "on_chain_start"
                 and node == "invoke_metadata_extract_agent"
                 and name == "extract_knowledge"
             ):
-                sse_event = OnExtractKnowledgeStart()
-                pretier_print_event(sse_event)
+                yield ExtractKnowledgeStart().model_dump()
             elif (
                 kind == "on_chain_end"
                 and node == "invoke_metadata_extract_agent"
                 and name == "extract_knowledge"
             ):
                 knowledges = data.get("output", {})["knowledges"]
-                sse_event = OnExtractKnowledgeEnd(data=knowledges)
-                pretier_print_event(sse_event)
+                yield ExtractKnowledgeEnd(data=knowledges).model_dump()
             elif (
                 kind == "on_chain_start"
                 and node == "invoke_metadata_extract_agent"
                 and name == "retrieve_knowledge"
             ):
-                sse_event = OnRetrieveKnowledgeStart()
-                pretier_print_event(sse_event)
+                yield RetrieveKnowledgeStart().model_dump()
             elif (
                 kind == "on_chain_end"
                 and node == "invoke_metadata_extract_agent"
                 and name == "retrieve_knowledge"
             ):
                 retrieved_knowledge = data.get("output", {})["retrieved_knowledges"][0]
-                sse_event = OnRetrieveKnowledgeEnd(data=retrieved_knowledge)
-                pretier_print_event(sse_event)
+                yield RetrieveKnowledgeEnd(data=retrieved_knowledge).model_dump()
             elif (
                 kind == "on_chain_start"
                 and name == "extract_check_point"
             ):
-                sse_event = OnExtractCheckPointStart()
-                pretier_print_event(sse_event)
+                yield ExtractCheckPointStart().model_dump()
             elif (
                 kind == "on_chain_end"
                 and name == "extract_check_point"
             ):
                 check_points = data.get("output", {})["check_points"]
-                sse_event = OnExtractCheckPointEnd(data=check_points)
-                pretier_print_event(sse_event)
+                yield ExtractCheckPointEnd(data=check_points).model_dump()
             elif (
                 kind == "on_chain_start"
                 and name == "__start__"
                 and node == "invoke_search_agent"
             ):
                 input_data = cast(SearchAgentState, data.get("input"))
-                sse_event = OnSearchAgentStart(
+                yield SearchAgentStart(
                     data=SearchAgentInput(
                         content=input_data.content,
                         purpose=input_data.purpose,
                         expected_sources=input_data.expected_sources,
                     )
-                )
-                pretier_print_event(sse_event)
+                ).model_dump()
             elif (
                 kind == "on_chain_start"
                 and name == "evaluate_current_status"
                 and node == "invoke_search_agent"
             ):
-                sse_event = OnEvaluateCurrentStatusStart()
-                pretier_print_event(sse_event)
+                yield EvaluateCurrentStatusStart().model_dump()
             elif (
                 kind == "on_chain_end"
                 and name == "evaluate_current_status"
                 and node == "invoke_search_agent"
             ):
                 status = data.get("output", {})["statuses"][0]
-                sse_event = OnEvaluateCurrentStatusEnd(data=status)
-                pretier_print_event(sse_event)
+                yield EvaluateCurrentStatusEnd(data=status).model_dump()
             elif (
                 kind == "on_chain_start"
                 and name == "generate_answer"
                 and node == "invoke_search_agent"
             ):
-                sse_event = OnGenerateAnswerStart()
-                pretier_print_event(sse_event)
+                yield GenerateAnswerStart().model_dump()
             elif (
                 kind == "on_chain_end"
                 and name == "generate_answer"
                 and node == "invoke_search_agent"
             ):
                 search_result = data.get("output", {})["result"]
-                sse_event = OnGenerateAnswerEnd(data=search_result)
-                pretier_print_event(sse_event)
+                yield GenerateAnswerEnd(data=search_result).model_dump()
             elif (
                 kind == "on_chain_start"
                 and name == "evaluate_search_result"
             ):
-                sse_event = OnEvaluateSearchResultStart()
-                pretier_print_event(sse_event)
+                yield EvaluateSearchResultStart().model_dump()
             elif (
                 kind == "on_parser_end"
                 and node == "evaluate_search_result"
             ):
                 verification = cast(RetrievalResultVerification, data.get("output"))
-                sse_event = OnEvaluateSearchResultEnd(data=verification)
-                pretier_print_event(sse_event)
+                yield EvaluateSearchResultEnd(data=verification).model_dump()
             elif (
                 kind == "on_chain_end"
                 and name == "should_retry_or_continue"
             ):
                 decision = cast(str, data.get("output", {}))
-                sse_event = OnLLMDecision(data=LLMDecisionData(decision=decision))
-                pretier_print_event(sse_event)
+                yield LLMDecision(data=LLMDecisionData(decision=decision)).model_dump()
             elif (
                 kind == "on_chain_start"
                 and name == "write_fact_check_report"
             ):
-                sse_event = OnWriteFactCheckReportStart()
-                pretier_print_event(sse_event)
+                yield WriteFactCheckReportStart().model_dump()
             elif (
                 kind == "on_chain_end"
                 and name == "write_fact_check_report"
             ):
                 report = data.get("output", {})["report"]
-                sse_event = OnWriteFactCheckReportEnd(data=FactCheckReportData(report=report))
-                pretier_print_event(sse_event)
+                yield WriteFactCheckReportEnd(data=FactCheckReportData(report=report)).model_dump()
             elif (
                 kind == "on_tool_start"
             ):
                 tool_name = name
                 tool_input_str = json.dumps(data.get("input", {}))
-                sse_event = OnToolStart(
+                yield ToolStart(
                     data=ToolStartData(
                         tool_name=tool_name,
                         input_str=tool_input_str
                     )
-                )
-                pretier_print_event(sse_event)
+                ).model_dump()
             elif (
                 kind == "on_tool_end"
             ):
@@ -271,19 +257,14 @@ async def run_main_agent(news_text: str, config: CreateAgentConfig):
                 else:
                     tool_output_str = str(data.get("output"))
                     
-                sse_event = OnToolEnd(
+                yield ToolEnd(
                     data=ToolEndData(
                         tool_name=tool_name,
                         output_str=tool_output_str
                     )
-                )
-                pretier_print_event(sse_event)
-            # else:
-            #     print(f"kind: {kind}")
-            #     print(f"data: {data}")
-            #     print(f"name: {name}")
-            #     print(f"node: {node}")
-            #     print("-" * 100)
-
+                ).model_dump()
+            
     except Exception as e:
-        raise e
+        error_message = f"Error running agent: {str(e)}"
+        yield Error(data=ErrorData(message=error_message)).model_dump()
+    

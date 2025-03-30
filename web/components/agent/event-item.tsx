@@ -2,20 +2,19 @@
 
 import type {
   Event,
-  CheckPoints,
   CheckPoint,
   BasicMetadata,
   Knowledge,
   LLMDecisionData,
   ToolStartData,
   RetrievalResultVerification,
-  TaskCompleteData,
   TaskInterruptedData,
   ErrorData,
   SearchAgentStartData,
   Status,
   SearchResult,
   Evidence,
+  ToolEndData,
 } from '@/types/events';
 import {
   BrainCircuitIcon,
@@ -40,7 +39,7 @@ import { cn } from '@/lib/utils';
 export const EventItem = ({ event }: { event: Event }) => {
   const { event: eventType, data } = event;
 
-  const getEventIcon = () => {
+  const EventIcon = () => {
     switch (eventType) {
       case 'agent_start':
         return <PlayIcon className="size-4" />;
@@ -61,7 +60,7 @@ export const EventItem = ({ event }: { event: Event }) => {
       case 'evaluate_current_status_end':
         return <BrainCircuitIcon className="size-4" />;
       case 'tool_start':
-      case 'tool_result':
+      case 'tool_end':
         return <WrenchIcon className="size-4" />;
       case 'generate_answer_start':
       case 'generate_answer_end':
@@ -70,8 +69,8 @@ export const EventItem = ({ event }: { event: Event }) => {
         return <SparkleIcon className="size-4" />;
       case 'evaluate_search_result_end':
         return (data as RetrievalResultVerification).verified ? <ThumbsUpIcon className="size-4" /> : <ThumbsDownIcon className="size-4" />;
-      case 'write_fact_checking_report_start':
-      case 'write_fact_checking_report_end':
+      case 'write_fact_check_report_start':
+      case 'write_fact_check_report_end':
         return <FileTextIcon className="size-4" />;
       case 'llm_decision':
         return <BrainCircuitIcon className="size-4" />;
@@ -86,7 +85,7 @@ export const EventItem = ({ event }: { event: Event }) => {
     }
   };
 
-  const getEventTitle = () => {
+  const EventTitle = () => {
     switch (eventType) {
       case 'agent_start':
         return '事实核查开始';
@@ -115,7 +114,7 @@ export const EventItem = ({ event }: { event: Event }) => {
       case 'tool_start':
         const toolData = data as ToolStartData;
         return `使用工具: ${toolData?.tool_name || ''}`;
-      case 'tool_result':
+      case 'tool_end':
         return '工具执行完成';
       case 'generate_answer_start':
         return '正在生成检索结论...';
@@ -125,22 +124,24 @@ export const EventItem = ({ event }: { event: Event }) => {
         return '正在评估检索结果...';
       case 'evaluate_search_result_end':
         return '检索结果评估完成';
-      case 'write_fact_checking_report_start':
+      case 'write_fact_check_report_start':
         return '开始撰写核查报告...';
-      case 'write_fact_checking_report_end':
+      case 'write_fact_check_report_end':
         return '核查报告撰写完成';
       case 'llm_decision':
         const decisionData = data as LLMDecisionData;
         return `LLM 决策: ${decisionData?.decision || ''}`;
       case 'task_complete':
-        const completeData = data as TaskCompleteData;
-        return completeData?.message || '任务完成';
+        return '核查任务完成';
       case 'task_interrupted':
         const interruptData = data as TaskInterruptedData;
         return interruptData?.message || '任务已中断';
       case 'error':
         const errorData = data as ErrorData;
-        return errorData?.message || '发生错误';
+        return errorData?.message.length > 100
+          ? errorData?.message.slice(0, 100) + '...'
+          : errorData?.message
+          || '服务器错误，请稍候再试';
       default:
         return eventType;
     }
@@ -167,15 +168,15 @@ export const EventItem = ({ event }: { event: Event }) => {
       case 'generate_answer_end':
         return 'bg-cyan-50 border-cyan-100 text-cyan-700';
       case 'tool_start':
-      case 'tool_result':
+      case 'tool_end':
         return 'bg-blue-50 border-blue-100 text-blue-700';
       case 'evaluate_search_result_start':
       case 'evaluate_search_result_end':
         return (data as RetrievalResultVerification)?.verified
           ? 'bg-green-50 border-green-100 text-green-700'
           : 'bg-amber-50 border-amber-100 text-amber-700';
-      case 'write_fact_checking_report_start':
-      case 'write_fact_checking_report_end':
+      case 'write_fact_check_report_start':
+      case 'write_fact_check_report_end':
         return 'bg-emerald-50 border-emerald-100 text-emerald-700';
       case 'llm_decision':
         return 'bg-violet-50 border-violet-100 text-violet-700';
@@ -190,17 +191,17 @@ export const EventItem = ({ event }: { event: Event }) => {
     }
   };
 
-  const renderEventDetail = () => {
+  const EventDetail = () => {
     switch (eventType) {
       case 'extract_check_point_end':
-        const checkPoints = data as CheckPoints;
-        if (checkPoints.items?.length) {
+        const checkPoints = data as CheckPoint[];
+        if (checkPoints.length) {
           return (
             <div className="mt-2 space-y-2">
               <p className="text-sm font-medium">
-                找到 {checkPoints.items.length} 个核查点:
+                找到 {checkPoints.length} 个核查点:
               </p>
-              {checkPoints.items
+              {checkPoints
                 .filter((cp: CheckPoint) => cp.is_verification_point)
                 .map((cp: CheckPoint, idx: number) => (
                   <div key={idx} className="p-2 bg-white rounded-md border">
@@ -294,11 +295,11 @@ export const EventItem = ({ event }: { event: Event }) => {
         if (searchData) {
           return (
             <div className="mt-2 space-y-1">
-              <p className="text-xs"><span className="font-medium">内容:</span> {searchData.content}</p>
-              <p className="text-xs"><span className="font-medium">目的:</span> {searchData.purpose}</p>
+              <p className="text-xs"><span className="font-medium">核查点:</span> {searchData.content}</p>
+              <p className="text-xs"><span className="font-medium">核查目标:</span> {searchData.purpose}</p>
               {searchData.expected_sources && searchData.expected_sources.length > 0 && (
                 <p className="text-xs">
-                  <span className="font-medium">预期来源:</span> {searchData.expected_sources.join(', ')}
+                  <span className="font-medium">预期信源:</span> {searchData.expected_sources.join(', ')}
                 </p>
               )}
             </div>
@@ -317,7 +318,7 @@ export const EventItem = ({ event }: { event: Event }) => {
                 <p className="text-xs"><span className="font-medium">记忆:</span> {statusData.memory}</p>
               )}
               <p className="text-xs"><span className="font-medium">下一步:</span> {statusData.next_step}</p>
-              
+
               {statusData.new_evidence && statusData.new_evidence.length > 0 && (
                 <div className="mt-1">
                   <p className="text-xs font-medium">新证据:</p>
@@ -371,34 +372,21 @@ export const EventItem = ({ event }: { event: Event }) => {
         if (toolData) {
           return (
             <div className="mt-2 space-y-1">
-              <p className="text-xs break-all"><span className="font-medium">输入:</span> {toolData.input}</p>
+              <p className="text-xs break-all"><span className="font-medium">输入:</span> {toolData.input_str}</p>
             </div>
           );
         }
         return null;
 
-      case 'tool_result':
-        if (data) {
+      case 'tool_end':
+        const toolEndData = data as ToolEndData;
+        if (toolEndData) {
           return (
             <div className="mt-2 space-y-1">
               <p className="text-xs break-all">
-                <span className="font-medium">输出:</span>
-                {data}
+                <span className="font-medium">输出: </span>
+                {toolEndData.output_str}
               </p>
-            </div>
-          );
-        }
-        return null;
-
-      case 'llm_decision':
-        const decisionData = data as LLMDecisionData;
-        if (decisionData) {
-          return (
-            <div className="mt-2 space-y-1">
-              <p className="text-xs"><span className="font-medium">决策:</span> {decisionData.decision}</p>
-              {decisionData.reason && (
-                <p className="text-xs"><span className="font-medium">原因:</span> {decisionData.reason}</p>
-              )}
             </div>
           );
         }
@@ -412,10 +400,12 @@ export const EventItem = ({ event }: { event: Event }) => {
   return (
     <div className={cn("p-3 rounded-md border transition-colors", getEventClass())}>
       <div className="flex items-center gap-2">
-        {getEventIcon()}
-        <div className="text-sm font-medium">{getEventTitle()}</div>
+        <EventIcon />
+        <div className="text-sm font-medium">
+          <EventTitle />
+        </div>
       </div>
-      {renderEventDetail()}
+      <EventDetail />
     </div>
   );
 };

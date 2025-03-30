@@ -41,7 +41,7 @@ export const Report: React.FC = () => {
   }
 
   return (
-    <Card ref={reportRef} className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-4">
+    <Card ref={reportRef} className="mt-4 w-full animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-4">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex flex-col gap-2">

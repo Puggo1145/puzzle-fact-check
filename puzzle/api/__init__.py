@@ -1,8 +1,7 @@
-"""API module for the Puzzle Fact Check system"""
-from .app import app
-from .service import agent_service
+import logging
 
-__all__ = [
-    "app",
-    "agent_service"
-]
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("puzzle_api")

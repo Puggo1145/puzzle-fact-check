@@ -88,7 +88,7 @@ search agent 根据检索步骤执行了检索，并给出了以下检索结果�
     },
 )
 
-write_fact_checking_report_prompt_template = HumanMessagePromptTemplate.from_template(
+write_fact_check_report_prompt_template = HumanMessagePromptTemplate.from_template(
     template="""
 现在时间是：{current_time}
 

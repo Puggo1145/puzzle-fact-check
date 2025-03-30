@@ -109,8 +109,8 @@ API 会发出以下类型的事件：
 - `extract_check_point_end` - 完成提取核查点
 - `evaluate_search_result_start` - 开始评估检索结果
 - `evaluate_search_result_end` - 完成评估检索结果
-- `write_fact_checking_report_start` - 开始撰写核查报告
-- `write_fact_checking_report_end` - 完成撰写核查报告
+- `write_fact_check_report_start` - 开始撰写核查报告
+- `write_fact_check_report_end` - 完成撰写核查报告
 - `llm_decision` - LLM 做出决策
 - `wait_human_feedback` - 等待人类反馈
 - `human_feedback_received` - 收到人类反馈

@@ -1,25 +1,25 @@
 export type EventType =
     | 'agent_start'
-    | 'extract_check_point_start'
-    | 'extract_check_point_end'
     | 'extract_basic_metadata_start'
     | 'extract_basic_metadata_end'
     | 'extract_knowledge_start'
     | 'extract_knowledge_end'
     | 'retrieve_knowledge_start'
     | 'retrieve_knowledge_end'
+    | 'extract_check_point_start'
+    | 'extract_check_point_end'
     | 'search_agent_start'
     | 'evaluate_current_status_start'
     | 'evaluate_current_status_end'
-    | 'tool_start'
-    | 'tool_result'
     | 'generate_answer_start'
     | 'generate_answer_end'
     | 'evaluate_search_result_start'
     | 'evaluate_search_result_end'
-    | 'write_fact_checking_report_start'
-    | 'write_fact_checking_report_end'
     | 'llm_decision'
+    | 'write_fact_check_report_start'
+    | 'write_fact_check_report_end'
+    | 'tool_start'
+    | 'tool_end'
     | 'task_complete'
     | 'task_interrupted'
     | 'error';
@@ -44,9 +44,6 @@ export interface CheckPoint {
     is_verification_point: boolean;
     importance?: string;
     retrieval_step?: RetrievalStep[];
-}
-export interface CheckPoints {
-    items: CheckPoint[];
 }
 
 // Metadata Extractor Events
@@ -107,7 +104,12 @@ export interface RetrievalResultVerification {
 
 export interface ToolStartData {
     tool_name: string;
-    input: string;
+    input_str: string;
+}
+
+export interface ToolEndData {
+    tool_name: string;
+    output_str: string;
 }
 
 export interface LLMDecisionData {
@@ -136,7 +138,7 @@ export interface ErrorData {
 export type EventDataMap = {
     'agent_start': undefined;
     'extract_check_point_start': undefined;
-    'extract_check_point_end': CheckPoints;
+    'extract_check_point_end': CheckPoint[];
     'extract_basic_metadata_start': undefined;
     'extract_basic_metadata_end': BasicMetadata;
     'extract_knowledge_start': undefined;
@@ -147,13 +149,13 @@ export type EventDataMap = {
     'evaluate_current_status_start': undefined;
     'evaluate_current_status_end': Status;
     'tool_start': ToolStartData;
-    'tool_result': string;
+    'tool_end': ToolEndData;
     'generate_answer_start': undefined;
     'generate_answer_end': SearchResult;
     'evaluate_search_result_start': undefined;
     'evaluate_search_result_end': RetrievalResultVerification;
-    'write_fact_checking_report_start': undefined;
-    'write_fact_checking_report_end': FactCheckReportData;
+    'write_fact_check_report_start': undefined;
+    'write_fact_check_report_end': FactCheckReportData;
     'llm_decision': LLMDecisionData;
     'task_complete': TaskCompleteData;
     'task_interrupted': TaskInterruptedData;

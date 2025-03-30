@@ -14,7 +14,7 @@ from .prompts import (
     fact_check_plan_output_parser,
     evaluate_search_result_output_parser,
     evaluate_search_result_prompt_template,
-    write_fact_checking_report_prompt_template,
+    write_fact_check_report_prompt_template,
 )
 from ..searcher.states import SearchAgentState
 from ..searcher.graph import SearchAgentGraph
@@ -40,6 +40,7 @@ class MainAgent(BaseAgent):
         model: BaseChatOpenAI,
         metadata_extract_model: BaseChatOpenAI,
         search_model: BaseChatOpenAI,
+        selected_tools: List[str],
         max_search_tokens: int = 5000,
         max_retries: int = 1, # main agent 在一个任务上允许的最多重试次数
     ):
@@ -53,6 +54,7 @@ class MainAgent(BaseAgent):
         self.search_agent = SearchAgentGraph(
             model=search_model,
             max_search_tokens=max_search_tokens,
+            selected_tools=selected_tools,
         )
         
         # graph 内部动态条件参数
@@ -72,7 +74,7 @@ class MainAgent(BaseAgent):
         graph_builder.add_node("extract_check_point", self.extract_check_point)
         graph_builder.add_node("invoke_search_agent", self.invoke_search_agent)
         graph_builder.add_node("evaluate_search_result", self.evaluate_search_result)
-        graph_builder.add_node("write_fact_checking_report", self.write_fact_checking_report)
+        graph_builder.add_node("write_fact_check_report", self.write_fact_check_report)
 
         graph_builder.set_entry_point("invoke_metadata_extract_agent")
         graph_builder.add_edge("invoke_metadata_extract_agent", "extract_check_point")
@@ -88,10 +90,10 @@ class MainAgent(BaseAgent):
             {
                 "retry": "invoke_search_agent",
                 "next": "invoke_search_agent",
-                "finish": "write_fact_checking_report"
+                "finish": "write_fact_check_report"
             }
         )
-        graph_builder.set_finish_point("write_fact_checking_report")
+        graph_builder.set_finish_point("write_fact_check_report")
 
         return graph_builder.compile(
             checkpointer=MemorySaver(),
@@ -168,7 +170,10 @@ class MainAgent(BaseAgent):
         
         self.retries += 1
         
-        result = self.search_agent.graph.invoke(current_task)
+        result = self.search_agent.graph.invoke(
+            current_task, 
+            config={"recursion_limit": 30}
+        )
         
         search_state = SearchAgentState(**result)
         if not search_state.result:
@@ -278,16 +283,16 @@ class MainAgent(BaseAgent):
 
         return "next"
     
-    def write_fact_checking_report(self, state: FactCheckPlanState):
+    def write_fact_check_report(self, state: FactCheckPlanState):
         """main agent 认可全部核查结论将核查结果写入报告"""
-        report = self.model.invoke([
-            write_fact_checking_report_prompt_template.format(
+        response = self.model.invoke([
+            write_fact_check_report_prompt_template.format(
                 news_text=state.news_text, 
                 check_points=state.check_points
             )
         ])
         
-        return {"report": report}
+        return {"report": response.content}
     
     def _get_current_retrieval_task(self, state: FactCheckPlanState) -> SearchAgentState:
         """获取要执行的检索任务"""
