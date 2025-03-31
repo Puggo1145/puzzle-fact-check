@@ -33,12 +33,12 @@ export const NewsDisplay = () => {
             break;
         case 'completed':
             StatusIcon = CheckCircle2;
-            statusText = "核查完成";
+            statusText = "核查结束";
             statusColor = "text-green-500";
             break;
         default:
             StatusIcon = CheckCircle2;
-            statusText = "核查完成";
+            statusText = "核查结束";
             statusColor = "text-green-500";
     }
 

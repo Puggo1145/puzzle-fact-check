@@ -1,5 +1,7 @@
 export type EventType =
     | 'agent_start'
+    | 'check_if_news_text_start'
+    | 'check_if_news_text_end'
     | 'extract_basic_metadata_start'
     | 'extract_basic_metadata_end'
     | 'extract_knowledge_start'
@@ -28,6 +30,12 @@ export type EventType =
 export interface Event<T=any> {
     event: EventType;
     data?: T;
+}
+
+// IsNewsText interface
+export interface IsNewsText {
+    result: boolean;
+    reason: string;
 }
 
 // Main Agent Events
@@ -138,6 +146,8 @@ export interface ErrorData {
 // Map each event type to its corresponding data interface
 export type EventDataMap = {
     'agent_start': undefined;
+    'check_if_news_text_start': undefined;
+    'check_if_news_text_end': IsNewsText;
     'extract_check_point_start': undefined;
     'extract_check_point_end': CheckPoint[];
     'extract_basic_metadata_start': undefined;

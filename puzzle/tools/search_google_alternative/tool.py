@@ -46,7 +46,7 @@ class SearchGoogleAlternative(BaseTool):
     """使用爬虫实现的 Google 搜索替代版，没钱的时候用这个"""
 
     name: str = "search_google_alternative"
-    description: str = "Google 搜索下位替代版，当官方 api 无法使用的时候使用。该工具的访问速度可能较慢，且会在访问次数过多时被限流"
+    description: str = "官方 Google 搜索 api 的下位替代，当官方 api 无法使用的时候使用。该工具的访问速度可能稍慢，在访问次数过多时会被限流"
     args_schema: Optional[ArgsSchema] = GoogleToolInput
 
     # 内部控制参数

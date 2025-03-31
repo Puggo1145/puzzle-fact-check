@@ -17,6 +17,7 @@ import type {
   SearchResult,
   Evidence,
   ToolEndData,
+  IsNewsText,
 } from '@/types/events';
 import {
   BrainCircuitIcon,
@@ -33,6 +34,8 @@ import {
   BookOpenIcon,
   StopCircleIcon,
   SparkleIcon,
+  CircleXIcon,
+  CircleEllipsisIcon,
 } from 'lucide-react';
 import { toolDict } from '@/constants/tools';
 import { cn } from '@/lib/utils';
@@ -44,6 +47,11 @@ export const EventItem = ({ event }: { event: Event }) => {
     switch (eventType) {
       case 'agent_start':
         return <PlayIcon className="size-4" />;
+      case 'check_if_news_text_start':
+        return <CircleEllipsisIcon className="size-4" />;
+      case 'check_if_news_text_end':
+        const isNewsText = data as IsNewsText;
+        return isNewsText.result ? <CheckCircleIcon className="size-4" /> : <CircleXIcon className="size-4" />;
       case 'extract_check_point_start':
       case 'extract_check_point_end':
         return <TargetIcon className="size-4" />;
@@ -92,7 +100,12 @@ export const EventItem = ({ event }: { event: Event }) => {
   const EventTitle = () => {
     switch (eventType) {
       case 'agent_start':
-        return '事实核查开始';
+        return '开始运行';
+      case 'check_if_news_text_start':
+        return '正在进行核查前准备';
+      case 'check_if_news_text_end':
+        const isNewsText = data as IsNewsText;
+        return isNewsText.result ? '准备完毕，开始核查' : '我们无法核查您所提供的文本';
       case 'extract_check_point_start':
         return '正在提取核查点，这可能需要一些时间...';
       case 'extract_check_point_end':
@@ -137,7 +150,7 @@ export const EventItem = ({ event }: { event: Event }) => {
         const decisionData = data as LLMDecisionData;
         return `LLM 决策: ${decisionData?.decision || ''}`;
       case 'task_complete':
-        return '核查完成';
+        return '核查结束';
       case 'task_interrupted':
         const interruptData = data as TaskInterruptedData;
         return interruptData?.message || '任务已中断';
@@ -156,6 +169,12 @@ export const EventItem = ({ event }: { event: Event }) => {
     switch (eventType) {
       case 'agent_start':
         return 'bg-blue-50 border-blue-100 text-blue-700 dark:bg-blue-900/40 dark:border-blue-800/50 dark:text-blue-200';
+      case 'check_if_news_text_start':
+        return 'bg-sky-50 border-sky-100 text-sky-700 dark:bg-sky-900/40 dark:border-sky-800/50 dark:text-sky-200';
+      case 'check_if_news_text_end':
+        return (data as IsNewsText)?.result
+          ? 'bg-green-50 border-green-100 text-green-700 dark:bg-green-900/40 dark:border-green-800/50 dark:text-green-200'
+          : 'bg-red-50 border-red-100 text-red-700 dark:bg-red-900/40 dark:border-red-800/50 dark:text-red-200';
       case 'extract_check_point_start':
       case 'extract_check_point_end':
         return 'bg-indigo-50 border-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-800/50 dark:text-indigo-200';
@@ -191,6 +210,8 @@ export const EventItem = ({ event }: { event: Event }) => {
         return 'bg-orange-50 border-orange-100 text-orange-700 dark:bg-orange-900/40 dark:border-orange-800/50 dark:text-orange-200';
       case 'error':
         return 'bg-red-50 border-red-100 text-red-700 dark:bg-red-900/40 dark:border-red-800/50 dark:text-red-200';
+      case 'stream_closed':
+        return 'bg-gray-50 border-gray-100 text-gray-700 dark:bg-gray-900/40 dark:border-gray-800/50 dark:text-gray-200';
       default:
         return 'bg-gray-50 border-gray-100 text-gray-700 dark:bg-gray-900/40 dark:border-gray-800/50 dark:text-gray-200';
     }
@@ -422,6 +443,19 @@ export const EventItem = ({ event }: { event: Event }) => {
         }
         return null;
 
+      case 'check_if_news_text_end':
+        const isNewsText = data as IsNewsText;
+
+        if (!isNewsText.result) {
+          return (
+            <div className="mt-2 text-sm">
+              <p className="text-gray-700 dark:text-gray-300">
+                {isNewsText.reason}
+              </p>
+            </div>
+          );
+        }
+
       default:
         return null;
     }
@@ -459,9 +493,9 @@ const PlayIcon = ({ className }: { className?: string }) => (
 
 const SourceBadge = ({ source, className }: { source: string, className?: string }) => (
   <Link href={source} target="_blank">
-    <Badge className={cn("rounded-full bg-gray-800/10 text-black", 
-      "dark:bg-white/15 dark:text-white hover:bg-black/20 dark:hover:bg-white/30", 
-      "transition-colors duration-150", 
+    <Badge className={cn("rounded-full bg-gray-800/10 text-black",
+      "dark:bg-white/15 dark:text-white hover:bg-black/20 dark:hover:bg-white/30",
+      "transition-colors duration-150",
       className
     )}>
       <GlobeIcon className="size-4" />

@@ -110,6 +110,7 @@ export function setupEventSource(
   // Set up listeners for all main event types
   const eventTypes: EventType[] = [
     'agent_start',
+    'check_if_news_text_start', 'check_if_news_text_end',
     'extract_check_point_start', 'extract_check_point_end',
     'extract_basic_metadata_start', 'extract_basic_metadata_end',
     'extract_knowledge_start', 'extract_knowledge_end',

@@ -9,7 +9,7 @@ import {
   CardTitle,
   CardDescription
 } from '../ui/card';
-import { FileTextIcon, ClipboardCopyIcon, CheckCircleIcon } from 'lucide-react';
+import { FileTextIcon, ClipboardCopyIcon, CheckCircleIcon, Link } from 'lucide-react';
 import { Button } from '../ui/button';
 import {
   TypographyH1,
@@ -59,7 +59,11 @@ export const Report: React.FC = () => {
               事实核查报告
             </CardTitle>
             <CardDescription>
-              Puzzle 目前不提供报告保存功能，请确保您已经保存了报告
+              核查报告的撰写格式参考自
+              <SourceBadge 
+                source="https://chinafactcheck.com/" 
+                label="有据国际新闻事实核查" 
+              />
             </CardDescription>
           </div>
           <Button
@@ -85,17 +89,17 @@ export const Report: React.FC = () => {
       <CardContent>
         <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mb-4 prose-headings:mt-6 prose-p:my-4 prose-li:my-2">
           <ReactMarkdown components={{
-            h1: ({...props}) => <TypographyH1 {...props} />,
-            h2: ({...props}) => <TypographyH2 {...props} />,
-            h3: ({...props}) => <TypographyH3 {...props} />,
-            ul: ({...props}) => <TypographyList {...props} />,
-            p: ({...props}) => <TypographyP {...props} />,
-            ol: ({...props}) => <ol className="my-4 ml-6 list-decimal" {...props} />,
-            li: ({...props}) => <li className="mb-2" {...props} />,
-            hr: ({...props}) => <hr className="my-4" {...props} />,
-            a: ({...props}) => <SourceBadge source={props.href || ''} {...props} />,
-            code: ({...props}) => <SourceBadge source={props.children as string} {...props} />,
-            blockquote: ({...props}) => <TypographyBlockquote {...props} />,
+            h1: ({ ...props }) => <TypographyH1 {...props} />,
+            h2: ({ ...props }) => <TypographyH2 {...props} />,
+            h3: ({ ...props }) => <TypographyH3 {...props} />,
+            ul: ({ ...props }) => <TypographyList {...props} />,
+            p: ({ ...props }) => <TypographyP {...props} />,
+            ol: ({ ...props }) => <ol className="my-4 ml-6 list-decimal" {...props} />,
+            li: ({ ...props }) => <li className="mb-2" {...props} />,
+            hr: ({ ...props }) => <hr className="my-4" {...props} />,
+            a: ({ ...props }) => <SourceBadge source={props.href || ''} {...props} />,
+            code: ({ ...props }) => <SourceBadge source={props.children as string} {...props} />,
+            blockquote: ({ ...props }) => <TypographyBlockquote {...props} />,
           }}>
             {finalReport}
           </ReactMarkdown>

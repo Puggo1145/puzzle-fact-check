@@ -4,7 +4,8 @@ import {
     EyeIcon,
     BookAIcon,
     PanelTopIcon,
-    ClockIcon
+    ClockIcon,
+    FileTextIcon
 } from "lucide-react";
 
 interface Tool {
@@ -47,25 +48,33 @@ interface ToolDict {
 }
 
 export const toolDict: ToolDict = {
-    "search_google": {
-        alias: "使用谷歌搜索",
+    "search_google_official": {
+        alias: "Google 搜索",
+        icon: () => <SearchIcon className="size-4" />
+    },
+    "search_google_alternative": {
+        alias: "Google 搜索(备用)",
         icon: () => <SearchIcon className="size-4" />
     },
     "search_bing": {
-        alias: "使用必应搜索",
+        alias: "Bing 搜索",
         icon: () => <SearchIcon className="size-4" />
     },
     "search_wikipedia": {
-        alias: "搜索维基百科",
+        alias: "维基百科搜索",
         icon: () => <BookAIcon className="size-4" />,
     },
     "tavily_search": {
-        alias: "使用 Tavily 搜索",
+        alias: "Tavily 搜索",
         icon: () => <SearchIcon className="size-4" />
     },
     "read_webpage": {
         alias: "阅读网页",
         icon: () => <PanelTopIcon className="size-4" />
+    },
+    "read_pdf": {
+        alias: "阅读PDF",
+        icon: () => <FileTextIcon className="size-4" />
     },
     "get_current_time": {
         alias: "获取当前时间",

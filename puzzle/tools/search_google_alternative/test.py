@@ -1,13 +1,13 @@
 import unittest
 import json
-from tools import SearchGoogleTool, get_current_time
+from tools import SearchGoogleAlternative, get_current_time
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 
 
 class TestSearchGoogleTool(unittest.TestCase):
     def setUp(self):
-        self.tool = SearchGoogleTool()
+        self.tool = SearchGoogleAlternative()
 
     def test_search(self):
         """测试基本Google搜索功能"""
@@ -31,7 +31,7 @@ def test_llm_tool_invocation():
     """测试通过LLM调用工具"""
     tools = [
         get_current_time, 
-        SearchGoogleTool()
+        SearchGoogleAlternative()
     ]
 
     llm = ChatOpenAI(

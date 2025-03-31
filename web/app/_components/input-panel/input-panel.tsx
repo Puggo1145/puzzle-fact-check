@@ -101,7 +101,7 @@ export const InputPanel = () => {
                 <textarea
                     value={newsText}
                     onChange={onValueChange}
-                    placeholder="告诉我你想核查的新闻..."
+                    placeholder="告诉我你想核查的新闻。你不相信的，正是我们所关心的。"
                     className="w-full min-h-20 px-1 outline-none resize-none"
                 />}
             <div className="w-full flex items-center justify-between gap-2">

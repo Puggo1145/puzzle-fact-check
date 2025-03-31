@@ -74,6 +74,38 @@ class ReadWebpageTool(BaseTool):
         if self.save_results:
             os.makedirs(self.logs_dir, exist_ok=True)
 
+    def _is_pdf_url(self, url: str) -> bool:
+        """检查URL是否指向PDF文件
+        
+        Args:
+            url: 网页URL
+            
+        Returns:
+            是否为PDF URL
+        """
+        # 检查URL是否以.pdf结尾
+        if url.lower().endswith('.pdf'):
+            return True
+        
+        # 检查URL参数中是否包含PDF标识
+        parsed_url = urllib.parse.urlparse(url)
+        path_lower = parsed_url.path.lower()
+        
+        # 检查路径中是否包含.pdf
+        if '.pdf' in path_lower:
+            return True
+            
+        # 检查URL查询参数是否包含PDF相关标识
+        query_params = urllib.parse.parse_qs(parsed_url.query)
+        pdf_param_indicators = ['pdf', 'download', 'file', 'document']
+        for param in query_params:
+            if any(indicator in param.lower() for indicator in pdf_param_indicators):
+                for value in query_params[param]:
+                    if value.lower().endswith('.pdf') or 'pdf' in value.lower():
+                        return True
+            
+        return False
+
     def _save_result(self, url: str, result: Dict) -> str:
         """保存结果到日志文件
         
@@ -238,6 +270,13 @@ class ReadWebpageTool(BaseTool):
             "error": None,
             "timestamp": datetime.now().isoformat(),
         }
+        
+        # 检查是否为PDF文件
+        if self._is_pdf_url(url):
+            result["title"] = "PDF Document"
+            result["content"] = "此链接指向PDF文件，无法直接提取内容。PDF文件需要专门的PDF解析器处理。"
+            result["error"] = "PDF files cannot be processed by this tool."
+            return result
 
         try:
             # 使用单独的playwright实例，避免并发问题
@@ -254,8 +293,108 @@ class ReadWebpageTool(BaseTool):
 
                 # 导航到页面
                 try:
-                    await page.goto(url, wait_until=WAIT_UNTIL)
+                    response = await page.goto(url, wait_until=WAIT_UNTIL)
+                    
+                    # 检查内容类型，判断是否为PDF
+                    if response and response.headers.get("content-type", "").lower().startswith("application/pdf"):
+                        result["title"] = "PDF Document"
+                        result["content"] = "此链接指向PDF文件，无法直接提取内容。PDF文件需要专门的PDF解析器处理。"
+                        result["error"] = "PDF files cannot be processed by this tool."
+                        await browser.close()
+                        return result
+                        
+                    # 额外检查: 检测页面是否是嵌入的PDF查看器或PDF内容
+                    is_pdf_viewer = await page.evaluate("""() => {
+                        // 检查常见的PDF查看器元素
+                        const pdfViewers = [
+                            document.querySelector('embed[type="application/pdf"]'),
+                            document.querySelector('object[type="application/pdf"]'),
+                            document.querySelector('iframe[src*=".pdf"]'),
+                            document.querySelector('.pdf-viewer'),
+                            document.querySelector('#pdf-viewer'),
+                            document.querySelector('[data-pdf-url]')
+                        ];
+                        
+                        // 检查页面内容是否包含PDF阅读器相关文本
+                        const bodyText = document.body ? document.body.innerText : '';
+                        const pdfKeywords = [
+                            'PDF Viewer', 
+                            'PDF viewer', 
+                            'pdf viewer',
+                            'Adobe Reader',
+                            'adobe reader',
+                            'PDF document',
+                            'Download PDF',
+                            'View PDF',
+                            'View a PDF'
+                        ];
+                        
+                        // 检查是否有PDF查看器元素
+                        if (pdfViewers.some(el => el !== null)) {
+                            return true;
+                        }
+                        
+                        // 检查页面文本
+                        if (pdfKeywords.some(keyword => bodyText.includes(keyword))) {
+                            return true;
+                        }
+                        
+                        // 检查页面标题
+                        const title = document.title || '';
+                        if (title.includes('PDF') || title.includes('.pdf')) {
+                            return true;
+                        }
+                        
+                        // 检查document内容类型
+                        const contentType = document.contentType || '';
+                        if (contentType.includes('pdf')) {
+                            return true;
+                        }
+                        
+                        // 检查是否有指向PDF的链接
+                        const pdfLinks = Array.from(document.querySelectorAll('a[href*=".pdf"]'));
+                        if (pdfLinks.length > 0) {
+                            return true;
+                        }
+                        
+                        // 检查特定的PDF链接模式 (如arXiv等)
+                        const specificPDFPatterns = [
+                            'a[href*="/pdf/"]',
+                            'a[href*="download"]'
+                        ];
+                        
+                        for (const pattern of specificPDFPatterns) {
+                            const elements = document.querySelectorAll(pattern);
+                            for (const el of elements) {
+                                const href = el.getAttribute('href') || '';
+                                const text = el.textContent || '';
+                                if (href.includes('pdf') || text.includes('PDF') || text.includes('pdf')) {
+                                    return true;
+                                }
+                            }
+                        }
+                        
+                        return false;
+                    }""")
+                    
+                    # 如果页面是PDF查看器，将其视为PDF文件
+                    if is_pdf_viewer:
+                        result["title"] = "PDF Document"
+                        result["content"] = "此链接指向PDF文件，无法直接提取内容。PDF文件需要专门的PDF解析器处理。"
+                        result["error"] = "PDF files cannot be processed by this tool."
+                        await browser.close()
+                        return result
+                        
                 except Exception as e:
+                    # 如果导航失败并且错误消息表明这可能是PDF文件(ERR_ABORTED常见于PDF直接下载)
+                    error_str = str(e)
+                    if 'ERR_ABORTED' in error_str and ('.pdf' in url.lower() or 'pdf' in url.lower()):
+                        result["title"] = "PDF Document"
+                        result["content"] = "此链接指向PDF文件，无法直接提取内容。PDF文件需要专门的PDF解析器处理。"
+                        result["error"] = "PDF files cannot be processed by this tool."
+                        await browser.close()
+                        return result
+                    
                     # 如果导航超时，但页面已经有内容，我们仍然继续处理
                     result["error"] = f"Navigation incomplete: {str(e)}"
 

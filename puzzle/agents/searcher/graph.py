@@ -11,12 +11,13 @@ from .prompts import (
     generate_answer_output_parser,
 )
 from tools import (
+    get_current_time,
     SearchBingTool,
     SearchGoogleOfficial,
     SearchGoogleAlternative,
     ReadWebpageTool,
-    get_current_time,
     TavilySearch,
+    ReadPDFTool,
 )
 from langgraph.graph.state import StateGraph
 
@@ -51,6 +52,7 @@ class SearchAgentGraph(BaseAgent):
                 SearchGoogleOfficial(),
                 SearchGoogleAlternative(),
                 ReadWebpageTool(),
+                ReadPDFTool(),
             ],
             "tavily_search": [
                 TavilySearch()
@@ -158,7 +160,8 @@ class SearchAgentGraph(BaseAgent):
             if isinstance(status.action, list) and len(status.action) > 0:
                 tool_call = status.action[0]
                 if tool_call.get("name") in [
-                    "search_google",
+                    "search_google_official",
+                    "search_google_alternative",
                     "search_bing",
                     "search_wikipedia",
                 ]:
