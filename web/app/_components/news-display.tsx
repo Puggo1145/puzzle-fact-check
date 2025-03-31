@@ -50,7 +50,7 @@ export const NewsDisplay = () => {
                     {statusText}
                 </h2>
             </div>
-            <p className="text-sm text-muted-foreground whitespace-pre-line">
+            <p className="text-sm text-muted-foreground whitespace-pre-line line-clamp-1">
                 {newsText}
             </p>
         </div>

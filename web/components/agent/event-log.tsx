@@ -38,7 +38,7 @@ export const EventLog: React.FC = () => {
   };
   
   return (
-    <div className="mt-4 w-full flex flex-col overflow-hidden">
+    <div className="mt-4 w-full max-h-[calc(100svh-330px)] flex flex-col overflow-hidden">
       <div 
         className="flex items-center justify-between p-3 border rounded-t-lg cursor-pointer"
         onClick={toggleCollapse}
@@ -59,7 +59,7 @@ export const EventLog: React.FC = () => {
       {!isCollapsed && (
         <div 
           ref={scrollAreaRef}
-          className="flex-1 overflow-y-auto space-y-2 min-h-[200px] max-h-[calc(100svh-380px)] border border-t-0 rounded-b-lg p-3"
+          className="overflow-y-auto space-y-2 min-h-[200px] border border-t-0 rounded-b-lg p-3"
         >
           {events.length > 0 && events.map((event: Event, index: number) => (
             <EventItem key={index} event={event} />

@@ -3,6 +3,10 @@ import json
 import threading
 import uuid
 import time
+import os
+import tempfile
+import functools
+from pathlib import Path
 from api import logger
 
 from typing import Dict, Optional, Any, Generator
@@ -28,8 +32,102 @@ active_sessions: Dict[str, Dict[str, Any]] = {}
 # Lock for thread-safe operations on sessions
 sessions_lock = threading.Lock()
 
+# 会话文件存储目录
+SESSION_DIR = os.path.join(tempfile.gettempdir(), 'puzzle_sessions')
+# 确保目录存在
+os.makedirs(SESSION_DIR, exist_ok=True)
+
 HEARTBEAT_INTERVAL = 30  # seconds
 MAX_CONSECUTIVE_HEARTBEATS = 6  # 最大连续发送6次心跳（约3分钟）
+
+# 会话状态共享函数
+def get_session_file_path(session_id: str) -> str:
+    """获取会话文件路径"""
+    return os.path.join(SESSION_DIR, f"{session_id}.json")
+
+def write_session_state(session_id: str, state: Dict[str, Any]) -> None:
+    """将会话状态写入文件"""
+    file_path = get_session_file_path(session_id)
+    try:
+        # 仅写入可以序列化的信息
+        serializable_state = {
+            "session_id": session_id,
+            "is_running": state.get("is_running", False),
+            "is_interrupted": state.get("sse_session", {}).get("is_interrupted", False),
+            "start_time": state.get("start_time", 0),
+            "last_update": time.time()
+        }
+        with open(file_path, 'w') as f:
+            json.dump(serializable_state, f)
+    except Exception as e:
+        logger.error(f"Error writing session state to file: {e}")
+
+def read_session_state(session_id: str) -> Optional[Dict[str, Any]]:
+    """从文件读取会话状态"""
+    file_path = get_session_file_path(session_id)
+    if not os.path.exists(file_path):
+        return None
+    
+    try:
+        with open(file_path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error reading session state from file: {e}")
+        return None
+
+def remove_session_state(session_id: str) -> None:
+    """删除会话状态文件"""
+    file_path = get_session_file_path(session_id)
+    if os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+        except Exception as e:
+            logger.error(f"Error removing session state file: {e}")
+
+def update_session_state(session_id: str, is_running: Optional[bool] = None, is_interrupted: Optional[bool] = None) -> None:
+    """更新会话状态文件"""
+    state = read_session_state(session_id)
+    if not state:
+        return
+    
+    if is_running is not None:
+        state["is_running"] = is_running
+    
+    if is_interrupted is not None:
+        state["is_interrupted"] = is_interrupted
+    
+    state["last_update"] = time.time()
+    write_session_state(session_id, state)
+
+# 使用文件系统检查会话是否已被中断
+def is_session_interrupted(session_id: str) -> bool:
+    """检查会话是否已被中断"""
+    state = read_session_state(session_id)
+    if not state:
+        return False
+    return state.get("is_interrupted", False)
+
+# 在需要文件系统支持的函数中添加装饰器
+def with_file_system_check(func):
+    @functools.wraps(func)
+    def wrapper(session_id, *args, **kwargs):
+        # 先检查内存中的会话
+        with sessions_lock:
+            session = active_sessions.get(session_id)
+        
+        # 如果内存中没有找到，检查文件系统
+        if not session:
+            state = read_session_state(session_id)
+            if state and state.get("is_running", False):
+                # 如果文件系统中有记录且正在运行，但内存中没有
+                # 说明可能是在不同 worker 中创建的
+                logger.info(f"Session {session_id} found in file system but not in memory")
+                return True if func.__name__ == "interrupt_session" else session_id
+        
+        # 调用原始函数
+        return func(session_id, *args, **kwargs)
+    
+    return wrapper
 
 class SSESession:
     """Manages a Server-Sent Events session for a specific agent instance"""
@@ -88,10 +186,17 @@ class SSESession:
             return False
         
         self.is_interrupted = True
-        self.add_event(
-            TaskInterrupted(data=InterruptData(message="核查任务被用户中断"))
-            .model_dump()
-        )
+        try:
+            # 添加中断事件，并使用更短的超时确保被处理
+            self.add_event(
+                TaskInterrupted(data=InterruptData(message="核查任务被用户中断"))
+                .model_dump()
+            )
+            # 短暂等待确保事件被处理
+            time.sleep(0.1)
+        except Exception as e:
+            logger.error(f"Error adding interrupt event in SSESession: {e}")
+            
         self.close()
         return True
     
@@ -124,9 +229,14 @@ class SSESession:
         
         try:
             while self.is_running or error_sent:
-                # 检查是否中断
+                # 检查是否中断 - 如果中断立即退出循环
                 if self.is_interrupted:
                     logger.info(f"Stream interrupted for session {self.session_id}")
+                    # 发送最后的中断通知
+                    try:
+                        yield "event: task_interrupted\ndata: {\"message\": \"任务已被中断\"}\n\n"
+                    except GeneratorExit:
+                        logger.info(f"Client disconnected during interrupt notification")
                     break
                 
                 # 检查连续心跳次数是否超出限制
@@ -235,68 +345,137 @@ class SSESession:
 
 
 def create_session() -> str:
-    """Create a new agent session"""
+    """Create a new session ID and initialize an empty session
+    
+    Returns:
+        str: The new session ID
+    """
     session_id = str(uuid.uuid4())
     
     with sessions_lock:
         active_sessions[session_id] = {
             "sse_session": SSESession(session_id),
             "is_running": False,
-            "start_time": None
+            "start_time": time.time()
         }
+    
+    # 写入文件系统
+    write_session_state(session_id, active_sessions[session_id])
+    logger.info(f"Created new session: {session_id}")
     
     return session_id
 
+@with_file_system_check
 def get_session(session_id: str) -> Optional[Dict[str, Any]]:
-    """Get a session by ID"""
+    """Get an active session by ID"""
     with sessions_lock:
-        return active_sessions.get(session_id)
+        session = active_sessions.get(session_id)
+    
+    # 如果内存中没有找到，但是文件系统中有，则说明可能是在其他 worker 中创建的
+    if session is None:
+        file_state = read_session_state(session_id)
+        if file_state and file_state.get("is_running", False) and not file_state.get("is_interrupted", False):
+            logger.info(f"Session {session_id} exists in file system but not in memory (probably in another worker)")
+            # 返回一个最小会话信息，表明会话存在但在其他 worker 中
+            return {
+                "session_id": session_id,
+                "exists_in_other_worker": True,
+                "is_running": file_state.get("is_running", False)
+            }
+    
+    return session
 
+@with_file_system_check
 def close_session(session_id: str) -> bool:
-    """Close a session and clean up resources"""
+    """Close a session and release all associated resources
+    
+    Args:
+        session_id: The session ID to close
+        
+    Returns:
+        bool: True if the session was closed, False if it didn't exist
+    """
     with sessions_lock:
         session = active_sessions.get(session_id)
         if not session:
+            # 检查文件系统
+            file_state = read_session_state(session_id)
+            if file_state:
+                # 更新文件状态
+                update_session_state(session_id, is_running=False)
+                remove_session_state(session_id)
+                return True
             return False
         
         sse_session: SSESession = session["sse_session"]
         sse_session.close()
         
-        # Remove session after a delay to allow final events to be delivered
-        def delayed_removal():
-            time.sleep(5)  # Wait 5 seconds
-            with sessions_lock:
-                active_sessions.pop(session_id, None)
+        # 从活跃会话中移除
+        active_sessions.pop(session_id, None)
         
-        threading.Thread(target=delayed_removal).start()
+        # 更新并删除文件系统状态
+        update_session_state(session_id, is_running=False)
+        remove_session_state(session_id)
+        
         return True
 
+@with_file_system_check
 def interrupt_session(session_id: str) -> bool:
     """Interrupt a running agent session and terminate all associated resources"""
+    # 检查文件系统状态
+    file_state = read_session_state(session_id)
+    
     with sessions_lock:
         session = active_sessions.get(session_id)
         if not session:
+            if file_state and file_state.get("is_running", False):
+                # 如果文件系统中有记录且正在运行，但内存中没有
+                # 说明可能是在不同 worker 中创建的，标记为已中断
+                logger.info(f"Marking session {session_id} as interrupted in file system (probably in another worker)")
+                update_session_state(session_id, is_interrupted=True)
+                return True
+            logger.warning(f"Session {session_id} not found for interruption")
             return False
         
         sse_session: SSESession = session["sse_session"]
+        
+        # 立即标记会话为中断状态
+        sse_session.is_interrupted = True
+        
+        # 更新文件系统状态
+        update_session_state(session_id, is_interrupted=True)
+        
+        # 添加中断事件到队列并确保它被处理
+        try:
+            sse_session.add_event(
+                TaskInterrupted(data=InterruptData(message="核查任务被中断"))
+                .model_dump()
+            )
+            # 确保事件被处理的短暂延迟
+            time.sleep(0.1)
+        except Exception as e:
+            logger.error(f"Error adding interrupt event: {e}")
         
         # 如果 session 中包含 task，且 task 是 asyncio.Task 类型，则取消任务
         if hasattr(sse_session, 'task') and sse_session.task is not None:
             try:
                 if not sse_session.task.done():
-                    sse_session.task.cancel()
+                    # 获取任务所在的事件循环
+                    loop = asyncio.get_event_loop_policy().get_event_loop()
+                    if sse_session.task._loop == loop:
+                        # 如果在同一个事件循环中，直接取消
+                        sse_session.task.cancel()
+                    else:
+                        # 如果不在同一个事件循环中，需要特殊处理
+                        asyncio.run_coroutine_threadsafe(
+                            _cancel_task(sse_session.task), 
+                            sse_session.task._loop
+                        )
                     logger.info(f"Cancelled async task for session {session_id}")
+                else:
+                    logger.info(f"Task for session {session_id} was already done")
             except Exception as e:
                 logger.error(f"Error cancelling task: {e}")
-        
-        # 标记会话为中断状态
-        sse_session.is_interrupted = True
-        
-        # 添加中断事件到队列
-        sse_session.add_event(
-            TaskInterrupted(data=InterruptData(message="核查任务被中断"))
-            .model_dump()
-        )
         
         # 关闭 SSE 会话
         sse_session.close()
@@ -304,16 +483,20 @@ def interrupt_session(session_id: str) -> bool:
         # 更新会话状态
         session["is_running"] = False
         
-        # 安排延迟删除会话
-        def delayed_removal():
-            time.sleep(5)  # 等待 5 秒确保所有事件都已发送
-            with sessions_lock:
-                if session_id in active_sessions:
-                    logger.info(f"Removing session {session_id} after interrupt")
-                    active_sessions.pop(session_id, None)
+        # 立即从活跃会话中移除
+        active_sessions.pop(session_id, None)
+        logger.info(f"Removed session {session_id} after interrupt")
         
-        threading.Thread(target=delayed_removal).start()
         return True
+
+# 辅助函数，用于在正确的事件循环中取消任务
+async def _cancel_task(task):
+    """在任务所在的事件循环中取消任务"""
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
 
 async def process_agent_events(news_text: str, config: CreateAgentConfig, session_id: str, sse_session: SSESession):
     """Process events from the agent's generator and add them to the SSE session"""
@@ -388,6 +571,12 @@ def run_agent_thread(news_text: str, config: CreateAgentConfig, session_id: str)
     """Run the agent in a separate thread and forward events to the SSE session"""
     session = get_session(session_id)
     if not session:
+        logger.error(f"Session {session_id} not found in run_agent_thread")
+        return
+    
+    # 处理会话可能在其他 worker 中的情况
+    if session.get("exists_in_other_worker", False):
+        logger.warning(f"Session {session_id} exists in another worker, not starting a new agent instance")
         return
     
     sse_session: SSESession = session["sse_session"]
@@ -396,6 +585,9 @@ def run_agent_thread(news_text: str, config: CreateAgentConfig, session_id: str)
     with sessions_lock:
         session["is_running"] = True
         session["start_time"] = time.time()
+        
+    # 更新文件系统状态
+    update_session_state(session_id, is_running=True)
     
     try:
         # Create event loop for the thread
@@ -414,6 +606,8 @@ def run_agent_thread(news_text: str, config: CreateAgentConfig, session_id: str)
     except asyncio.CancelledError:
         # 任务被取消时的处理
         logger.info(f"Agent task for session {session_id} was cancelled")
+        # 更新文件系统状态
+        update_session_state(session_id, is_running=False, is_interrupted=True)
         
     except Exception as e:
         # Handle any exceptions
@@ -425,6 +619,9 @@ def run_agent_thread(news_text: str, config: CreateAgentConfig, session_id: str)
             Error(data=ErrorData(message=error_message))
             .model_dump()
         )
+        
+        # 更新文件系统状态
+        update_session_state(session_id, is_running=False)
         
         # Allow time for error event to be processed
         time.sleep(1)
@@ -438,12 +635,26 @@ def run_agent_thread(news_text: str, config: CreateAgentConfig, session_id: str)
             if session_id in active_sessions:
                 active_sessions[session_id]["is_running"] = False
                 
+        # 更新文件系统状态
+        update_session_state(session_id, is_running=False)
+                
         # Small delay to allow any final events to be sent
         time.sleep(0.5)
+        
+        # 检查是否需要删除会话文件
+        if is_session_interrupted(session_id):
+            remove_session_state(session_id)
 
 def start_agent(news_text: str, config: CreateAgentConfig) -> str:
     """Start a new agent instance and return the session ID"""
     session_id = create_session()
+    
+    # 检查文件系统是否已存在该会话
+    if read_session_state(session_id) is None:
+        # 写入初始状态
+        with sessions_lock:
+            if session_id in active_sessions:
+                write_session_state(session_id, active_sessions[session_id])
     
     # Start agent in background thread
     thread_pool.submit(run_agent_thread, news_text, config, session_id)

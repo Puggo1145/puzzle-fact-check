@@ -71,7 +71,7 @@ if [ "$MODE" = "production" ]; then\n\
 else\n\
   export $(grep -v "^#" .env | xargs)\n\
 fi\n\
-exec poetry run gunicorn --workers 4 --bind 0.0.0.0:8000 api.app:app\n\
+exec poetry run gunicorn -c gunicorn.conf.py api.app:app\n\
 ' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 # 暴露端口

@@ -7,7 +7,7 @@ from pydantic import ValidationError
 import threading
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from .service import start_agent, get_session, interrupt_session
+from .service import start_agent, get_session, interrupt_session, read_session_state
 from .model import FactCheckRequest
 
 app = Flask(__name__)
@@ -18,8 +18,10 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 # 安全配置
 # 在生产环境中限制CORS
 if os.getenv('FLASK_ENV') == 'production':
+    print("production")
     CORS(app, resources={r"/api/*": {"origins": os.getenv('ALLOWED_ORIGINS', '*').split(',')}})
 else:
+    print("development")
     CORS(app)  # 开发环境允许所有来源
 
 # 配置内容安全策略
@@ -95,7 +97,17 @@ def get_agent_events(session_id):
     # 检查会话是否存在
     session = get_session(session_id)
     if not session:
+        # 检查文件系统中是否存在会话
+        file_state = read_session_state(session_id)
+        if file_state and file_state.get("is_running", False):
+            logger.warning(f"会话 ID '{session_id}' 在内存中不存在，但在文件系统中找到 - 可能在其他 worker 中运行")
+            return jsonify({"error": f"会话 ID '{session_id}' 在当前进程中不可用，请重新连接或刷新页面"}), 409
         return jsonify({"error": f"会话 ID '{session_id}' 不存在"}), 404
+    
+    # 如果会话存在但在其他 worker 中
+    if session.get("exists_in_other_worker", False):
+        logger.warning(f"会话 ID '{session_id}' 在其他 worker 中运行，无法在当前进程中访问")
+        return jsonify({"error": f"会话 ID '{session_id}' 在当前进程中不可用，请重新连接或刷新页面"}), 409
     
     # 获取 SSE 会话
     sse_session = session["sse_session"]
@@ -116,14 +128,29 @@ def get_agent_events(session_id):
 @app.route('/api/agents/<session_id>/interrupt', methods=['POST'])
 def interrupt_agent(session_id):
     """中断正在运行的 agent 任务"""
-    # 检查会话是否存在
-    result = interrupt_session(session_id)
-    if not result:
-        return jsonify({"error": f"会话 ID '{session_id}' 不存在或无法中断"}), 404
+    logger.info(f"收到中断请求: session_id={session_id}")
     
-    return jsonify({
-        "message": f"会话 '{session_id}' 已成功中断"
-    })
+    # 检查会话是否存在
+    session = get_session(session_id)
+    if not session:
+        logger.warning(f"中断请求失败: 会话 ID '{session_id}' 不存在")
+        return jsonify({"error": f"会话 ID '{session_id}' 不存在或无法中断"}), 404
+        
+    try:
+        # 尝试中断会话
+        result = interrupt_session(session_id)
+        if not result:
+            logger.warning(f"中断请求处理失败: 会话 ID '{session_id}' 无法中断")
+            return jsonify({"error": f"会话 ID '{session_id}' 不存在或无法中断"}), 404
+        
+        logger.info(f"会话 '{session_id}' 已成功中断")
+        return jsonify({
+            "message": f"会话 '{session_id}' 已成功中断"
+        })
+    except Exception as e:
+        # 捕获所有异常以确保请求总是得到响应
+        logger.error(f"中断请求处理异常: {e}")
+        return jsonify({"error": f"中断请求处理异常: {str(e)}"}), 500
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', '8000'))

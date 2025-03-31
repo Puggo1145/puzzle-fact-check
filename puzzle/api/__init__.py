@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-if os.getenv("MODE") == "production":
+if os.getenv("FLASK_ENV") == "production":
     load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env.production'))
 
 logging.basicConfig(
