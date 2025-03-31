@@ -19,7 +19,13 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 # 在生产环境中限制CORS
 if os.getenv('FLASK_ENV') == 'production':
     print("production")
-    CORS(app, resources={r"/api/*": {"origins": os.getenv('ALLOWED_ORIGINS', '*').split(',')}})
+    allowed_origins = os.getenv('ALLOWED_ORIGINS', '*').split(',')
+    print(f"Allowed origins: {allowed_origins}")
+    CORS(app, 
+         resources={r"/api/*": {"origins": allowed_origins}},
+         supports_credentials=True,
+         allow_headers=["Content-Type", "Authorization"],
+         methods=["GET", "POST", "OPTIONS"])
 else:
     print("development")
     CORS(app)  # 开发环境允许所有来源

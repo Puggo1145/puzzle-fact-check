@@ -66,11 +66,6 @@ COPY . .
 
 # 创建启动脚本
 RUN echo '#!/bin/bash\n\
-if [ "$MODE" = "production" ]; then\n\
-  export $(grep -v "^#" .env.production | xargs)\n\
-else\n\
-  export $(grep -v "^#" .env | xargs)\n\
-fi\n\
 exec poetry run gunicorn -c gunicorn.conf.py api.app:app\n\
 ' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
