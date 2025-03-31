@@ -9,9 +9,7 @@ from langchain_core.utils import from_env, secret_from_env
 from langchain_openai.chat_models.base import BaseChatOpenAI
 from pydantic import ConfigDict, Field, SecretStr, model_validator
 from typing_extensions import Self
-from dotenv import load_dotenv
 
-load_dotenv()
 
 DEFAULT_API_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 

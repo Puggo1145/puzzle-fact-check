@@ -1,15 +1,52 @@
+import os
 from api import logger
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import threading
+from flask_talisman import Talisman
 from pydantic import ValidationError
+import threading
+from werkzeug.middleware.proxy_fix import ProxyFix
 
-# Import our service and model modules
 from .service import start_agent, get_session, interrupt_session
 from .model import FactCheckRequest
 
 app = Flask(__name__)
-CORS(app)  # 启用 CORS 以支持前端跨域调用
+
+# 配置代理信息，用于生产环境中的反向代理
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+# 安全配置
+# 在生产环境中限制CORS
+if os.getenv('FLASK_ENV') == 'production':
+    CORS(app, resources={r"/api/*": {"origins": os.getenv('ALLOWED_ORIGINS', '*').split(',')}})
+else:
+    CORS(app)  # 开发环境允许所有来源
+
+# 配置内容安全策略
+csp = {
+    'default-src': "'self'",
+    'script-src': ["'self'", "'unsafe-inline'"],
+    'style-src': ["'self'", "'unsafe-inline'"],
+    'img-src': ["'self'", 'data:'],
+    'connect-src': ["'self'", '*']  # 允许API连接
+}
+
+# 启用安全头
+Talisman(app, 
+         content_security_policy=csp,
+         content_security_policy_nonce_in=['script-src'],
+         force_https=os.getenv('FLASK_ENV') == 'production',
+         strict_transport_security=True,
+         strict_transport_security_preload=True,
+         session_cookie_secure=os.getenv('FLASK_ENV') == 'production',
+         session_cookie_http_only=True,
+         feature_policy={
+             'geolocation': "'none'",
+             'microphone': "'none'",
+             'camera': "'none'"
+         })
+
+app.config['PREFERRED_URL_SCHEME'] = 'https'
 
 # 跟踪活跃的SSE连接
 active_connections = {}
@@ -89,9 +126,10 @@ def interrupt_agent(session_id):
     })
 
 if __name__ == '__main__':
+    port = int(os.getenv('PORT', '8000'))
     app.run(
-        debug=True, 
+        debug=os.getenv('FLASK_ENV') == 'development', 
         host='0.0.0.0', 
-        port=8000, 
+        port=port, 
         threaded=True
     )

@@ -1,5 +1,11 @@
 .venv
+
+# env
 .env
+.env.development
+.env.production
+
+# cache
 __pycache__
 logs
 

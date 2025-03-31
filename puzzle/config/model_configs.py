@@ -1,11 +1,4 @@
-# Load environment variables from .env (located in the project root directory)
 import os
-from dotenv import load_dotenv
-
-# Determine the path to the .env file (assuming it's one level up from the current config directory)
-dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
-load_dotenv(dotenv_path)
-
 
 def str_to_list(value):
     """Converts a comma separated string into a list of strings."""

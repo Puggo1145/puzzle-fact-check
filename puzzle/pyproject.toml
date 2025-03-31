@@ -22,14 +22,13 @@ dependencies = [
     "readchar (>=4.2.1,<5.0.0)",
     "ipython (>=9.0.1,<10.0.0)",
     "neomodel (>=5.4.4,<6.0.0)",
-    "tenacity (>=9.0.0,<10.0.0)",
-    "pypubsub (>=4.0.3,<5.0.0)",
     "langchain-tavily (>=0.1.5,<0.2.0)",
-    "uvicorn (>=0.34.0,<0.35.0)",
     "browser-use (==0.1.0)",
     "flask (>=3.1.0,<4.0.0)",
     "flask-cors (>=5.0.1,<6.0.0)",
     "pypdf2 (>=3.0.1,<4.0.0)",
+    "flask-talisman (>=1.1.0,<2.0.0)",
+    "gunicorn (>=23.0.0,<24.0.0)",
 ]
 
 
