@@ -9,7 +9,7 @@ import {
   CardTitle,
   CardDescription
 } from '../ui/card';
-import { FileTextIcon, ClipboardCopyIcon, CheckCircleIcon, Link } from 'lucide-react';
+import { FileTextIcon, ClipboardCopyIcon, CheckCircleIcon } from 'lucide-react';
 import { Button } from '../ui/button';
 import {
   TypographyH1,
