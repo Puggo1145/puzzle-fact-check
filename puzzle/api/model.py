@@ -18,7 +18,7 @@ class MetadataExtractorConfig(BaseModelConfig):
 
 
 class SearcherConfig(BaseModelConfig):
-    max_search_tokens: int = Field(ge=5000, lt=100000, description="最大搜索token数")
+    max_search_tokens: int = Field(ge=5000, lt=20000, description="最大搜索token数")
     selected_tools: list[str] = Field(..., description="选中的工具")
 
 

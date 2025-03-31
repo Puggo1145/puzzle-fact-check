@@ -148,7 +148,13 @@ export const EventItem = ({ event }: { event: Event }) => {
         return '核查报告撰写完成';
       case 'llm_decision':
         const decisionData = data as LLMDecisionData;
-        return `LLM 决策: ${decisionData?.decision || ''}`;
+        const decisionMap: Record<string, string> = {
+          'continue': '继续下一个检索',
+          'force_continue': '超出最大检索重试次数，强制进行下一个检索',
+          'retry': '重试当前检索',
+          'finish': '完成所有检索任务',
+        }
+        return `LLM 决策: ${decisionMap[decisionData?.decision] || ''}`;
       case 'task_complete':
         return '核查结束';
       case 'task_interrupted':

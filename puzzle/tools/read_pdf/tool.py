@@ -156,7 +156,7 @@ class ReadPDFTool(BaseTool):
         try:
             # 检查是否请求了过多页数
             if end_page is not None and start_page is not None:
-                if end_page - start_page + 1 > MAX_SUCCESSIVE_PAGES:
+                if end_page - start_page > MAX_SUCCESSIVE_PAGES:
                     return json.dumps({
                         "error": f"单次请求最多允许读取{MAX_SUCCESSIVE_PAGES}页。请调整参数，从第{start_page}页读取最大后{MAX_SUCCESSIVE_PAGES}页的内容"
                     }, ensure_ascii=False)

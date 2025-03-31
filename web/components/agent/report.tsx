@@ -18,6 +18,7 @@ import {
   TypographyP,
   TypographyList,
   TypographyBlockquote,
+  TypographyMuted
 } from "@/components/typography"
 import { SourceBadge } from "@/components/agent/source-badge";
 import ReactMarkdown from 'react-markdown';
@@ -59,10 +60,12 @@ export const Report: React.FC = () => {
               事实核查报告
             </CardTitle>
             <CardDescription>
-              核查报告的撰写格式参考自
-              <SourceBadge 
-                source="https://chinafactcheck.com/" 
-                label="有据国际新闻事实核查" 
+              <span className="text-sm text-muted-foreground mr-2">
+                核查报告的撰写格式参考自
+              </span>
+              <SourceBadge
+                source="https://chinafactcheck.com/"
+                label="有据国际新闻事实核查"
               />
             </CardDescription>
           </div>
@@ -104,6 +107,9 @@ export const Report: React.FC = () => {
             {finalReport}
           </ReactMarkdown>
         </div>
+        <TypographyMuted className="pt-6 pb-2 text-center">
+          本事实核查报告由 Puzzle AI Agent 完成，AI 可能会出错，请核查重要信息
+        </TypographyMuted>
       </CardContent>
     </Card>
   );

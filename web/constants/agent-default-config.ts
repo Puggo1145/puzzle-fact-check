@@ -165,7 +165,7 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
       modelId: 'qwq-plus-latest',
       modelName: 'qwq-plus-latest',
       modelProvider: 'qwen',
-      maxSearchTokens: 20000
+      maxSearchTokens: 15000
     }
   },
   {
@@ -188,7 +188,7 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
       modelId: 'qwen-plus-latest',
       modelName: 'qwen-plus-latest',
       modelProvider: 'qwen',
-      maxSearchTokens: 12000
+      maxSearchTokens: 10000
     }
   },
   {

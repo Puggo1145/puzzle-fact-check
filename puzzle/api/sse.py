@@ -22,5 +22,5 @@ class SSEManager:
         """
         while True:
             event = await self.event_queue.get()
-            data = json.dumps(event["data"])
+            data = json.dumps(event["data"], ensure_ascii=False)
             yield f"event: {event['event']}\ndata: {data}\n\n"

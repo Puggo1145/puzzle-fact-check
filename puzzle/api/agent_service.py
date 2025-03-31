@@ -254,7 +254,7 @@ async def run_main_agent(
                 kind == "on_tool_start"
             ):
                 tool_name = name
-                tool_input_str = json.dumps(data.get("input", {}))
+                tool_input_str = json.dumps(data.get("input", {}), ensure_ascii=False)
                 yield ToolStart(
                     data=ToolStartData(
                         tool_name=tool_name,

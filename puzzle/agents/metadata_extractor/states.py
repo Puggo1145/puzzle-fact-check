@@ -29,7 +29,10 @@ class Knowledge(BaseModel):
     category: str = Field(
         description="知识元的类别，如'专业术语'、'历史事件'、'科学概念'等"
     )
-    description: Optional[str] = Field(description="检索到的知识元的简要定义或解释", default=None)
+    description: Optional[str] = Field(
+        description="检索到的知识元的简要定义或解释，如果无法检索到直接、明确的定义，请输出'无法检索到定义'，请不要自主生成定义", 
+        default=None
+    )
     source: Optional[str] = Field(description="知识元定义或解释的来源链接", default=None)
     
     def serialize(self) -> Dict[str, Any]:

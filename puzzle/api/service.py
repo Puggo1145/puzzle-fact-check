@@ -61,7 +61,7 @@ class SSESession:
         
         # Special logging for error events to help debug
         if event_type == 'error':
-            logger.error(f"ERROR EVENT DETAILS: {json.dumps(event_data)}")
+            logger.error(f"ERROR EVENT DETAILS: {json.dumps(event_data, ensure_ascii=False)}")
             logger.info(f"Queue size after adding error: {self.queue.qsize()}")
             
             # Force a small delay to ensure event processing

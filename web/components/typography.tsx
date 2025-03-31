@@ -1,5 +1,5 @@
 import type { ComponentProps } from "react"
-
+import { cn } from "@/lib/utils"
 export function TypographyH1({ children, ...props }: ComponentProps<"h1">) {
     return (
         <h1 className="scroll-m-20 text-2xl font-extrabold tracking-tight lg:text-3xl" {...props}>
@@ -78,9 +78,9 @@ export function TypographySmall({ children, ...props }: ComponentProps<"small">)
     )
 }
 
-export function TypographyMuted({ children, ...props }: ComponentProps<"p">) {
+export function TypographyMuted({ children, className, ...props }: ComponentProps<"p">) {
     return (
-        <p className="text-sm text-muted-foreground" {...props}>
+        <p className={cn("text-sm text-muted-foreground", className)} {...props}>
             {children}
         </p>
     )
