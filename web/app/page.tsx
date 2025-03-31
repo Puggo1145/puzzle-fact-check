@@ -21,7 +21,7 @@ export default function Home() {
         className={cn(
           "w-full transition-all duration-500 ease-in-out",
           isActive
-            ? "h-[calc(100vh-210px)] sm:h-[80vh]"
+            ? "h-[calc(100svh-210px)] sm:h-[80svh]"
             : "h-[0]"
         )}
       >
