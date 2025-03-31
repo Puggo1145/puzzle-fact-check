@@ -59,7 +59,7 @@ export const EventLog: React.FC = () => {
       {!isCollapsed && (
         <div 
           ref={scrollAreaRef}
-          className="flex-1 overflow-y-auto space-y-2 min-h-[200px] max-h-[60vh] border border-t-0 rounded-b-lg p-3"
+          className="flex-1 overflow-y-auto space-y-2 min-h-[200px] max-h-[calc(100vh-380px)] border border-t-0 rounded-b-lg p-3"
         >
           {events.length > 0 && events.map((event: Event, index: number) => (
             <EventItem key={index} event={event} />

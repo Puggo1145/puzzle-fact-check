@@ -16,13 +16,13 @@ export default function Home() {
   const isActive = status !== 'idle' || Boolean(finalReport) || events.length > 0;
 
   return (
-    <div className="relative max-w-[1000px] w-full h-full flex flex-col items-center mx-auto">
+    <div className="relative max-w-[1000px] w-full h-full flex flex-col items-center mx-auto px-6">
       <ScrollArea
         className={cn(
-          "w-full transition-all duration-500 ease-in-out px-6",
+          "w-full transition-all duration-500 ease-in-out",
           isActive
-            ? "h-[80vh]"
-            : "h-[0vh]"
+            ? "h-[calc(100vh-210px)] sm:h-[80vh]"
+            : "h-[0]"
         )}
       >
         <NewsDisplay />

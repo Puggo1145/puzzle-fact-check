@@ -193,7 +193,7 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
   },
   {
     id: 'lightweight',
-    name: '轻量模式',
+    name: '快速模式',
     description: '适合对简单新闻进行事实核查，速度最快',
     icon: FeatherIcon,
     mainConfig: {
@@ -211,7 +211,7 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
       modelId: 'qwen-plus-latest',
       modelName: 'qwen-plus-latest',
       modelProvider: 'qwen',
-      maxSearchTokens: 8000
+      maxSearchTokens: 7000
     }
   }
 ];

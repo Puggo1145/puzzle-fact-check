@@ -37,7 +37,7 @@ export const QuickConfigSelector: React.FC<QuickConfigSelectorProps> = ({
                     <Button
                         variant="ghost"
                         size="sm"
-                        className="flex items-center gap-1 px-2 rounded-full"
+                        className="flex items-center gap-1 rounded-full"
                         disabled={disabled}
                         onClick={() => handleSelectPreset(activePreset)}
                     >

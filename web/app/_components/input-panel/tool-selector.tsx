@@ -8,10 +8,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { tools } from "@/constants/tools";
 
-export const ToolSelector = ({ 
+export const ToolSelector = ({
     selectedTools,
     setSelectedTools,
-}: { 
+}: {
     selectedTools: string[];
     setSelectedTools: (tools: string[]) => void;
 }) => {
@@ -19,10 +19,10 @@ export const ToolSelector = ({
         // Don't allow selection of tools in development
         const tool = tools.find(t => t.id === toolId);
         if (!tool || tool.available) return;
-        
+
         // Create a new array based on the current selection
         const newSelectedTools = [...selectedTools];
-        
+
         // If tool is already selected, remove it
         if (newSelectedTools.includes(toolId)) {
             setSelectedTools(newSelectedTools.filter(id => id !== toolId));
@@ -37,8 +37,9 @@ export const ToolSelector = ({
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button
-                        variant="ghost"
-                        className="rounded-full hover:bg-accent flex items-center gap-2 h-9 p-0"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full hover:bg-accent flex items-center gap-1"
                     >
                         {selectedTools.length > 0 ? (
                             <div className="flex">
@@ -46,7 +47,7 @@ export const ToolSelector = ({
                                     const tool = tools.find(t => t.id === toolId);
                                     if (!tool) return null;
                                     return (
-                                        <div 
+                                        <div
                                             key={toolId}
                                             className="rounded-full bg-background flex items-center justify-center size-9"
                                             style={{
@@ -61,27 +62,24 @@ export const ToolSelector = ({
                                 })}
                             </div>
                         ) : (
-                            <div className="pr-4 flex items-center gap-1">
-                                <div className="rounded-full flex items-center justify-center size-7">
-                                    <PencilRulerIcon className="size-4" />
-                                </div>
-                                <span className="text-xs font-medium">使用高级工具</span>
-                            </div>
+                            <>
+                                <PencilRulerIcon className="size-4" />
+                                <span className="hidden lg:block text-xs font-medium">使用高级工具</span>
+                            </>
                         )}
                     </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-64">
+                <DropdownMenuContent align="start" className="w-52 md:w-60 lg:w-fit">
                     {tools.map((tool) => {
                         const isSelected = selectedTools.includes(tool.id);
                         return (
                             <DropdownMenuItem
                                 key={tool.id}
                                 onClick={() => handleToolSelect(tool.id)}
-                                className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                                    tool.available 
-                                        ? 'opacity-60 hover:bg-accent/20' 
+                                className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors ${tool.available
+                                        ? 'opacity-60 hover:bg-accent/20'
                                         : `hover:bg-accent/50 ${isSelected ? 'bg-accent/30' : ''}`
-                                }`}
+                                    }`}
                                 disabled={tool.available}
                             >
                                 <div className="mt-0.5 relative">

@@ -111,7 +111,6 @@ export const InputPanel = () => {
                         <QuickConfigSelector 
                             onApplyPreset={handleApplyPreset}
                             disabled={!IDLE}
-                            className="ml-1"
                         />
                     }
                     {IDLE &&
@@ -138,7 +137,7 @@ export const InputPanel = () => {
                             className="rounded-full flex items-center gap-1"
                         >
                             <CogIcon className="size-4" />
-                            <span className="text-xs">高级配置</span>
+                            <span className="hidden lg:block text-xs">高级配置</span>
                         </Button>
                     </AgentConfigDialog>
                 </div>

@@ -2,11 +2,15 @@ from .states import Status, SearchResult
 from langchain_core.prompts import HumanMessagePromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 from utils import SafeParse
+from tools import get_current_time
+
+current_time = get_current_time.invoke({"timezone": "UTC"})
 
 evaluate_current_status_output_parser = SafeParse(parser=PydanticOutputParser(pydantic_object=Status))
-
 search_method_prompt_template = HumanMessagePromptTemplate.from_template(
     """
+现在时间是：{current_time}
+
 你正在对一则新闻进行事实核查，你被分配到一个核查点，请检索互联网，对核查点进行事实核查
 
 # 新闻元数据：
@@ -64,6 +68,7 @@ search_method_prompt_template = HumanMessagePromptTemplate.from_template(
 {format_instructions}
 """,
     partial_variables={
+        "current_time": current_time,
         "format_instructions": evaluate_current_status_output_parser.get_format_instructions()
     },
 )
@@ -87,6 +92,8 @@ evaluate_current_status_prompt_template = HumanMessagePromptTemplate.from_templa
 generate_answer_output_parser = SafeParse(parser=PydanticOutputParser(pydantic_object=SearchResult))
 generate_answer_prompt_template = HumanMessagePromptTemplate.from_template(
     template="""
+现在时间是：{current_time}
+
 你正在对一则新闻进行事实核查，你被分配到一个核查点，你已经对核查点进行了事实核查，现在需要基于检索到的信息，给出核查结论。
 
 # 新闻元数据：
@@ -115,6 +122,7 @@ generate_answer_prompt_template = HumanMessagePromptTemplate.from_template(
 {format_instructions}
 """,
     partial_variables={
-        "format_instructions": generate_answer_output_parser.get_format_instructions()
+        "format_instructions": generate_answer_output_parser.get_format_instructions(),
+        "current_time": current_time,
     },
 )

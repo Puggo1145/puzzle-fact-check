@@ -82,7 +82,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                 </Badge>
                 <Badge
                   variant="outline"
-                  className="rounded-full"
+                  className="hidden sm:block rounded-full"
                 >
                   {modelTypeLabel[selectedModel.modelType]}
                 </Badge>

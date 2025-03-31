@@ -1,4 +1,4 @@
-import React from "react";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { NewspaperIcon } from "lucide-react";
 
 // Component to display example news cards
@@ -28,18 +28,21 @@ export const ExampleNewsCards = ({ onSelectExample }: { onSelectExample: (text: 
                 <NewspaperIcon className="size-4" />
                 <h3 className="text-sm font-medium">尝试这些案例</h3>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {examples.map((example, index) => (
-                    <div
-                        key={index}
-                        className="p-3 border border-primary/10 rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
-                        onClick={() => onSelectExample(example.text)}
-                    >
-                        <h4 className="text-sm font-medium mb-1">{example.title}</h4>
-                        <p className="text-xs text-muted-foreground line-clamp-2">{example.text}</p>
-                    </div>
-                ))}
-            </div>
+            <ScrollArea className="h-48 md:h-fit">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {examples.map((example, index) => (
+                        <div
+                            key={index}
+                            className="p-3 border border-primary/10 rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
+                            onClick={() => onSelectExample(example.text)}
+                        >
+                            <h4 className="text-sm font-medium mb-1">{example.title}</h4>
+                            <p className="text-xs text-muted-foreground line-clamp-2">{example.text}</p>
+                        </div>
+                    ))}
+                </div>
+                <ScrollBar orientation="horizontal" />
+            </ScrollArea>
         </div>
     );
 }; 
