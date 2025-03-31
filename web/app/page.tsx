@@ -16,10 +16,10 @@ export default function Home() {
   const isActive = status !== 'idle' || Boolean(finalReport) || events.length > 0;
 
   return (
-    <div className="container relative w-full h-full flex flex-col items-center mx-auto">
+    <div className="relative max-w-[1000px] w-full h-full flex flex-col items-center mx-auto">
       <ScrollArea
         className={cn(
-          "w-full transition-all duration-500 ease-in-out px-4",
+          "w-full transition-all duration-500 ease-in-out px-6",
           isActive
             ? "h-[80vh]"
             : "h-[0vh]"

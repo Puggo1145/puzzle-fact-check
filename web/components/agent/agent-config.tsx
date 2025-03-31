@@ -4,11 +4,12 @@ import React, { useMemo } from 'react';
 import { ModelSelector } from './model-selector';
 import { NumberInput } from './number-input';
 import type { ModelOption } from '@/constants/agent-default-config';
-import type { 
+import type {
   MainAgentConfig,
   MetadataExtractorConfig,
-  SearchAgentConfig
+  SearchAgentConfig,
 } from '@/constants/agent-default-config';
+import { MAIN_AGENT_EXCLUDED_MODELS, SEARCHER_EXCLUDED_MODELS } from '@/constants/agent-default-config';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { BotIcon, SearchIcon, InfoIcon } from 'lucide-react';
 
@@ -31,17 +32,19 @@ export const AgentConfigPanel: React.FC<BaseAgentConfigProps> = ({
   children
 }) => {
   return (
-    <Card>
+    <Card className='gap-2'>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm flex items-center gap-2">
           <Icon className="size-5" />
           {label}
-          <span className="font-normal text-xs text-muted-foreground">
-            {description}
-          </span>
         </CardTitle>
         <CardDescription className="text-xs text-muted-foreground mt-1">
-          {restrictionText}
+          <p className="font-normal text-xs text-muted-foreground">
+            {description}
+          </p>
+          <p className="font-normal text-xs text-muted-foreground">
+            {restrictionText}
+          </p>
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -68,14 +71,15 @@ export const MainAgentConfigPanel: React.FC<MainAgentConfigProps> = ({
   disabled = false
 }) => {
   const filteredModels = useMemo(() => {
-    return availableModels.filter(model => 
-      !(model.id === 'gpt-4o-mini' || model.id === 'qwen-turbo')
+    return availableModels.filter(model =>
+      !MAIN_AGENT_EXCLUDED_MODELS.includes(model.model)
     );
   }, [availableModels]);
 
-  const handleModelChange = (modelId: string, provider: string) => {
+  const handleModelChange = (modelId: string, modelName: string, provider: string) => {
     onChange({
-      modelName: modelId,
+      modelId: modelId,
+      modelName: modelName,
       modelProvider: provider
     });
   };
@@ -88,29 +92,26 @@ export const MainAgentConfigPanel: React.FC<MainAgentConfigProps> = ({
     <AgentConfigPanel
       label="主智能体"
       description="负责协调整个事实核查的流程"
-      restrictionText="主智能体不支持 GPT-4o Mini 和 Qwen Turbo 等轻量级模型"
+      restrictionText="不支持轻量模型（Light）"
       icon={BotIcon}
       disabled={disabled}
     >
       <ModelSelector
         models={filteredModels}
-        selectedModelId={config.modelName}
+        selectedModelId={config.modelId}
         onModelChange={handleModelChange}
         disabled={disabled}
-        label="主智能体模型选择"
       />
-      
-      <div className="grid grid-cols-2 gap-2">
-        <NumberInput
-          value={config.maxRetries ?? 3}
-          onChange={handleMaxRetriesChange}
-          min={1}
-          max={10}
-          step={1}
-          disabled={disabled}
-          label="最大重试次数"
-        />
-      </div>
+
+      <NumberInput
+        value={config.maxRetries ?? 3}
+        onChange={handleMaxRetriesChange}
+        min={1}
+        max={3}
+        step={1}
+        disabled={disabled}
+        label="每个检索 Agent 允许重试检索的最大次数"
+      />
     </AgentConfigPanel>
   );
 };
@@ -129,33 +130,27 @@ export const MetadataExtractorConfigPanel: React.FC<MetadataExtractorConfigProps
   onChange,
   disabled = false
 }) => {
-  const filteredModels = useMemo(() => {
-    return availableModels.filter(model => 
-      !(model.id === 'deepseek-reasoner' || model.id === 'qwq-plus-latest')
-    );
-  }, [availableModels]);
-
-  const handleModelChange = (modelId: string, provider: string) => {
+  const handleModelChange = (modelId: string, modelName: string, provider: string) => {
     onChange({
-      modelName: modelId,
+      modelId: modelId,
+      modelName: modelName,
       modelProvider: provider
     });
   };
 
   return (
     <AgentConfigPanel
-      label="新闻元数据提取器"
-      description="负责提取信息中的关键元数据"
-      restrictionText="元数据提取器不支持 DeepSeek R1 和 QWQ Plus Latest 等推理模型"
+      label="元数据提取智能体"
+      description="负责提取新闻中的关键元数据"
+      restrictionText=""
       icon={InfoIcon}
       disabled={disabled}
     >
       <ModelSelector
-        models={filteredModels}
-        selectedModelId={config.modelName}
+        models={availableModels}
+        selectedModelId={config.modelId}
         onModelChange={handleModelChange}
         disabled={disabled}
-        label="新闻元数据提取器模型选择"
       />
     </AgentConfigPanel>
   );
@@ -176,14 +171,15 @@ export const SearchAgentConfigPanel: React.FC<SearchAgentConfigProps> = ({
   disabled = false
 }) => {
   const filteredModels = useMemo(() => {
-    return availableModels.filter(model => 
-      !(model.id === 'gpt-4o-mini' || model.id === 'qwen-turbo')
+    return availableModels.filter(model =>
+      !SEARCHER_EXCLUDED_MODELS.includes(model.model)
     );
   }, [availableModels]);
 
-  const handleModelChange = (modelId: string, provider: string) => {
+  const handleModelChange = (modelId: string, modelName: string, provider: string) => {
     onChange({
-      modelName: modelId,
+      modelId: modelId,
+      modelName: modelName,
       modelProvider: provider
     });
   };
@@ -195,30 +191,27 @@ export const SearchAgentConfigPanel: React.FC<SearchAgentConfigProps> = ({
   return (
     <AgentConfigPanel
       label="检索智能体"
-      description="负责搜索和验证信息"
-      restrictionText="搜索智能体不支持 GPT-4o Mini 和 Qwen Turbo 等轻量级模型"
+      description="负责进行深度搜索"
+      restrictionText="不支持轻量模型（Light）"
       icon={SearchIcon}
       disabled={disabled}
     >
       <ModelSelector
         models={filteredModels}
-        selectedModelId={config.modelName}
+        selectedModelId={config.modelId}
         onModelChange={handleModelChange}
         disabled={disabled}
-        label="检索智能体模型选择"
       />
-      
-      <div className="grid grid-cols-2 gap-2">
-        <NumberInput
-          value={config.maxSearchTokens ?? 10000}
-          onChange={handleMaxSearchTokensChange}
-          min={5000}
-          max={100000}
-          step={1000}
-          disabled={disabled}
-          label="最大搜索 token 数"
-        />
-      </div>
+
+      <NumberInput
+        value={config.maxSearchTokens ?? 10000}
+        onChange={handleMaxSearchTokensChange}
+        min={5000}
+        max={100000}
+        step={1000}
+        disabled={disabled}
+        label="每个检索 Agent 允许消耗的最大 token 数"
+      />
     </AgentConfigPanel>
   );
 }; 

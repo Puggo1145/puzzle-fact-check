@@ -1,5 +1,6 @@
 "use client"
 
+import type { ConfigPreset } from "@/constants/agent-default-config";
 import {
     useState,
     useMemo,
@@ -13,10 +14,19 @@ import {
 } from "lucide-react";
 // ui
 import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from "@/components/ui/dialog";
 // components
 import { ToolSelector } from "./tool-selector";
 import { ExampleNewsCards } from "./example-news-cards";
 import { AgentConfigDialog } from "./agent-config-dialog";
+import { QuickConfigSelector } from "@/components/agent/quick-config-selector";
 // stores
 import { useAgentStore } from "@/stores/use-agent-store";
 // utils
@@ -42,8 +52,8 @@ export const InputPanel = () => {
     } = useAgentStore();
 
     const hasNewsText = useMemo(() => newsText.trim() !== "", [newsText]);
-    const [showTools, setShowTools] = useState(false);
     const [showAgentConfig, setShowAgentConfig] = useState(false);
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
     const IDLE = useMemo(() => status === 'idle', [status]);
     const RUNNING = useMemo(() => status === 'running', [status]);
@@ -70,9 +80,20 @@ export const InputPanel = () => {
 
     const onValueChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => setNewsText(e.target.value);
 
+    const handleApplyPreset = (preset: ConfigPreset) => {
+        setMainAgentConfig(preset.mainConfig);
+        setMetadataExtractorConfig(preset.metadataConfig);
+        setSearcherConfig(preset.searchConfig);
+    };
+    
+    const handleReset = () => {
+        setShowConfirmDialog(false);
+        resetState();
+    };
+
     return (
         <div className={cn(
-            "transition-all duration-500 ease-in-out", 
+            "transition-all duration-300 ease-in-out", 
             "w-full border-2 border-primary/5 bg-background p-4 mx-auto",
             IDLE ? "max-w-2xl rounded-3xl" : "max-w-md rounded-4xl"
         )}>
@@ -86,6 +107,19 @@ export const InputPanel = () => {
             <div className="w-full flex items-center justify-between gap-2">
                 {/* 左侧 configs */}
                 <div className="flex items-center gap-2">
+                    {IDLE && 
+                        <QuickConfigSelector 
+                            onApplyPreset={handleApplyPreset}
+                            disabled={!IDLE}
+                            className="ml-1"
+                        />
+                    }
+                    {IDLE &&
+                        <ToolSelector
+                            selectedTools={selectedTools}
+                            setSelectedTools={setSelectedTools}
+                        />
+                    }
                     <AgentConfigDialog
                         open={showAgentConfig}
                         onOpenChange={setShowAgentConfig}
@@ -104,17 +138,9 @@ export const InputPanel = () => {
                             className="rounded-full flex items-center gap-1"
                         >
                             <CogIcon className="size-4" />
-                            <span className="text-xs">Agent 配置</span>
+                            <span className="text-xs">高级配置</span>
                         </Button>
                     </AgentConfigDialog>
-
-                    {IDLE &&
-                        <ToolSelector
-                            selectedTools={selectedTools}
-                            setSelectedTools={setSelectedTools}
-                            showTools={showTools}
-                            setShowTools={setShowTools}
-                        />}
                 </div>
                 {/* 右侧 buttons */}
                 {IDLE &&
@@ -144,7 +170,7 @@ export const InputPanel = () => {
                 {(INTERRUPTED || COMPLETED) &&
                     <Button
                         variant="outline"
-                        onClick={resetState}
+                        onClick={() => setShowConfirmDialog(true)}
                         className="rounded-full flex items-center gap-1"
                         size="sm"
                     >
@@ -155,6 +181,25 @@ export const InputPanel = () => {
             </div>
 
             {IDLE && <ExampleNewsCards onSelectExample={setNewsText} />}
+
+            <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>您确定要返回吗？</DialogTitle>
+                        <DialogDescription>
+                            Puzzle 暂不支持存储您的核查结果，返回后将不会保存任何结果，您将丢失所有已执行的步骤。确定要返回吗？
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="mt-4">
+                        <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
+                            取消
+                        </Button>
+                        <Button onClick={handleReset}>
+                            确认返回
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

@@ -19,7 +19,8 @@ export const Hero = () => {
         >
             <div className="ml-3 flex flex-col gap-2">
                 <h1 className="z-10 text-4xl font-bold font-playfair-display
-                bg-linear-to-r from-primary/50 to-primary/80 bg-clip-text text-transparent">
+                bg-linear-to-r from-primary/50 to-primary/80 bg-clip-text text-transparent
+                dark:from-primary/70 dark:to-primary">
                     Debunk Fake News with Confidence
                 </h1>
                 <p className="text-muted-foreground text-lg">

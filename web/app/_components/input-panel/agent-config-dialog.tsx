@@ -1,23 +1,24 @@
 "use client"
 
+import type { 
+    MainAgentConfig,
+    MetadataExtractorConfig, 
+    SearchAgentConfig,
+    ModelOption,
+} from "@/constants/agent-default-config";
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { 
     MainAgentConfigPanel, 
     MetadataExtractorConfigPanel, 
-    SearchAgentConfigPanel 
+    SearchAgentConfigPanel
 } from "@/components/agent/agent-config";
-import type { 
-    MainAgentConfig,
-    MetadataExtractorConfig, 
-    SearchAgentConfig,
-    ModelOption 
-} from "@/constants/agent-default-config";
 
 interface AgentConfigDialogProps {
     open: boolean;
@@ -51,9 +52,12 @@ export const AgentConfigDialog: React.FC<AgentConfigDialogProps> = ({
             <DialogTrigger asChild>
                 {children}
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Agent 配置</DialogTitle>
+                    <DialogTitle>高级配置</DialogTitle>
+                    <DialogDescription>
+                        Puzzle 是个人早期实验项目，所有成本均由个人承担，请大家在选择模型的时候手下留情，使用最适合自己新闻类型的模型组合就好了。无需一味追求推理模型，非推理模型在事实核查任务中的表现也还不错哦！😘
+                    </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 mt-4">
                     <MainAgentConfigPanel

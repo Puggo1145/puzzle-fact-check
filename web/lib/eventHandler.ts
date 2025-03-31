@@ -207,10 +207,49 @@ export function setupEventSource(
     // This prevents showing error when connection closes normally after task_complete
     if (!isStreamClosed) {
       console.error('EventSource encountered an error:', event);
+      
+      const DEFAULT_ERROR_MESSAGE = '与服务器的连接中断，请检查您的网络连接或稍后再试。';
+      let errorMessage = DEFAULT_ERROR_MESSAGE;
+      
+      // Check if the error is from the response
+      if (event instanceof MessageEvent && event.data) {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data && data.message) {
+            const msg = data.message;
+            
+            if (msg.includes('quota')) {
+              errorMessage = '模型额度已用尽，请稍后再试或联系管理员。';
+            } else if (msg.includes('Rate limit')) {
+              errorMessage = '请求速率限制，请稍后再试。';
+            } else if (msg.includes('not available in your region')) {
+              errorMessage = '所选模型在当前区域不可用，请更换模型后重试。';
+            } else if (msg.includes('model is currently overloaded')) {
+              errorMessage = '模型目前负载过高，请稍后再试。';
+            } else {
+              errorMessage = `服务器错误: ${msg}`;
+            }
+          }
+        } catch {
+          // If not JSON, check for common error patterns in the string
+          const errorString = event.data.toString();
+          if (errorString.includes('429')) {
+            errorMessage = '请求过于频繁，请稍后再试。';
+          } else if (errorString.includes('quota') || errorString.includes('exceeded')) {
+            errorMessage = '模型配额已用尽，请稍后再试或联系管理员。';
+          } else if (errorString.includes('overloaded')) {
+            errorMessage = '模型目前负载过高，请稍后再试。';
+          }
+        }
+      }
+      
       // Add error event to the log
       addEvent({
         event: 'error',
-        data: { message: '与服务器的连接中断，请检查您的网络连接或稍后再试。' }
+        data: { 
+          message: errorMessage,
+        }
       } as TypedEvent<'error'>);
       
       // Update status to interrupted rather than staying in running
@@ -220,6 +259,18 @@ export function setupEventSource(
     // Close the connection if not already closed
     if (eventSource.readyState !== EventSource.CLOSED) {
       eventSource.close();
+    }
+    
+    // Manually dispatch stream_closed event if not already marked as closed
+    if (!isStreamClosed) {
+      isStreamClosed = true;
+      if (timeoutCheckerId) {
+        clearInterval(timeoutCheckerId);
+      }
+      addEvent({
+        event: 'stream_closed',
+        data: {}
+      } as unknown as TypedEvent<'stream_closed'>);
     }
   });
   
@@ -262,7 +313,6 @@ export function processEvent<T extends EventType>(event: TypedEvent<T>): { statu
   
   // Special handling for error events
   if (event.event === 'error') {
-    // All error events should transition to interrupted state
     return {
       status: 'interrupted',
       sessionId: null,

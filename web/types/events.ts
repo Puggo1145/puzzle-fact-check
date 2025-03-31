@@ -22,7 +22,8 @@ export type EventType =
     | 'tool_end'
     | 'task_complete'
     | 'task_interrupted'
-    | 'error';
+    | 'error'
+    | 'stream_closed';
 
 export interface Event<T=any> {
     event: EventType;
@@ -160,6 +161,7 @@ export type EventDataMap = {
     'task_complete': TaskCompleteData;
     'task_interrupted': TaskInterruptedData;
     'error': ErrorData;
+    'stream_closed': {};
 }
 
 // Type-safe event helper

@@ -17,8 +17,8 @@ export const ExampleNewsCards = ({ onSelectExample }: { onSelectExample: (text: 
             text: "2025 年 3 月 25 日，美国国家海洋和大气管理局（NOAA）发布报告称，由于全球变暖，北极冰川可能在2030年完全消失。",
         },
         {
-            title: "健康信息",
-            text: "每天喝一杯咖啡可以降低40%的心脏病风险，新研究涉及超过 10 万参与者。",
+            title: "亲友群经典健康养生传言",
+            text: "有网络流传说法称，一份癌症调查报告宣称斐济从1971年至2010年这40年间，全国90万人，无人患癌",
         },
     ];
 
@@ -26,7 +26,7 @@ export const ExampleNewsCards = ({ onSelectExample }: { onSelectExample: (text: 
         <div className="mt-6 space-y-3">
             <div className="flex items-center gap-2 text-muted-foreground">
                 <NewspaperIcon className="size-4" />
-                <h3 className="text-sm font-medium">最近新闻</h3>
+                <h3 className="text-sm font-medium">尝试这些案例</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {examples.map((example, index) => (

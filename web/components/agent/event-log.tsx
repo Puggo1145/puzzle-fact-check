@@ -43,7 +43,7 @@ export const EventLog: React.FC = () => {
         className="flex items-center justify-between p-3 border rounded-t-lg cursor-pointer"
         onClick={toggleCollapse}
       >
-        <h2 className="text-sm font-semibold">Agent 执行日志</h2>
+        <h2 className="text-sm font-semibold">核查过程</h2>
         <div className="flex items-center gap-2">
           <div className="text-xs text-muted-foreground">
             已执行 {events.length} 个步骤
@@ -59,16 +59,15 @@ export const EventLog: React.FC = () => {
       {!isCollapsed && (
         <div 
           ref={scrollAreaRef}
-          className="flex-1 overflow-y-auto space-y-2 min-h-[200px] max-h-[calc(100vh-250px)] border rounded-b-lg p-3"
+          className="flex-1 overflow-y-auto space-y-2 min-h-[200px] max-h-[60vh] border border-t-0 rounded-b-lg p-3"
         >
-          {events.length === 0 ? (
-            <div className="h-32 flex items-center justify-center text-muted-foreground text-sm">
-              {status === 'running' || status === 'interrupting' ? "加载中..." : "点击开始核查以查看 Agent 执行过程"}
+          {events.length > 0 && events.map((event: Event, index: number) => (
+            <EventItem key={index} event={event} />
+          ))}
+          {events.length === 0 && (
+            <div className="text-center text-sm text-muted-foreground">
+              正在连接到 Agent
             </div>
-          ) : (
-            events.map((event: Event, index: number) => (
-              <EventItem key={index} event={event} />
-            ))
           )}
         </div>
       )}

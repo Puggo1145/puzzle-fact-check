@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
 import type {
   Event,
   CheckPoint,
@@ -27,15 +29,14 @@ import {
   GlobeIcon,
   FileTextIcon,
   Layers3Icon,
-  WrenchIcon,
   ClipboardListIcon,
   BookOpenIcon,
   StopCircleIcon,
-  SparkleIcon
+  SparkleIcon,
 } from 'lucide-react';
+import { toolDict } from '@/constants/tools';
 import { cn } from '@/lib/utils';
 
-// @eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const EventItem = ({ event }: { event: Event }) => {
   const { event: eventType, data } = event;
 
@@ -61,14 +62,17 @@ export const EventItem = ({ event }: { event: Event }) => {
         return <BrainCircuitIcon className="size-4" />;
       case 'tool_start':
       case 'tool_end':
-        return <WrenchIcon className="size-4" />;
+        const ToolIcon = toolDict[data.tool_name].icon;
+        return <ToolIcon />;
       case 'generate_answer_start':
       case 'generate_answer_end':
         return <GlobeIcon className="size-4" />;
       case 'evaluate_search_result_start':
         return <SparkleIcon className="size-4" />;
       case 'evaluate_search_result_end':
-        return (data as RetrievalResultVerification).verified ? <ThumbsUpIcon className="size-4" /> : <ThumbsDownIcon className="size-4" />;
+        return (data as RetrievalResultVerification).verified
+          ? <ThumbsUpIcon className="size-4" />
+          : <ThumbsDownIcon className="size-4" />;
       case 'write_fact_check_report_start':
       case 'write_fact_check_report_end':
         return <FileTextIcon className="size-4" />;
@@ -94,15 +98,15 @@ export const EventItem = ({ event }: { event: Event }) => {
       case 'extract_check_point_end':
         return '核查点提取完成';
       case 'extract_basic_metadata_start':
-        return '开始提取新闻元数据';
+        return '正在提取新闻元数据';
       case 'extract_basic_metadata_end':
         return '新闻元数据提取完成';
       case 'extract_knowledge_start':
-        return '开始提取知识元';
+        return '正在提取知识元';
       case 'extract_knowledge_end':
         return '知识元提取完成';
       case 'retrieve_knowledge_start':
-        return '开始检索知识定义';
+        return '正在检索知识定义';
       case 'retrieve_knowledge_end':
         return '知识定义检索完成';
       case 'search_agent_start':
@@ -113,26 +117,27 @@ export const EventItem = ({ event }: { event: Event }) => {
         return '检索状态评估完成';
       case 'tool_start':
         const toolData = data as ToolStartData;
-        return `使用工具: ${toolData?.tool_name || ''}`;
+        return toolDict[toolData.tool_name].alias;
       case 'tool_end':
-        return '工具执行完成';
+        const toolEndData = data as ToolEndData;
+        return `${toolDict[toolEndData.tool_name].alias}完成`;
       case 'generate_answer_start':
-        return '正在生成检索结论...';
+        return '正在分析检索结论...';
       case 'generate_answer_end':
-        return '检索结论生成完成';
+        return '得出检索结论';
       case 'evaluate_search_result_start':
         return '正在评估检索结果...';
       case 'evaluate_search_result_end':
         return '检索结果评估完成';
       case 'write_fact_check_report_start':
-        return '开始撰写核查报告...';
+        return '正在撰写核查报告，这可能需要一些时间...';
       case 'write_fact_check_report_end':
         return '核查报告撰写完成';
       case 'llm_decision':
         const decisionData = data as LLMDecisionData;
         return `LLM 决策: ${decisionData?.decision || ''}`;
       case 'task_complete':
-        return '核查任务完成';
+        return '核查完成';
       case 'task_interrupted':
         const interruptData = data as TaskInterruptedData;
         return interruptData?.message || '任务已中断';
@@ -150,44 +155,44 @@ export const EventItem = ({ event }: { event: Event }) => {
   const getEventClass = () => {
     switch (eventType) {
       case 'agent_start':
-        return 'bg-blue-50 border-blue-100 text-blue-700';
+        return 'bg-blue-50 border-blue-100 text-blue-700 dark:bg-blue-900/40 dark:border-blue-800/50 dark:text-blue-200';
       case 'extract_check_point_start':
       case 'extract_check_point_end':
-        return 'bg-indigo-50 border-indigo-100 text-indigo-700';
+        return 'bg-indigo-50 border-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-800/50 dark:text-indigo-200';
       case 'extract_basic_metadata_start':
       case 'extract_basic_metadata_end':
       case 'extract_knowledge_start':
       case 'extract_knowledge_end':
       case 'retrieve_knowledge_start':
       case 'retrieve_knowledge_end':
-        return 'bg-purple-50 border-purple-100 text-purple-700';
+        return 'bg-purple-50 border-purple-100 text-purple-700 dark:bg-purple-900/40 dark:border-purple-800/50 dark:text-purple-200';
       case 'search_agent_start':
       case 'evaluate_current_status_start':
       case 'evaluate_current_status_end':
       case 'generate_answer_start':
       case 'generate_answer_end':
-        return 'bg-cyan-50 border-cyan-100 text-cyan-700';
+        return 'bg-cyan-50 border-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:border-cyan-800/50 dark:text-cyan-200';
       case 'tool_start':
       case 'tool_end':
-        return 'bg-blue-50 border-blue-100 text-blue-700';
+        return 'bg-blue-50 border-blue-100 text-blue-700 dark:bg-blue-900/40 dark:border-blue-800/50 dark:text-blue-200';
       case 'evaluate_search_result_start':
       case 'evaluate_search_result_end':
         return (data as RetrievalResultVerification)?.verified
-          ? 'bg-green-50 border-green-100 text-green-700'
-          : 'bg-amber-50 border-amber-100 text-amber-700';
+          ? 'bg-green-50 border-green-100 text-green-700 dark:bg-green-900/50 dark:border-green-800/50 dark:text-green-200'
+          : 'bg-amber-50 border-amber-100 text-amber-700 dark:bg-amber-900/50 dark:border-amber-800/50 dark:text-amber-200';
       case 'write_fact_check_report_start':
       case 'write_fact_check_report_end':
-        return 'bg-emerald-50 border-emerald-100 text-emerald-700';
+        return 'bg-emerald-50 border-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:border-emerald-800/50 dark:text-emerald-200';
       case 'llm_decision':
-        return 'bg-violet-50 border-violet-100 text-violet-700';
+        return 'bg-violet-50 border-violet-100 text-violet-700 dark:bg-violet-900/40 dark:border-violet-800/50 dark:text-violet-200';
       case 'task_complete':
-        return 'bg-green-50 border-green-100 text-green-700';
+        return 'bg-green-50 border-green-100 text-green-700 dark:bg-green-900/40 dark:border-green-800/50 dark:text-green-200';
       case 'task_interrupted':
-        return 'bg-orange-50 border-orange-100 text-orange-700';
+        return 'bg-orange-50 border-orange-100 text-orange-700 dark:bg-orange-900/40 dark:border-orange-800/50 dark:text-orange-200';
       case 'error':
-        return 'bg-red-50 border-red-100 text-red-700';
+        return 'bg-red-50 border-red-100 text-red-700 dark:bg-red-900/40 dark:border-red-800/50 dark:text-red-200';
       default:
-        return 'bg-gray-50 border-gray-100 text-gray-700';
+        return 'bg-gray-50 border-gray-100 text-gray-700 dark:bg-gray-900/40 dark:border-gray-800/50 dark:text-gray-200';
     }
   };
 
@@ -204,16 +209,20 @@ export const EventItem = ({ event }: { event: Event }) => {
               {checkPoints
                 .filter((cp: CheckPoint) => cp.is_verification_point)
                 .map((cp: CheckPoint, idx: number) => (
-                  <div key={idx} className="p-2 bg-white rounded-md border">
-                    <p className="text-sm font-medium">核查点 {idx + 1}: {cp.content}</p>
-                    {cp.importance && (
-                      <p className="text-xs text-gray-600">重要性: {cp.importance}</p>
-                    )}
+                  <div key={idx} className="p-2 bg-white rounded-md border dark:bg-gray-800/50">
+                    <p className="text-sm font-medium">
+                      核查点 {idx + 1}: {cp.content}
+                    </p>
+                    {cp.importance &&
+                      <p className="text-xs text-gray-600 dark:text-white">
+                        {cp.importance}
+                      </p>
+                    }
                     {cp.retrieval_step && cp.retrieval_step.length > 0 && (
                       <div className="mt-1">
-                        <p className="text-xs font-medium">检索步骤:</p>
+                        <p className="text-xs font-medium">检索计划:</p>
                         {cp.retrieval_step.map((step, stepIdx: number) => (
-                          <p key={stepIdx} className="text-xs text-gray-600">• {step.purpose}</p>
+                          <p key={stepIdx} className="text-xs text-gray-600 dark:text-white">{idx + 1}. {step.purpose}</p>
                         ))}
                       </div>
                     )}
@@ -226,28 +235,36 @@ export const EventItem = ({ event }: { event: Event }) => {
 
       case 'extract_basic_metadata_end':
         const basicMetadata = data as BasicMetadata;
+        const formattedMetadata = Object.fromEntries(
+          Object.entries(basicMetadata).map(([key, value]) => {
+            if (Array.isArray(value)) {
+              return [key, value.length > 0 ? value.join(', ') : '无'];
+            }
+            return [key, value];
+          })
+        );
         return (
           <div className="mt-2 space-y-1">
-            <p className="text-xs"><span className="font-medium">新闻类型: </span>
-              {basicMetadata.news_type || '未知'}
+            <p className="text-xs">
+              新闻类型:&nbsp;&nbsp;{formattedMetadata.news_type}
             </p>
-            <p className="text-xs"><span className="font-medium">人物: </span>
-              {Array.isArray(basicMetadata.who) ? basicMetadata.who.join(', ') : '无'}
+            <p className="text-xs">
+              人物 (Who) :&nbsp;&nbsp;{formattedMetadata.who}
             </p>
-            <p className="text-xs"><span className="font-medium">时间: </span>
-              {Array.isArray(basicMetadata.when) ? basicMetadata.when.join(', ') : '无'}
+            <p className="text-xs">
+              时间 (When) :&nbsp;&nbsp;{formattedMetadata.when}
             </p>
-            <p className="text-xs"><span className="font-medium">地点: </span>
-              {Array.isArray(basicMetadata.where) ? basicMetadata.where.join(', ') : '无'}
+            <p className="text-xs">
+              地点 (Where) :&nbsp;&nbsp;{formattedMetadata.where}
             </p>
-            <p className="text-xs"><span className="font-medium">事件: </span>
-              {Array.isArray(basicMetadata.what) ? basicMetadata.what.join(', ') : '无'}
+            <p className="text-xs">
+              事件 (What) :&nbsp;&nbsp;{formattedMetadata.what}
             </p>
-            <p className="text-xs"><span className="font-medium">原因: </span>
-              {Array.isArray(basicMetadata.why) ? basicMetadata.why.join(', ') : '无'}
+            <p className="text-xs">
+              原因 (Why) :&nbsp;&nbsp;{formattedMetadata.why}
             </p>
-            <p className="text-xs"><span className="font-medium">过程: </span>
-              {Array.isArray(basicMetadata.how) ? basicMetadata.how.join(', ') : '无'}
+            <p className="text-xs">
+              过程 (How) :&nbsp;&nbsp;{formattedMetadata.how}
             </p>
           </div>
         );
@@ -261,14 +278,20 @@ export const EventItem = ({ event }: { event: Event }) => {
                 提取到 {knowledges.length} 个知识元:
               </p>
               {knowledges.map((knowledge: Knowledge, idx: number) => (
-                <div key={idx} className="p-2 bg-white rounded-md border">
-                  <p className="text-xs"><span className="font-medium">术语:</span> {knowledge.term}</p>
-                  <p className="text-xs"><span className="font-medium">类别:</span> {knowledge.category}</p>
+                <div key={idx} className="p-2 bg-white dark:bg-black/20 rounded-md border space-y-1">
+                  <p className="text-xs">
+                    术语: {knowledge.term}
+                  </p>
+                  <p className="text-xs">
+                    类别: {knowledge.category}
+                  </p>
                   {knowledge.description && (
-                    <p className="text-xs"><span className="font-medium">描述:</span> {knowledge.description}</p>
+                    <p className="text-xs">
+                      描述: {knowledge.description}
+                    </p>
                   )}
                   {knowledge.source && (
-                    <p className="text-xs"><span className="font-medium">来源:</span> {knowledge.source}</p>
+                    <SourceBadge source={knowledge.source} />
                   )}
                 </div>
               ))}
@@ -281,11 +304,17 @@ export const EventItem = ({ event }: { event: Event }) => {
         const retrievedKnowledge = data as Knowledge;
         return (
           <div className="mt-2 space-y-1">
-            <p className="text-xs"><span className="font-medium">术语:</span> {retrievedKnowledge.term}</p>
-            <p className="text-xs"><span className="font-medium">类别:</span> {retrievedKnowledge.category}</p>
-            <p className="text-xs"><span className="font-medium">定义:</span> {retrievedKnowledge.description || '未检索到定义'}</p>
+            <p className="text-xs">
+              术语: {retrievedKnowledge.term}
+            </p>
+            <p className="text-xs">
+              类别: {retrievedKnowledge.category}
+            </p>
+            <p className="text-xs">
+              定义: {retrievedKnowledge.description || '未检索到定义'}
+            </p>
             {retrievedKnowledge.source && (
-              <p className="text-xs"><span className="font-medium">来源:</span> {retrievedKnowledge.source}</p>
+              <SourceBadge source={retrievedKnowledge.source} />
             )}
           </div>
         );
@@ -323,12 +352,12 @@ export const EventItem = ({ event }: { event: Event }) => {
                 <div className="mt-1">
                   <p className="text-xs font-medium">新证据:</p>
                   {statusData.new_evidence.map((evidence: Evidence, idx: number) => (
-                    <div key={idx} className="p-2 bg-white rounded-md border mt-1">
+                    <div key={idx} className="p-2 bg-white rounded-md border dark:bg-gray-800">
                       <p className="text-xs"><span className="font-medium">内容:</span> {evidence.content}</p>
                       <p className="text-xs"><span className="font-medium">关系:</span> {evidence.relationship === 'support' ? '支持' : '反驳'}</p>
                       <p className="text-xs"><span className="font-medium">推理:</span> {evidence.reasoning}</p>
                       {evidence.source && Object.keys(evidence.source).length > 0 && (
-                        <p className="text-xs"><span className="font-medium">来源:</span> {Object.entries(evidence.source).map(([k, v]) => `${k}: ${v}`).join(', ')}</p>
+                        <SourceBadge source={Object.values(evidence.source).join(', ')} className="mt-2" />
                       )}
                     </div>
                   ))}
@@ -372,7 +401,9 @@ export const EventItem = ({ event }: { event: Event }) => {
         if (toolData) {
           return (
             <div className="mt-2 space-y-1">
-              <p className="text-xs break-all"><span className="font-medium">输入:</span> {toolData.input_str}</p>
+              <p className="text-xs break-all">
+                {toolData.input_str}
+              </p>
             </div>
           );
         }
@@ -384,7 +415,6 @@ export const EventItem = ({ event }: { event: Event }) => {
           return (
             <div className="mt-2 space-y-1">
               <p className="text-xs break-all">
-                <span className="font-medium">输出: </span>
                 {toolEndData.output_str}
               </p>
             </div>
@@ -425,4 +455,18 @@ const PlayIcon = ({ className }: { className?: string }) => (
   >
     <polygon points="5 3 19 12 5 21 5 3" />
   </svg>
-); 
+);
+
+const SourceBadge = ({ source, className }: { source: string, className?: string }) => (
+  <Link href={source} target="_blank">
+    <Badge className={cn("rounded-full bg-gray-800/10 text-black", 
+      "dark:bg-white/15 dark:text-white hover:bg-black/20 dark:hover:bg-white/30", 
+      "transition-colors duration-150", 
+      className
+    )}>
+      <GlobeIcon className="size-4" />
+      {source.length > 30 ? source.slice(0, 30) + '...' : source}
+    </Badge>
+  </Link>
+);
+

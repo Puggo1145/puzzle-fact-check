@@ -11,6 +11,15 @@ import {
 } from '../ui/card';
 import { FileTextIcon, ClipboardCopyIcon, CheckCircleIcon } from 'lucide-react';
 import { Button } from '../ui/button';
+import {
+  TypographyH1,
+  TypographyH2,
+  TypographyH3,
+  TypographyP,
+  TypographyList,
+  TypographyBlockquote,
+} from "@/components/typography"
+import { SourceBadge } from "@/components/agent/source-badge";
 import ReactMarkdown from 'react-markdown';
 
 export const Report: React.FC = () => {
@@ -76,12 +85,17 @@ export const Report: React.FC = () => {
       <CardContent>
         <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:mb-4 prose-headings:mt-6 prose-p:my-4 prose-li:my-2">
           <ReactMarkdown components={{
-            h1: ({...props}) => <h1 className="text-2xl font-bold border-b pb-2 mb-6" {...props} />,
-            h2: ({...props}) => <h2 className="text-xl font-semibold mt-8 mb-4" {...props} />,
-            h3: ({...props}) => <h3 className="text-lg font-medium mt-6" {...props} />,
-            ul: ({...props}) => <ul className="my-4 ml-6 list-disc" {...props} />,
+            h1: ({...props}) => <TypographyH1 {...props} />,
+            h2: ({...props}) => <TypographyH2 {...props} />,
+            h3: ({...props}) => <TypographyH3 {...props} />,
+            ul: ({...props}) => <TypographyList {...props} />,
+            p: ({...props}) => <TypographyP {...props} />,
             ol: ({...props}) => <ol className="my-4 ml-6 list-decimal" {...props} />,
-            li: ({...props}) => <li className="mb-2" {...props} />
+            li: ({...props}) => <li className="mb-2" {...props} />,
+            hr: ({...props}) => <hr className="my-4" {...props} />,
+            a: ({...props}) => <SourceBadge source={props.href || ''} {...props} />,
+            code: ({...props}) => <SourceBadge source={props.children as string} {...props} />,
+            blockquote: ({...props}) => <TypographyBlockquote {...props} />,
           }}>
             {finalReport}
           </ReactMarkdown>

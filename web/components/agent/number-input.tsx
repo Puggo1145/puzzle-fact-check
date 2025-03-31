@@ -45,7 +45,7 @@ export const NumberInput: React.FC<NumberInputProps> = ({
 
   return (
     <div className="space-y-1">
-      {label && <p className="text-xs font-medium text-muted-foreground">{label}</p>}
+      {label && <p className="text-xs font-medium text-muted-foreground mb-1">{label}</p>}
       <div className="flex items-center">
         <Button
           type="button"
