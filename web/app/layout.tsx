@@ -34,7 +34,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`bg-muted ${firaSans.variable} ${playfairDisplay.variable}`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <div className="w-screen h-screen flex flex-col">
+          <div className="w-screen h-[100svh] flex flex-col">
             <Header />
             <div className="w-full flex-1">
               {children}
