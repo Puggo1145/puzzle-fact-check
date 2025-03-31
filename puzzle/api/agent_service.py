@@ -118,13 +118,22 @@ async def run_main_agent(
             name = event.get("name")
             metadata = event.get("metadata", {})
             node = metadata.get("checkpoint_ns", "").split(":")[0]
-
+            
             if filter_graph_events(kind, name, node, metadata):
                 continue
 
-            sse_event = None
-            
             if (
+                kind == "on_chain_start"
+                and name == "check_if_news_text"
+            ):
+                yield CheckIfNewsTextStart().model_dump()
+            elif (
+                kind == "on_chain_end"
+                and name == "check_if_news_text"
+            ):
+                is_news_text = data.get("output", {})["is_news_text"]
+                yield CheckIfNewsTextEnd(data=is_news_text).model_dump()
+            elif (
                 kind == "on_chain_start"
                 and node == "invoke_metadata_extract_agent"
                 and name == "extract_basic_metadata"

@@ -1,9 +1,14 @@
 import uuid
 import operator
-from typing import Optional, List, Annotated, Dict, Any
+from typing import Optional, List, Annotated
 from pydantic import BaseModel, Field
 from ..metadata_extractor.states import MetadataState
 from ..searcher.states import SearchResult, Evidence
+
+
+class IsNewsText(BaseModel):
+    result: bool = Field(description="是否为可核查文本")
+    reason: str = Field(description="判断依据")
 
 
 class RetrievalResultVerification(BaseModel):
@@ -44,11 +49,11 @@ class RetrievalStep(BaseModel):
         default=[],
     )
     result: Optional[RetrievalResult] = Field(
-        description="由 search agent 执行检索后返回的核查结论",
+        description="search agent 检索后返回的核查结论",
         default=None
     )
     verification: Optional[RetrievalResultVerification] = Field(
-        description="主模型对 search agent 检索结果的复核",
+        description="main agent 对 search agent 检索结果的复核",
         default=None
     )
 
@@ -73,6 +78,7 @@ class CheckPoints(BaseModel):
 
 class FactCheckPlanState(BaseModel):
     news_text: str = Field(description="待核查的新闻文本")
+    is_news_text: Optional[IsNewsText] = Field(description="是否为可核查文本", default=None)
     metadata: Optional[MetadataState] = Field(description="新闻元数据", default=None)
     check_points: List[CheckPoint] = Field(default_factory=list)
     report: str = Field(description="核查报告", default="")

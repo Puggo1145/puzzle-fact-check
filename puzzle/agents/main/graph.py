@@ -10,6 +10,8 @@ from agents.base import BaseAgent
 from langgraph.graph.state import CompiledStateGraph, StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from .prompts import (
+    check_if_news_text_prompt_template,
+    check_if_news_text_output_parser,
     fact_check_plan_prompt_template,
     fact_check_plan_output_parser,
     evaluate_search_result_output_parser,
@@ -30,6 +32,7 @@ from .states import (
     CheckPoint,
     CheckPoints,
     RetrievalStep,
+    IsNewsText,
 )
 from langchain_openai.chat_models.base import BaseChatOpenAI
 
@@ -48,6 +51,7 @@ class MainAgent(BaseAgent):
             model=model,
         )
         
+        self.metadata_extract_model = metadata_extract_model
         self.metadata_extract_agent = MetadataExtractAgentGraph(
             model=metadata_extract_model,
         )
@@ -70,13 +74,19 @@ class MainAgent(BaseAgent):
     def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(FactCheckPlanState)
 
+        graph_builder.add_node("check_if_news_text", self.check_if_news_text)
         graph_builder.add_node("invoke_metadata_extract_agent", self.invoke_metadata_extract_agent)
         graph_builder.add_node("extract_check_point", self.extract_check_point)
         graph_builder.add_node("invoke_search_agent", self.invoke_search_agent)
         graph_builder.add_node("evaluate_search_result", self.evaluate_search_result)
         graph_builder.add_node("write_fact_check_report", self.write_fact_check_report)
 
-        graph_builder.set_entry_point("invoke_metadata_extract_agent")
+        graph_builder.set_entry_point("check_if_news_text")
+        graph_builder.add_conditional_edges(
+            "check_if_news_text",
+            self.should_continue_to_metadata_extract,
+            ["invoke_metadata_extract_agent", END]
+        )
         graph_builder.add_edge("invoke_metadata_extract_agent", "extract_check_point")
         graph_builder.add_conditional_edges(
             "extract_check_point",
@@ -89,7 +99,8 @@ class MainAgent(BaseAgent):
             self.should_retry_or_continue,
             {
                 "retry": "invoke_search_agent",
-                "next": "invoke_search_agent",
+                "continue": "invoke_search_agent",
+                "force_continue": "invoke_search_agent",
                 "finish": "write_fact_check_report"
             }
         )
@@ -98,6 +109,27 @@ class MainAgent(BaseAgent):
         return graph_builder.compile(
             checkpointer=MemorySaver(),
         )
+    
+    def check_if_news_text(self, state: FactCheckPlanState):
+        """检查用户提供的文本是否为新闻文本"""
+        response = self.metadata_extract_model.invoke([
+            check_if_news_text_prompt_template.format(
+                news_text=state.news_text
+            )
+        ])
+        is_news_text: IsNewsText = check_if_news_text_output_parser.invoke(response)
+
+        return {"is_news_text": is_news_text}
+    
+    def should_continue_to_metadata_extract(self, state: FactCheckPlanState):
+        """
+        决定是否继续执行元数据提取
+        如果文本不是新闻文本，则结束图的执行
+        """
+        if not state.is_news_text or not state.is_news_text.result:
+            return END
+        
+        return "invoke_metadata_extract_agent"
         
     def invoke_metadata_extract_agent(self, state: FactCheckPlanState):
         result = self.metadata_extract_agent.graph.invoke({"news_text": state.news_text})
@@ -253,7 +285,10 @@ class MainAgent(BaseAgent):
         
         return {"check_points": updated_check_points}
 
-    def should_retry_or_continue(self, state: FactCheckPlanState) -> Literal["retry", "next", "finish"]:        
+    def should_retry_or_continue(
+        self, 
+        state: FactCheckPlanState
+    ) -> Literal["retry", "continue", "force_continue", "finish"]:        
         """
         根据评估结果决定是重试当前检索任务、继续下一个任务还是完成检索
         """
@@ -273,15 +308,15 @@ class MainAgent(BaseAgent):
         if not current_step.verification.verified and self.retries <= self.max_retries:
             return "retry"
 
-        # 无论主模型是否认可当前检索结果，只要 search agent 重试次数超过最大重试次数，继续下一个任务
-        # if not current_step.verification.verified and self.retries > self.max_retries:
-        #     return "next"
-        
         # 重置重试计数器和更新当前检索任务索引，准备处理下一个任务
         self.retries = 0
         self.current_retrieval_task_index += 1
+        
+        # 无论主模型是否认可当前检索结果，只要 search agent 重试次数超过最大重试次数，继续下一个任务
+        if self.retries > self.max_retries:
+            return "force_continue"
 
-        return "next"
+        return "continue"
     
     def write_fact_check_report(self, state: FactCheckPlanState):
         """main agent 认可全部核查结论将核查结果写入报告"""

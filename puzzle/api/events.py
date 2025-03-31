@@ -4,7 +4,7 @@ Agent SSE Event Models
 
 import re
 from pydantic import BaseModel
-from agents.main.states import CheckPoint, RetrievalResultVerification
+from agents.main.states import CheckPoint, RetrievalResultVerification, IsNewsText
 from agents.metadata_extractor.states import BasicMetadata, Knowledge
 from agents.searcher.states import Status, SearchResult
 
@@ -35,6 +35,15 @@ class BaseEvent(BaseModel):
 
 class OnAgentStart(BaseEvent):
     data: None = None
+
+
+# check_if_news_text
+class CheckIfNewsTextStart(BaseEvent):
+    data: None = None
+
+
+class CheckIfNewsTextEnd(BaseEvent):
+    data: IsNewsText
 
 
 # invoke_metadata_extract_agent

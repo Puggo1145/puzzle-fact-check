@@ -53,6 +53,7 @@ def test_plan_agent():
         metadata_extract_model=metadata_extract_model,
         search_model=search_model,
         max_search_tokens=10000,
+        selected_tools=[]
     )
 
     thread_config = {"thread_id": "test_id"}

@@ -42,13 +42,11 @@ class GoogleToolInput(BaseModel):
     )
 
 
-class SearchGoogleTool(BaseTool):
-    """Google搜索工具，提供Google搜索引擎的访问功能"""
+class SearchGoogleAlternative(BaseTool):
+    """使用爬虫实现的 Google 搜索替代版，没钱的时候用这个"""
 
-    name: str = "search_google"
-    description: str = (
-        "当你想要通过 Google 搜索引擎检索互联网时使用。Google 搜索引擎在全球信息和学术内容搜索上表现较好"
-    )
+    name: str = "search_google_alternative"
+    description: str = "Google 搜索下位替代版，当官方 api 无法使用的时候使用。该工具的访问速度可能较慢，且会在访问次数过多时被限流"
     args_schema: Optional[ArgsSchema] = GoogleToolInput
 
     # 内部控制参数

@@ -53,7 +53,7 @@ class SSESession:
         
         event_type = event_data.get('event')    
         self.queue.put(event_data)
-        logger.info(f"Event added to queue: {event_type}")
+        logger.info(f"Event added to queue: {event_type} to session {self.session_id}")
         
         # 收到非心跳事件时重置心跳计数器
         if event_type != 'heartbeat':
@@ -153,7 +153,7 @@ class SSESession:
                         yield "event: heartbeat\ndata: {\"message\": \"Connection alive\"}\n\n"
                         last_heartbeat = current_time
                         self.consecutive_heartbeats += 1
-                        logger.info(f"Heartbeat sent ({self.consecutive_heartbeats}/{MAX_CONSECUTIVE_HEARTBEATS})")
+                        logger.info(f"Heartbeat sent ({self.consecutive_heartbeats}/{MAX_CONSECUTIVE_HEARTBEATS}) to session {self.session_id}")
                     except GeneratorExit:
                         # 客户端断开连接时会引发 GeneratorExit 异常
                         logger.info(f"Client disconnected during heartbeat for session {self.session_id}")
@@ -167,7 +167,7 @@ class SSESession:
                         event_type = event.get("event")
                         event_data = event.get("data")
                         
-                        logger.info(f"Processing event from queue: {event_type}")
+                        logger.info(f"Processing event from queue: {event_type} to session {self.session_id}")
                         
                         # 非心跳事件时重置心跳计数器
                         if event_type != "heartbeat":
@@ -177,11 +177,11 @@ class SSESession:
                             # Ensure data is JSON serializable
                             data_json = json.dumps(event_data, ensure_ascii=False) if event_data is not None else "{}"
                             message = f"event: {event_type}\ndata: {data_json}\n\n"
-                            logger.info(f"Sending event: {event_type}")
+                            logger.info(f"Sending event: {event_type} to session {self.session_id}")
                             
                             # Special handling for error events
                             if event_type == "error":
-                                logger.error(f"Sending ERROR event: {data_json}")
+                                logger.error(f"Sending ERROR event: {data_json} to session {self.session_id}")
                                 try:
                                     yield message  # Send error event
                                     error_sent = True

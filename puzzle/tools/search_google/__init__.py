@@ -1,3 +1,3 @@
-from .tool import SearchGoogleTool
+from .tool import SearchGoogleAlternative
 
-__all__ = ["SearchGoogleTool"] 
+__all__ = ["SearchGoogleAlternative"] 

@@ -12,10 +12,11 @@ from .prompts import (
 )
 from tools import (
     SearchBingTool,
-    SearchGoogleTool,
+    SearchGoogleOfficial,
+    SearchGoogleAlternative,
     ReadWebpageTool,
     get_current_time,
-    TavilySearch
+    TavilySearch,
 )
 from langgraph.graph.state import StateGraph
 
@@ -45,10 +46,11 @@ class SearchAgentGraph(BaseAgent):
         # 定义所有可用工具
         self.available_tools = {
             "basic": [
-                SearchBingTool(),
-                SearchGoogleTool(),
-                ReadWebpageTool(),
                 get_current_time,
+                SearchBingTool(),
+                SearchGoogleOfficial(),
+                SearchGoogleAlternative(),
+                ReadWebpageTool(),
             ],
             "tavily_search": [
                 TavilySearch()

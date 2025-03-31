@@ -73,7 +73,7 @@ class SearchWikipediaTool(BaseTool):
         """创建带有重试机制的会话"""
         session = requests.Session()
         retry_strategy = Retry(
-            total=3,
+            total=2,
             backoff_factor=1,
             status_forcelist=[429, 500, 502, 503, 504],
         )
@@ -96,10 +96,12 @@ class SearchWikipediaTool(BaseTool):
         Returns:
             API响应的JSON数据
         """
-        max_retries = 3
+        max_retries = 2
         for attempt in range(max_retries):
             try:
                 response = self.session.get(url, timeout=10)
+                if response.status_code == 404:
+                    raise ToolException("找不到请求的维基百科页面")
                 response.raise_for_status()
                 return response.json()
             except requests.exceptions.RequestException as e:
