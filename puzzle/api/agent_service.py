@@ -1,16 +1,13 @@
 import json
-from typing import cast, Callable, Optional
+from typing import cast
 
-import uuid
 from agents.main.graph import MainAgent
 from langchain_openai.chat_models.base import BaseChatOpenAI
 from langchain_core.messages import ToolMessage
 from .model import CreateAgentConfig
 from .events import *
 from agents.searcher.states import SearchAgentState
-
-# from langchain_core.runnables.schema import StreamEvent
-
+from utils.get_env import get_env
 
 def get_model_instance_from_provider(
     provider: str, model: str, temperature: float = 0.0, streaming: bool = True
@@ -37,6 +34,14 @@ def get_model_instance_from_provider(
             model=model,
             temperature=temperature,
             streaming=streaming,
+        )
+    elif provider == "openai_third_party":
+        return ChatOpenAI(
+            model=model,
+            temperature=temperature,
+            streaming=streaming,
+            base_url=get_env("OPENAI_BASE_URL_THIRD_PARTY"),
+            api_key=get_env("OPENAI_API_KEY_THIRD_PARTY", as_secret_str=True),
         )
     else:
         raise ValueError(f"不支持的模型提供商: {provider}")
@@ -255,7 +260,13 @@ async def run_main_agent(
                 if isinstance(data.get("output"), ToolMessage):
                     tool_output_str = str(cast(ToolMessage, data.get("output")).content)
                 else:
-                    tool_output_str = str(data.get("output"))
+                    # Ensure we're properly handling the string representation without additional escaping
+                    output_data = data.get("output")
+                    if isinstance(output_data, str):
+                        tool_output_str = output_data
+                    else:
+                        # For non-string output, convert to JSON string with proper unicode handling
+                        tool_output_str = json.dumps(output_data, ensure_ascii=False)
                     
                 yield ToolEnd(
                     data=ToolEndData(

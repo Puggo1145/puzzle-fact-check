@@ -210,6 +210,7 @@ class SearchBingTool(BaseTool):
         """
         try:
             result = self.search(query, limit, ensearch)
+            # Ensure proper encoding for all Unicode characters by disabling ASCII escaping
             return json.dumps(result, ensure_ascii=False)
         except Exception as e:
             return json.dumps({"error": f"操作执行失败: {str(e)}"}, ensure_ascii=False) 

@@ -29,6 +29,7 @@ active_sessions: Dict[str, Dict[str, Any]] = {}
 sessions_lock = threading.Lock()
 
 HEARTBEAT_INTERVAL = 30  # seconds
+MAX_CONSECUTIVE_HEARTBEATS = 6  # 最大连续发送6次心跳（约3分钟）
 
 class SSESession:
     """Manages a Server-Sent Events session for a specific agent instance"""
@@ -39,6 +40,7 @@ class SSESession:
         self.is_running = True
         self.is_interrupted = False
         self.task: Optional[asyncio.Task] = None
+        self.consecutive_heartbeats = 0  # 初始化连续心跳计数器
     
     def add_event(self, event_data: Dict[str, Any]) -> None:
         """Add an event to the session's queue
@@ -52,6 +54,10 @@ class SSESession:
         event_type = event_data.get('event')    
         self.queue.put(event_data)
         logger.info(f"Event added to queue: {event_type}")
+        
+        # 收到非心跳事件时重置心跳计数器
+        if event_type != 'heartbeat':
+            self.consecutive_heartbeats = 0
         
         # Special logging for error events to help debug
         if event_type == 'error':
@@ -108,6 +114,7 @@ class SSESession:
         yield "event: heartbeat\ndata: {\"message\": \"Connection established\"}\n\n"
         
         last_heartbeat = time.time()
+        self.consecutive_heartbeats = 1  # 初始连接时发送了一次心跳
         
         # Flag to track if an error event was sent and needs a delay before closing
         error_sent = False
@@ -115,66 +122,116 @@ class SSESession:
         
         logger.info(f"Starting event stream for session {self.session_id}")
         
-        while self.is_running or error_sent:
-            current_time = time.time()
-            
-            # Check if we should exit after error delay
-            if error_sent and (current_time - error_sent_time >= 2.0):  # Increased to 2 second delay after error
-                logger.info("Error delay period ended, closing stream after error")
-                error_sent = False
-                break
-            
-            # Send heartbeat if needed
-            if current_time - last_heartbeat >= HEARTBEAT_INTERVAL:
-                yield "event: heartbeat\ndata: {\"message\": \"Connection alive\"}\n\n"
-                last_heartbeat = current_time
-                logger.info("Heartbeat sent")
-            
-            # Check for events (non-blocking)
-            try:
-                if not self.queue.empty():
-                    event = self.queue.get(block=False)
-                    event_type = event.get("event")
-                    event_data = event.get("data")
-                    
-                    logger.info(f"Processing event from queue: {event_type}")
-                    
+        try:
+            while self.is_running or error_sent:
+                # 检查是否中断
+                if self.is_interrupted:
+                    logger.info(f"Stream interrupted for session {self.session_id}")
+                    break
+                
+                # 检查连续心跳次数是否超出限制
+                if self.consecutive_heartbeats >= MAX_CONSECUTIVE_HEARTBEATS:
+                    logger.error(f"Session {self.session_id} reached max consecutive heartbeats ({MAX_CONSECUTIVE_HEARTBEATS}). Model seems unresponsive.")
+                    self.add_event(
+                        Error(data=ErrorData(message="模型似乎无响应，已超过最大等待时间(3分钟)"))
+                        .model_dump()
+                    )
+                    error_sent = True
+                    error_sent_time = time.time()
+                
+                current_time = time.time()
+                
+                # Check if we should exit after error delay
+                if error_sent and (current_time - error_sent_time >= 2.0):  # Increased to 2 second delay after error
+                    logger.info("Error delay period ended, closing stream after error")
+                    error_sent = False
+                    break
+                
+                # Send heartbeat if needed
+                if current_time - last_heartbeat >= HEARTBEAT_INTERVAL:
                     try:
-                        # Ensure data is JSON serializable
-                        data_json = json.dumps(event_data) if event_data is not None else "{}"
-                        message = f"event: {event_type}\ndata: {data_json}\n\n"
-                        logger.info(f"Sending event: {event_type}")
+                        yield "event: heartbeat\ndata: {\"message\": \"Connection alive\"}\n\n"
+                        last_heartbeat = current_time
+                        self.consecutive_heartbeats += 1
+                        logger.info(f"Heartbeat sent ({self.consecutive_heartbeats}/{MAX_CONSECUTIVE_HEARTBEATS})")
+                    except GeneratorExit:
+                        # 客户端断开连接时会引发 GeneratorExit 异常
+                        logger.info(f"Client disconnected during heartbeat for session {self.session_id}")
+                        self.is_interrupted = True
+                        break
+                
+                # Check for events (non-blocking)
+                try:
+                    if not self.queue.empty():
+                        event = self.queue.get(block=False)
+                        event_type = event.get("event")
+                        event_data = event.get("data")
                         
-                        # Special handling for error events
-                        if event_type == "error":
-                            logger.error(f"Sending ERROR event: {data_json}")
-                            yield message  # Send error event
-                            error_sent = True
-                            error_sent_time = current_time
-                            logger.info("Error event sent, will delay closing connection")
-                            # Force flush with a small yield
-                            yield ""
-                        else:
-                            yield message
+                        logger.info(f"Processing event from queue: {event_type}")
                         
-                    except TypeError as e:
-                        logger.error(f"Error serializing event data: {e}")
-                else:
-                    # Short sleep to avoid CPU spinning while checking for new events
-                    time.sleep(0.1)
+                        # 非心跳事件时重置心跳计数器
+                        if event_type != "heartbeat":
+                            self.consecutive_heartbeats = 0
+                        
+                        try:
+                            # Ensure data is JSON serializable
+                            data_json = json.dumps(event_data, ensure_ascii=False) if event_data is not None else "{}"
+                            message = f"event: {event_type}\ndata: {data_json}\n\n"
+                            logger.info(f"Sending event: {event_type}")
+                            
+                            # Special handling for error events
+                            if event_type == "error":
+                                logger.error(f"Sending ERROR event: {data_json}")
+                                try:
+                                    yield message  # Send error event
+                                    error_sent = True
+                                    error_sent_time = current_time
+                                    logger.info("Error event sent, will delay closing connection")
+                                    # Force flush with a small yield
+                                    yield ""
+                                except GeneratorExit:
+                                    # 客户端断开连接
+                                    logger.info(f"Client disconnected during error event for session {self.session_id}")
+                                    self.is_interrupted = True
+                                    break
+                            else:
+                                try:
+                                    yield message
+                                except GeneratorExit:
+                                    # 客户端断开连接
+                                    logger.info(f"Client disconnected during event for session {self.session_id}")
+                                    self.is_interrupted = True
+                                    break
+                        
+                        except TypeError as e:
+                            logger.error(f"Error serializing event data: {e}")
+                    else:
+                        # Short sleep to avoid CPU spinning while checking for new events
+                        time.sleep(0.1)
                     
-            except Exception as e:
-                logger.error(f"Error generating SSE event: {e}")
-                time.sleep(0.5)  # Add delay on error
+                except Exception as e:
+                    logger.error(f"Error generating SSE event: {e}")
+                    time.sleep(0.5)  # Add delay on error
+        except GeneratorExit:
+            # 捕获 GeneratorExit 异常，表示客户端已断开连接
+            logger.info(f"Client disconnected from event stream for session {self.session_id}")
+            self.is_interrupted = True
+        except Exception as e:
+            # 其他异常
+            logger.error(f"Unexpected error in event stream: {e}")
+            self.is_interrupted = True
         
         logger.info(f"Exiting event stream loop for session {self.session_id}")
         
-        # Final event to indicate the stream is closed - ALWAYS send this
-        logger.info("Sending stream_closed event")
-        yield "event: stream_closed\ndata: {\"message\": \"Stream closed\"}\n\n"
-        # Force flush
-        yield ""
-        logger.info("Stream closed event sent")
+        # Final event to indicate the stream is closed - ALWAYS try to send this
+        try:
+            logger.info("Sending stream_closed event")
+            yield "event: stream_closed\ndata: {\"message\": \"Stream closed\"}\n\n"
+            # Force flush
+            yield ""
+            logger.info("Stream closed event sent")
+        except GeneratorExit:
+            logger.info("Client disconnected before final stream_closed event could be sent")
 
 
 def create_session() -> str:
@@ -215,14 +272,48 @@ def close_session(session_id: str) -> bool:
         return True
 
 def interrupt_session(session_id: str) -> bool:
-    """Interrupt a running agent session"""
+    """Interrupt a running agent session and terminate all associated resources"""
     with sessions_lock:
         session = active_sessions.get(session_id)
         if not session:
             return False
         
         sse_session: SSESession = session["sse_session"]
-        return sse_session.interrupt()
+        
+        # 如果 session 中包含 task，且 task 是 asyncio.Task 类型，则取消任务
+        if hasattr(sse_session, 'task') and sse_session.task is not None:
+            try:
+                if not sse_session.task.done():
+                    sse_session.task.cancel()
+                    logger.info(f"Cancelled async task for session {session_id}")
+            except Exception as e:
+                logger.error(f"Error cancelling task: {e}")
+        
+        # 标记会话为中断状态
+        sse_session.is_interrupted = True
+        
+        # 添加中断事件到队列
+        sse_session.add_event(
+            TaskInterrupted(data=InterruptData(message="核查任务被中断"))
+            .model_dump()
+        )
+        
+        # 关闭 SSE 会话
+        sse_session.close()
+        
+        # 更新会话状态
+        session["is_running"] = False
+        
+        # 安排延迟删除会话
+        def delayed_removal():
+            time.sleep(5)  # 等待 5 秒确保所有事件都已发送
+            with sessions_lock:
+                if session_id in active_sessions:
+                    logger.info(f"Removing session {session_id} after interrupt")
+                    active_sessions.pop(session_id, None)
+        
+        threading.Thread(target=delayed_removal).start()
+        return True
 
 async def process_agent_events(news_text: str, config: CreateAgentConfig, session_id: str, sse_session: SSESession):
     """Process events from the agent's generator and add them to the SSE session"""
@@ -235,13 +326,24 @@ async def process_agent_events(news_text: str, config: CreateAgentConfig, sessio
             "data": {"message": "Agent starting"}
         })
         
+        # Check if the session has been interrupted
+        if sse_session.is_interrupted:
+            return
+        
         # Get events from the agent generator
-        async for event_data in run_main_agent(news_text, config, session_id):
+        agent_events = run_main_agent(news_text, config, session_id)
+        
+        async for event_data in agent_events:
+            # Check for interruption after each event
+            if sse_session.is_interrupted:
+                break
+                
             # Forward event to SSE session
             sse_session.add_event(event_data)
                 
-        # Add task complete event
-        sse_session.add_event(TaskComplete().model_dump())
+        # Add task complete event (only if not interrupted)
+        if not sse_session.is_interrupted:
+            sse_session.add_event(TaskComplete().model_dump())
             
     except Exception as e:
         # Handle any exceptions
@@ -300,10 +402,18 @@ def run_agent_thread(news_text: str, config: CreateAgentConfig, session_id: str)
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-        # Run the agent processing coroutine
-        loop.run_until_complete(
-            process_agent_events(news_text, config, session_id, sse_session)
-        )
+        # 创建处理 agent 事件的协程任务
+        process_events_coro = process_agent_events(news_text, config, session_id, sse_session)
+        
+        # 存储任务引用，以便可以在需要时取消
+        sse_session.task = asyncio.ensure_future(process_events_coro, loop=loop)
+        
+        # 运行直到任务完成或被取消
+        loop.run_until_complete(sse_session.task)
+        
+    except asyncio.CancelledError:
+        # 任务被取消时的处理
+        logger.info(f"Agent task for session {session_id} was cancelled")
         
     except Exception as e:
         # Handle any exceptions
@@ -320,6 +430,9 @@ def run_agent_thread(news_text: str, config: CreateAgentConfig, session_id: str)
         time.sleep(1)
         
     finally:
+        # 确保任务引用被清理
+        sse_session.task = None
+        
         # Update session state
         with sessions_lock:
             if session_id in active_sessions:

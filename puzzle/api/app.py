@@ -65,7 +65,16 @@ def get_agent_events(session_id):
     logger.info(f"Client connected to SSE stream for session: {session_id}")
     
     # 使用 SSE 会话的 get_response 方法获取响应
-    return sse_session.get_response()
+    response = sse_session.get_response()
+    
+    # 注册一个关闭回调函数，在客户端断开连接时调用
+    @response.call_on_close
+    def on_close():
+        logger.info(f"Client disconnected from SSE stream for session: {session_id}")
+        # 中断会话并清理资源
+        interrupt_session(session_id)
+    
+    return response
 
 @app.route('/api/agents/<session_id>/interrupt', methods=['POST'])
 def interrupt_agent(session_id):

@@ -32,6 +32,11 @@ PROVIDERS_CONFIG = {
         "reasoning_models": str_to_list(os.getenv("DEEPSEEK_REASONING_MODELS")),
         "non_reasoning_models": str_to_list(os.getenv("DEEPSEEK_NON_REASONING_MODELS")),
         "light_models": str_to_list(os.getenv("DEEPSEEK_LIGHT_MODELS"))
+    },
+    "openai_third_party": {
+        "reasoning_models": str_to_list(os.getenv("OPENAI_REASONING_MODELS")),
+        "non_reasoning_models": str_to_list(os.getenv("OPENAI_NON_REASONING_MODELS")),
+        "light_models": str_to_list(os.getenv("OPENAI_LIGHT_MODELS"))
     }
     # Additional providers (e.g., gemini) can be added similarly
 }
