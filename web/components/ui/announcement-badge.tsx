@@ -17,7 +17,8 @@ export function AnnouncementBadge() {
           variant="outline"
           className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 
           text-sm animate-pulse rounded-full hover:animate-none hover:bg-blue-200/50
-          bg-blue-200/30 text-blue-600 border-blue-200"
+          bg-blue-200/30 text-blue-600 border-blue-200
+          dark:bg-blue-800/30 dark:text-blue-400 dark:border-blue-700"
         >
           <BellIcon className="size-3.5" />
           关于 Puzzle 已知问题的说明和修复计划
