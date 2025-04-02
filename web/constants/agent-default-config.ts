@@ -11,13 +11,6 @@ export interface ModelOption {
 }
 export const AVAILABLE_MODELS: ModelOption[] = [
   // OpenAI
-  {
-    id: 'chatgpt-4o-latest', 
-    model: 'gpt-4o-latest', 
-    alias: 'GPT-4o Latest', 
-    provider: 'openai', 
-    modelType: "non_reasoning" 
-  },
   { 
     id: 'gpt-4o', 
     model: 'gpt-4o', 
@@ -25,6 +18,21 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     provider: 'openai', 
     modelType: "non_reasoning" 
   },
+  {
+    id: 'chatgpt-4o-latest', 
+    model: 'chatgpt-4o-latest', 
+    alias: 'ChatGPT-4o Latest', 
+    provider: 'openai', 
+    modelType: "non_reasoning" 
+  },
+  // TODO： 添加 O3 Mini 模型
+  // { 
+  //   id: 'o3-mini', 
+  //   model: 'o3-mini', 
+  //   alias: 'O3 Mini', 
+  //   provider: 'openai', 
+  //   modelType: "reasoning" 
+  // },
   { 
     id: 'gpt-4o-mini', 
     model: 'gpt-4o-mini', 

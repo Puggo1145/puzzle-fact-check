@@ -1,10 +1,7 @@
 "use client"
 
 import type { ConfigPreset } from "@/constants/agent-default-config";
-import {
-    useState,
-    useMemo,
-} from "react";
+import { useState } from "react";
 // icons
 import {
     ArrowLeftIcon,
@@ -100,7 +97,7 @@ export const InputPanel = () => {
                 <textarea
                     value={newsText}
                     onChange={onValueChange}
-                    placeholder="告诉我你想核查的新闻。我们关心，你所相信的！"
+                    placeholder="告诉我你想核查的新闻。我们关心，你所相信的"
                     className="w-full h-36 sm:h-20 px-1 outline-none resize-none"
                 />}
             <div className="w-full flex items-center justify-between gap-2">
