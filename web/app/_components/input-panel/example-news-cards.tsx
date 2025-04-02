@@ -28,7 +28,7 @@ export const ExampleNewsCards = ({ onSelectExample }: { onSelectExample: (text: 
                 <NewspaperIcon className="size-4" />
                 <h3 className="text-sm font-medium">尝试这些案例</h3>
             </div>
-            <ScrollArea className="h-48 md:h-fit">
+            <ScrollArea className="h-36 md:h-fit">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {examples.map((example, index) => (
                         <div

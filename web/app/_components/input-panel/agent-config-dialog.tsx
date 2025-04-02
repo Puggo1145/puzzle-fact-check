@@ -22,8 +22,6 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface AgentConfigDialogProps {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
     mainAgentConfig: MainAgentConfig;
     metadataExtractorConfig: MetadataExtractorConfig;
     searcherConfig: SearchAgentConfig;
@@ -36,8 +34,6 @@ interface AgentConfigDialogProps {
 }
 
 export const AgentConfigDialog: React.FC<AgentConfigDialogProps> = ({
-    open,
-    onOpenChange,
     mainAgentConfig,
     metadataExtractorConfig,
     searcherConfig,
@@ -49,7 +45,7 @@ export const AgentConfigDialog: React.FC<AgentConfigDialogProps> = ({
     children
 }) => {
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog>
             <DialogTrigger asChild>
                 {children}
             </DialogTrigger>

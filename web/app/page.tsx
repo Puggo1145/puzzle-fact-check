@@ -12,8 +12,6 @@ import { AnnouncementBadge } from "@/components/ui/announcement-badge";
 
 export default function Home() {
   const { status, finalReport, events } = useAgentStore();
-
-  // Check if we're in active mode (not idle) or have results to show
   const isActive = status !== 'idle' || Boolean(finalReport) || events.length > 0;
 
   return (
@@ -32,13 +30,12 @@ export default function Home() {
         <ScrollBar />
       </ScrollArea>
 
-      {/* Hero and Input Panel Container - always in the same place */}
       <div className={cn(
         "w-full transition-all duration-500 ease-in-out mb-8",
         isActive ? "mt-6" : "max-w-2xl flex-1 flex flex-col justify-center"
       )}>
-        <AnnouncementBadge />
-        <Hero />
+        <AnnouncementBadge className={isActive ? "opacity-0 h-0 pointer-events-none animate-none" : "opacity-100 animate-pulse"} />
+        <Hero className={isActive ? "opacity-0 h-0 pointer-events-none" : "opacity-100 mb-4"} />
         <InputPanel />
       </div>
     </div>

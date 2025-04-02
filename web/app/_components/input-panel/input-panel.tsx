@@ -51,15 +51,14 @@ export const InputPanel = () => {
         setSelectedTools
     } = useAgentStore();
 
-    const hasNewsText = useMemo(() => newsText.trim() !== "", [newsText]);
-    const [showAgentConfig, setShowAgentConfig] = useState(false);
-    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+    const hasNewsText = newsText.trim() !== "";
+    const IDLE = status === 'idle';
+    const RUNNING = status === 'running';
+    const INTERRUPTING = status === 'interrupting';
+    const INTERRUPTED = status === 'interrupted';
+    const COMPLETED = status === 'completed';
 
-    const IDLE = useMemo(() => status === 'idle', [status]);
-    const RUNNING = useMemo(() => status === 'running', [status]);
-    const INTERRUPTING = useMemo(() => status === 'interrupting', [status]);
-    const INTERRUPTED = useMemo(() => status === 'interrupted', [status]);
-    const COMPLETED = useMemo(() => status === 'completed', [status]);
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
     const handleRunAgent = async () => {
         if (!hasNewsText) return;
@@ -102,7 +101,7 @@ export const InputPanel = () => {
                     value={newsText}
                     onChange={onValueChange}
                     placeholder="告诉我你想核查的新闻。我们关心，你所相信的！"
-                    className="w-full min-h-20 px-1 outline-none resize-none"
+                    className="w-full h-36 sm:h-20 px-1 outline-none resize-none"
                 />}
             <div className="w-full flex items-center justify-between gap-2">
                 {/* 左侧 configs */}
@@ -120,8 +119,6 @@ export const InputPanel = () => {
                         />
                     }
                     <AgentConfigDialog
-                        open={showAgentConfig}
-                        onOpenChange={setShowAgentConfig}
                         mainAgentConfig={mainAgentConfig}
                         metadataExtractorConfig={metadataExtractorConfig}
                         searcherConfig={searcherConfig}

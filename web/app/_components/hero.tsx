@@ -1,21 +1,15 @@
-"use client"
-
+import type { ComponentProps } from "react"
 import { SparkleIcon } from "lucide-react"
-import { useAgentStore } from "@/stores/use-agent-store"
 import { cn } from "@/lib/utils"
 
-export const Hero = () => {
-    const { status } = useAgentStore();
-    
-    // Check if we're in active mode (not idle)
-    const isActive = status !== 'idle';
-    
+export const Hero = ({ className, ...props }: ComponentProps<"div">) => {
     return (
         <div 
             className={cn(
                 "relative flex flex-col justify-center transition-all duration-300 ease-out",
-                isActive ? "opacity-0 h-0 pointer-events-none" : "opacity-100 mb-4"
+                className
             )}
+            {...props}
         >
             <div className="w-full flex justify-center mb-4">
             </div>
