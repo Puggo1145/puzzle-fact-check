@@ -8,6 +8,7 @@ import { Report } from "@/components/agent/report";
 import { useAgentStore } from "@/stores/use-agent-store";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { AnnouncementBadge } from "@/components/ui/announcement-badge";
 
 export default function Home() {
   const { status, finalReport, events } = useAgentStore();
@@ -36,6 +37,7 @@ export default function Home() {
         "w-full transition-all duration-500 ease-in-out mb-8",
         isActive ? "mt-6" : "max-w-2xl flex-1 flex flex-col justify-center"
       )}>
+        <AnnouncementBadge />
         <Hero />
         <InputPanel />
       </div>

@@ -17,6 +17,8 @@ export const Hero = () => {
                 isActive ? "opacity-0 h-0 pointer-events-none" : "opacity-100 mb-4"
             )}
         >
+            <div className="w-full flex justify-center mb-4">
+            </div>
             <div className="ml-3 flex flex-col gap-2">
                 <h1 className="z-10 text-3xl lg:text-4xl font-bold font-playfair-display
                 bg-linear-to-r from-primary/50 to-primary/80 bg-clip-text text-transparent
