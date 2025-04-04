@@ -224,6 +224,8 @@ export function setupEventSource(
               errorMessage = '模型额度已用尽，请稍后再试或联系管理员。';
             } else if (msg.includes('Rate limit')) {
               errorMessage = '请求速率限制，请稍后再试。';
+            } else if (msg.includes('data_inspection_failed')) {
+              errorMessage = '核查内容触发模型敏感内容封控，请更换核查内容或模型后重试'
             } else if (msg.includes('not available in your region')) {
               errorMessage = '所选模型在当前区域不可用，请更换模型后重试。';
             } else if (msg.includes('model is currently overloaded')) {
