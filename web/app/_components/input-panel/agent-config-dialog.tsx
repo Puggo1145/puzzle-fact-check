@@ -37,7 +37,6 @@ export const AgentConfigDialog: React.FC<AgentConfigDialogProps> = ({
     mainAgentConfig,
     metadataExtractorConfig,
     searcherConfig,
-    availableModels,
     setMainAgentConfig,
     setMetadataExtractorConfig,
     setSearcherConfig,

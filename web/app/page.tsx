@@ -8,7 +8,7 @@ import { Report } from "@/components/agent/report";
 import { useAgentStore } from "@/stores/use-agent-store";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { AnnouncementBadge } from "@/components/ui/announcement-badge";
+// import { AnnouncementBadge } from "@/components/ui/announcement-badge";
 
 export default function Home() {
   const { status, result, events } = useAgentStore();

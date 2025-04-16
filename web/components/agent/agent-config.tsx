@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import { ModelSelector } from './model-selector';
 import { NumberInput } from './number-input';
-import type { ModelOption } from '@/constants/agent-default-config';
 import type {
   MainAgentConfig,
   MetadataExtractorConfig,
