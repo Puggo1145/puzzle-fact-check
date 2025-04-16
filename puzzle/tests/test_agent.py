@@ -73,7 +73,7 @@ async def test_main_agent(news_text: str, thread_id: str):
         "data": {
             "content": "OpenAI发布了GPT-4模型",
             "purpose": "验证OpenAI是否确实发布了GPT-4模型",
-            "expected_sources": ["OpenAI官网", "技术新闻网站"]
+            "expected_source": ["OpenAI官网", "技术新闻网站"]
         }
     }
     await asyncio.sleep(1)
@@ -101,7 +101,6 @@ async def test_main_agent(news_text: str, thread_id: str):
         "data": {
             "summary": "搜索结果证实OpenAI确实发布了GPT-4模型",
             "conclusion": "新闻声明是正确的",
-            "confidence": "高"
         }
     }
     await asyncio.sleep(1)

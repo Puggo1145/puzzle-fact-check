@@ -15,7 +15,7 @@ class GoogleSearchOfficialInput(BaseModel):
     """Google Official Search API 输入参数 Schema"""
 
     query: str = Field(description="搜索关键词")
-    num: Optional[int] = Field(default=5, description="返回结果的数量，取值范围1-10")
+    num: Optional[int] = Field(default=10, description="返回结果的数量，取值范围1-10")
     
     # 可选参数
     c2coff: Optional[str] = Field(
@@ -100,7 +100,7 @@ class SearchGoogleOfficial(BaseTool):
     """Google官方搜索API工具，提供Google Programmable Search Engine接口访问功能"""
 
     name: str = "search_google_official"
-    description: str = "Google Search 官方 API，调用 Google 搜索引擎时的首选工具"
+    description: str = "Google Search 官方 API，调用 Google 搜索引擎时的首选工具，其在全球内容检索上表现出色"
     args_schema: Optional[ArgsSchema] = GoogleSearchOfficialInput
 
     session: Any = None
@@ -211,9 +211,9 @@ class SearchGoogleOfficial(BaseTool):
                         "displayLink": item.get("displayLink", ""),
                         "formattedUrl": item.get("formattedUrl", ""),
                     })
-                return json.dumps({"items": formatted_results}, ensure_ascii=False)
+                return json.dumps(formatted_results, ensure_ascii=False)
             else:
-                return json.dumps({"items": []}, ensure_ascii=False)
+                return json.dumps([], ensure_ascii=False)
             
         except Exception as e:
             return json.dumps({"error": f"搜索执行失败: {str(e)}"}, ensure_ascii=False)

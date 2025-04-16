@@ -1,25 +1,23 @@
 import { create } from 'zustand';
-import { 
-  AVAILABLE_MODELS, 
-  DEFAULT_MAIN_AGENT_CONFIG,
-  DEFAULT_METADATA_EXTRACTOR_CONFIG,
-  DEFAULT_SEARCHER_CONFIG
-} from '../constants/agent-default-config';
+import { AVAILABLE_MODELS, CONFIG_PRESETS } from '../constants/agent-default-config';
 import * as api from '@/api/agent-session';
-import { setupEventSource as setupEventSourceHandler, processEvent } from '@/lib/eventHandler';
-import type { AgentState } from '../types/types';
-import type { EventType, TypedEvent } from '../types/events';
+import { setupEventSource as setupEventSourceHandler, processEvent } from '@/lib/event-handler';
+import type { AgentState, Verdict } from '../types/types';
+import type { Event } from '../types/events';
 
 export const useAgentStore = create<AgentState>((set, get) => ({
   sessionId: null,
   status: 'idle',
   events: [],
-  finalReport: '',
+  result: {
+    report: undefined,
+    verdict: undefined
+  },
   newsText: '',
   // Agent 默认配置
-  mainAgentConfig: DEFAULT_MAIN_AGENT_CONFIG,
-  metadataExtractorConfig: DEFAULT_METADATA_EXTRACTOR_CONFIG,
-  searcherConfig: DEFAULT_SEARCHER_CONFIG,
+  mainAgentConfig: CONFIG_PRESETS[0].mainConfig,
+  metadataExtractorConfig: CONFIG_PRESETS[0].metadataConfig,
+  searcherConfig: CONFIG_PRESETS[0].searchConfig,
   selectedTools: [],
   availableModels: AVAILABLE_MODELS,
   eventSource: null,
@@ -54,7 +52,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     set({
       events: [],
       status: 'running',
-      finalReport: '',
+      result: {
+        report: undefined,
+        verdict: undefined
+      },
     });
 
     // add selected tools to search agent config
@@ -75,7 +76,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       const eventSource = setupEventSourceHandler(
         data.session_id,
         get().addEvent,
-        get().setFinalReport,
+        get().setResult,
         (status) => {
           // This callback is called when the status changes to completed or interrupted
           set({
@@ -110,7 +111,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       get().addEvent({
         event: 'error',
         data: { message: errorMessage }
-      } as TypedEvent<'error'>);
+      });
       
       // Then transition to interrupted (not directly to idle)
       set({ status: 'interrupted' });
@@ -130,7 +131,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       get().addEvent({
         event: 'task_interrupted',
         data: { message: '正在尝试中断任务...' }
-      } as TypedEvent<'task_interrupted'>);
+      });
       
       await api.interruptAgent(sessionId);
       
@@ -141,7 +142,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       get().addEvent({
         event: 'task_interrupted',
         data: { message: '任务已被中断' }
-      } as TypedEvent<'task_interrupted'>);
+      });
       
       // Only update status if it's still 'interrupting'
       const currentStatus = get().status;
@@ -157,7 +158,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       get().addEvent({
         event: 'error',
         data: { message: `中断任务失败: ${error instanceof Error ? error.message : String(error)}` }
-      } as TypedEvent<'error'>);
+      });
       // If interruption fails and status is still 'interrupting', restore to 'running'
       const currentStatus = get().status;
       if (currentStatus === 'interrupting') {
@@ -174,12 +175,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       sessionId: null,
       status: 'idle',
       events: [],
-      finalReport: '',
+      result: {
+        report: undefined,
+        verdict: undefined
+      },
       eventSource: null,
     });
   },
   
-  addEvent: <T extends EventType>(event: TypedEvent<T>) => set((state) => {
+  addEvent: (event: Event) => set((state) => {
     const eventWithTimestamp = { ...event, timestamp: Date.now() };
     
     // Process the event to determine if state needs to be updated
@@ -201,7 +205,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     };
   }),
   
-  setFinalReport: (report: string) => set({ finalReport: report }),
+  setResult: (report: string, verdict: Verdict) => {
+    set({ 
+      result: { 
+        report, 
+        verdict 
+      } 
+    });
+  },
   
   closeEventSource: () => {
     const eventSource = get().eventSource;

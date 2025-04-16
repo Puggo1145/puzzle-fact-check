@@ -29,7 +29,14 @@ class ReadWebpageTool(BaseTool):
     """网页读取工具，使用 Playwright 渲染页面并将内容转换为 LLM 友好的 Markdown 格式"""
 
     name: str = "read_webpage"
-    description: str = "当你需要查看网页内容时使用"
+    description: str = """
+当你需要访问 url 内容时使用。
+- 当网页内容中存在其他可能对你任务有用的链接时，你可以继续使用这个工具深入检索信息
+- 搜索引擎的结果可能不够聚焦，如果你有明确的期望搜索信源，为了使信息来源更加聚焦，可以直接使用 read_webpage 工具像浏览器一样浏览网页
+例如，为了能够直接寻找到 bbc、网易新闻，学术文章，政府官方网站等信息，你可以直接调用 read_webpage 工具访问网站，
+但前提是你清楚这些网站的实际链接，如果不清楚，可以先使用搜索引擎确定网页链接，然后使用 read_webpage 工具访问，
+read_webpage 会以 markdown 的形式返回网站内容，此时可以继续使用 read_webpage 工具阅读网站内的链接，模拟人类使用浏览器的行为
+    """
     args_schema: Optional[ArgsSchema] = ReadWebpageToolInput
 
     _browser_args = {

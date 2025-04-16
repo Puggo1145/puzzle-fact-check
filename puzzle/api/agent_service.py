@@ -13,7 +13,7 @@ def get_model_instance_from_provider(
     provider: str, model: str, temperature: float = 0.0, streaming: bool = True
 ) -> BaseChatOpenAI:
     """根据模型提供商获取模型，并注入从环境加载的API密钥"""
-    from models import ChatQwen
+    from models import ChatQwen, ChatGemini
     from langchain_openai import ChatOpenAI
     from langchain_deepseek import ChatDeepSeek
 
@@ -31,6 +31,12 @@ def get_model_instance_from_provider(
         )
     elif provider == "deepseek":
         return ChatDeepSeek(
+            model=model,
+            temperature=temperature,
+            streaming=streaming,
+        )
+    elif provider == "gemini":
+        return ChatGemini(
             model=model,
             temperature=temperature,
             streaming=streaming,
@@ -110,7 +116,10 @@ async def run_main_agent(
     try:
         async for event in main_agent.graph.astream_events(
             input={"news_text": news_text},
-            config={"configurable": {"thread_id": thread_id}},
+            config={
+                "configurable": {"thread_id": thread_id},
+                "recursion_limit": 75,
+            },
             version="v2",
         ):
             kind = event.get("event")
@@ -193,7 +202,7 @@ async def run_main_agent(
                     data=SearchAgentInput(
                         content=input_data.content,
                         purpose=input_data.purpose,
-                        expected_sources=input_data.expected_sources,
+                        expected_source=input_data.expected_source,
                     )
                 ).model_dump()
             elif (
@@ -248,8 +257,13 @@ async def run_main_agent(
                 kind == "on_chain_end"
                 and name == "write_fact_check_report"
             ):
-                report = data.get("output", {})["report"]
-                yield WriteFactCheckReportEnd(data=FactCheckReportData(report=report)).model_dump()
+                result = data.get("output", {})["result"]
+                yield WriteFactCheckReportEnd(
+                    data=FactCheckResultData(
+                        report=result.report, 
+                        verdict=result.verdict
+                    )
+                ).model_dump()
             elif (
                 kind == "on_tool_start"
             ):

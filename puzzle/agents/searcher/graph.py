@@ -17,11 +17,12 @@ from tools import (
     SearchGoogleAlternative,
     ReadWebpageTool,
     TavilySearch,
+    SearchBaiduTool,
     ReadPDFTool,
 )
 from langgraph.graph.state import StateGraph
 
-from typing import cast, List, Dict, Any, Optional
+from typing import cast, List, Dict, Any
 from langchain_core.messages import ToolCall
 from langchain_openai.chat_models.base import BaseChatOpenAI
 
@@ -48,7 +49,8 @@ class SearchAgentGraph(BaseAgent):
         self.available_tools = {
             "basic": [
                 get_current_time,
-                SearchBingTool(),
+                # SearchBingTool(),
+                SearchBaiduTool(),
                 SearchGoogleOfficial(),
                 SearchGoogleAlternative(),
                 ReadWebpageTool(),
@@ -67,10 +69,6 @@ class SearchAgentGraph(BaseAgent):
         self.tools_by_name = {tool.name: tool for tool in self.tools}
         self.tool_calling_schema = [convert_to_openai_tool(tool) for tool in self.tools]
         
-        # if mode == "CLI":
-        #     self.db_events = DBEvents()
-        #     self.cli_events = CLIModeEvents()
-    
     def _get_tools(self, selected_tools: List[str] = []) -> List[Any]:
         """
         根据选择的工具配置返回工具列表
@@ -127,7 +125,6 @@ class SearchAgentGraph(BaseAgent):
         if self.token_usage >= self.max_search_tokens:
             forced_answer_status = Status(
                 evaluation="检索 token 超出最大可用 token，强制基于当前信息开始回答",
-                memory="检索消耗的 token 超出最大可用 token",
                 next_step="基于已收集的信息生成最终回答",
                 action="answer",
             )
@@ -154,22 +151,24 @@ class SearchAgentGraph(BaseAgent):
         # 获取最近的3个状态
         recent_statuses = state.statuses[-3:]
 
-        # 检查最近的3个状态是否都是相同的搜索查询
-        queries = []
+        # 检查最近的3个状态是否都是相同的搜索工具和查询
+        tool_query_pairs = []
         for status in recent_statuses:
-            if isinstance(status.action, list) and len(status.action) > 0:
-                tool_call = status.action[0]
-                if tool_call.get("name") in [
+            if isinstance(status.action, dict):
+                tool_call = status.action
+                tool_name = tool_call.get("name")
+                if tool_name in [
                     "search_google_official",
                     "search_google_alternative",
                     "search_bing",
                     "search_wikipedia",
+                    "search_baidu",
                 ]:
                     query = tool_call.get("args", {}).get("query", "")
-                    queries.append(query)
+                    tool_query_pairs.append((tool_name, query))
 
-        # 如果有3个相同的查询，则认为陷入了循环
-        return len(queries) == 3 and len(set(queries)) == 1
+        # 如果有3个相同的(工具,查询)对，则认为陷入了循环
+        return len(tool_query_pairs) == 3 and len(set(tool_query_pairs)) == 1
     
     # nodes
     def evaluate_current_status(self, state: SearchAgentState):
@@ -178,9 +177,8 @@ class SearchAgentGraph(BaseAgent):
         # 如果搜索陷入循环，强制结束并生成回答
         if self._is_in_loop(state):
             forced_status = Status(
-                evaluation="搜索陷入循环，需要改变搜索策略或基于当前信息生成回答。",
-                memory="搜索过程陷入循环，多次执行相同的搜索查询。",
-                next_step="基于已收集的信息生成最终回答",
+                evaluation="搜索陷入循环",
+                next_step="基于已收集的信息给出检索结论",
                 action="answer",
             )
 
@@ -190,12 +188,12 @@ class SearchAgentGraph(BaseAgent):
             basic_metadata=state.basic_metadata.serialize_for_llm(),
             content=state.content,
             purpose=state.purpose,
-            expected_sources=state.expected_sources,
+            expected_source=state.expected_source,
             tools_schema=self.tool_calling_schema,
         )
 
         evaluate_current_status_prompt = evaluate_current_status_prompt_template.format(
-            retrieved_information=state.latest_tool_messages,
+            retrieved_information=state.latest_tool_result,
             statuses=state.statuses,
             evidences=state.evidences,
         )
@@ -215,29 +213,28 @@ class SearchAgentGraph(BaseAgent):
     def tool_node(self, state: SearchAgentState):
         """执行工具调用"""
         # 找到最近的一条 action 消息，提取工具调用信息
-        tool_calls = cast(List[ToolCall], cast(Status, state.statuses[-1]).action)
+        tool_call = cast(ToolCall, state.statuses[-1].action)
 
-        tool_calling_results: List[str] = []
-        for tool_call in tool_calls:
-            try:
-                # 调用 tool
-                tool_result = self.tools_by_name[tool_call["name"]].invoke(tool_call["args"])
-                
-                # 确保工具结果是字符串格式
-                if not isinstance(tool_result, str):
-                    # 如果是复杂对象，转换为格式化的JSON字符串
-                    tool_result = json.dumps(tool_result, ensure_ascii=False, indent=2)
-                
-                # 创建简洁明了的结果格式
-                formatted_result = f"工具名称: {tool_call['name']}\n调用结果:\n{tool_result}"
-                tool_calling_results.append(formatted_result)
+        tool_calling_result: str = ""
+        try:
+            # 调用 tool
+            tool_result = self.tools_by_name[tool_call["name"]].invoke(tool_call["args"])
             
-            except Exception as e:
-                # 添加错误信息到结果
-                error_result = f"工具名称: {tool_call['name']}\n错误:\n{str(e)}"
-                tool_calling_results.append(error_result)
+            # 确保工具结果是字符串格式
+            if not isinstance(tool_result, str):
+                # 如果是复杂对象，转换为格式化的JSON字符串
+                tool_result = json.dumps(tool_result, ensure_ascii=False, indent=2)
+            
+            # 创建简洁明了的结果格式
+            formatted_result = f"工具名称: {tool_call['name']}\n调用结果:\n{tool_result}"
+            tool_calling_result = formatted_result
+        
+        except Exception as e:
+            # 添加错误信息到结果
+            error_result = f"工具名称: {tool_call['name']}\n错误:\n{str(e)}"
+            tool_calling_result = error_result
 
-        return {"latest_tool_messages": tool_calling_results}
+        return {"latest_tool_result": tool_calling_result}
     
     def _does_llm_generate_answer(self, state: SearchAgentState):
         """决定是否继续执行工具调用或生成回答"""
@@ -253,7 +250,7 @@ class SearchAgentGraph(BaseAgent):
             basic_metadata=state.basic_metadata.serialize_for_llm(),
             content=state.content,
             purpose=state.purpose,
-            expected_sources=state.expected_sources,
+            expected_source=state.expected_source,
             statuses=state.statuses,
             evidences=state.evidences,
         )

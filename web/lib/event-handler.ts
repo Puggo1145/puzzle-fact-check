@@ -1,15 +1,14 @@
 import { API_BASE_URL } from '../constants/agent-default-config';
-import type { AgentStatus } from '@/types/types';
-import type { EventType, TypedEvent } from '@/types/events';
-
+import type { AgentStatus, Verdict } from '@/types/types';
+import { type Event, EventType, eventTypes } from '@/types/events';
 
 /**
  * Sets up an EventSource connection for Server-Sent Events
  */
 export function setupEventSource(
   sessionId: string, 
-  addEvent: <T extends EventType>(event: TypedEvent<T>) => void,
-  setFinalReport: (report: string) => void,
+  addEvent: <T>(event: Event<T>) => void,
+  setResult: (report: string, verdict: Verdict) => void,
   onStatusChange: (status: AgentStatus) => void
 ) {
   const eventSource = new EventSource(`${API_BASE_URL}/agents/${sessionId}/events`);
@@ -19,17 +18,12 @@ export function setupEventSource(
   const TIMEOUT_DURATION = 180 * 1000; // 3 分钟无下一个事件响应则超时
   let isStreamClosed = false; // Add flag to track if stream is closed
   
-  // Define function to update last event time
-  const updateLastEventTime = () => {
-    lastEventTime = Date.now();
-  };
+  // function to update last event time
+  const updateLastEventTime = () => lastEventTime = Date.now()
   
-  // Define function to check for timeout
+  // function to check for timeout
   const checkForTimeout = () => {
-    // If stream is closed, don't check for timeout
     if (isStreamClosed) {
-      console.log('Stream is closed, skipping timeout check');
-      
       // Clear timeout checker if stream is closed
       if (timeoutCheckerId) {
         clearInterval(timeoutCheckerId);
@@ -42,8 +36,6 @@ export function setupEventSource(
     
     // Check if timed out
     if (timeSinceLastEvent > TIMEOUT_DURATION) {
-      console.log(`Timeout detected: No events for ${timeSinceLastEvent/1000} seconds`);
-      
       // Clear timeout checker
       if (timeoutCheckerId) {
         clearInterval(timeoutCheckerId);
@@ -56,14 +48,14 @@ export function setupEventSource(
       addEvent({
         event: 'error',
         data: { message: `请求超时: ${TIMEOUT_DURATION/1000}秒内没有收到新的事件` }
-      } as TypedEvent<'error'>);
+      });
       
       // Send interrupted event
       setTimeout(() => {
         addEvent({
           event: 'task_interrupted',
           data: { message: `由于请求超时，任务已被中断` }
-        } as TypedEvent<'task_interrupted'>);
+        });
       }, 100);
       
       // Interrupt backend agent
@@ -85,7 +77,7 @@ export function setupEventSource(
   const timeoutCheckerId = setInterval(checkForTimeout, 10000);
   
   // Add time update logic for all event types
-  const setupEventTypeListener = <T extends EventType>(eventType: T) => {
+  const setupEventTypeListener = (eventType: EventType) => {
     eventSource.addEventListener(eventType, (event) => {
       // Update last event time
       updateLastEventTime();
@@ -96,33 +88,16 @@ export function setupEventSource(
 
       try {
         const data = JSON.parse(event.data);
-        addEvent({ event: eventType, data } as TypedEvent<T>);
+        addEvent({ event: eventType, data });
         
-        if (eventType === 'write_fact_check_report_end' && data.report) {
-          setFinalReport(data.report);
+        if (eventType === 'write_fact_check_report_end') {
+          setResult(data.report, data.verdict);
         }
       } catch(e) {
         console.error(`Error handling ${eventType} event:`, e);
       }
     });
   };
-  
-  // Set up listeners for all main event types
-  const eventTypes: EventType[] = [
-    'agent_start',
-    'check_if_news_text_start', 'check_if_news_text_end',
-    'extract_check_point_start', 'extract_check_point_end',
-    'extract_basic_metadata_start', 'extract_basic_metadata_end',
-    'extract_knowledge_start', 'extract_knowledge_end',
-    'retrieve_knowledge_start', 'retrieve_knowledge_end',
-    'search_agent_start', 'evaluate_current_status_start', 'evaluate_current_status_end',
-    'tool_start', 'tool_end',
-    'generate_answer_start', 'generate_answer_end',
-    'evaluate_search_result_start', 'evaluate_search_result_end',
-    'write_fact_check_report_start', 'write_fact_check_report_end',
-    'llm_decision', 'task_complete', 'task_interrupted',
-    'error',
-  ];
   
   eventTypes.forEach(eventType => setupEventTypeListener(eventType));
   
@@ -156,7 +131,7 @@ export function setupEventSource(
     addEvent({ 
       event: 'task_complete', 
       data 
-    } as TypedEvent<'task_complete'>);
+    });
     
     // Clear timeout checker when task is complete
     clearInterval(timeoutCheckerId);
@@ -182,7 +157,7 @@ export function setupEventSource(
     addEvent({ 
       event: 'task_interrupted', 
       data 
-    } as TypedEvent<'task_interrupted'>);
+    });
     
     // Clear timeout checker when task is interrupted
     clearInterval(timeoutCheckerId);
@@ -225,7 +200,7 @@ export function setupEventSource(
             } else if (msg.includes('Rate limit')) {
               errorMessage = '请求速率限制，请稍后再试。';
             } else if (msg.includes('data_inspection_failed')) {
-              errorMessage = '核查内容触发模型敏感内容封控，请更换核查内容或模型后重试'
+              errorMessage = '核查内容可能存在敏感信息，触发了模型的内容风控，请更换核查文本或模型后重试'
             } else if (msg.includes('not available in your region')) {
               errorMessage = '所选模型在当前区域不可用，请更换模型后重试。';
             } else if (msg.includes('model is currently overloaded')) {
@@ -253,7 +228,7 @@ export function setupEventSource(
         data: { 
           message: errorMessage,
         }
-      } as TypedEvent<'error'>);
+      });
       
       // Update status to interrupted rather than staying in running
       onStatusChange('interrupted');
@@ -273,13 +248,11 @@ export function setupEventSource(
       addEvent({
         event: 'stream_closed',
         data: {}
-      } as unknown as TypedEvent<'stream_closed'>);
+      });
     }
   });
   
   eventSource.addEventListener('close', () => {
-    console.log('EventSource close event triggered');
-    
     // Mark stream as closed to prevent timeout checks
     isStreamClosed = true;
     
@@ -295,7 +268,7 @@ export function setupEventSource(
 /**
  * Process the received event and update state accordingly
  */
-export function processEvent<T extends EventType>(event: TypedEvent<T>): { status: AgentStatus; sessionId: null; eventSource: null } | null {
+export function processEvent<T>(event: Event<T>): { status: AgentStatus; sessionId: null; eventSource: null } | null {
   // If it's a completion event, update to completed status
   if (event.event === 'task_complete') {
     return {
@@ -305,7 +278,6 @@ export function processEvent<T extends EventType>(event: TypedEvent<T>): { statu
     };
   }
   
-  // If it's an interruption event, update to interrupted status
   if (event.event === 'task_interrupted') {
     return {
       status: 'interrupted',
@@ -314,7 +286,6 @@ export function processEvent<T extends EventType>(event: TypedEvent<T>): { statu
     };
   }
   
-  // Special handling for error events
   if (event.event === 'error') {
     return {
       status: 'interrupted',

@@ -1,28 +1,26 @@
+import requests
+import time
+import json
+import urllib.parse
 from typing import Dict, List, Optional, Any, Literal
 from langchain_core.tools.base import ArgsSchema
-import requests
 from pydantic import BaseModel, Field
 from langchain.tools import BaseTool
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 from langchain_core.tools import ToolException
-import time
-import json
 from bs4 import BeautifulSoup
-import urllib.parse
 
-
-BingSearchAction = Literal[
-    "search",
-]
 
 class BingToolInput(BaseModel):
     """输入参数 Schema"""
 
     query: str = Field(description="搜索关键词")
     limit: Optional[int] = Field(
-        default=None, 
-        description="返回结果的最大数量，如果不指定则返回所有结果"
+        default=10, 
+        description="返回结果的最大数量，如果不指定则返回所有结果",
+        ge=10,
+        le=100,
     )
     ensearch: Optional[bool] = Field(
         default=False,
@@ -121,7 +119,12 @@ class SearchBingTool(BaseTool):
 
         raise ToolException("请求失败")
 
-    def search(self, query: str, limit: Optional[int] = None, ensearch: bool = False) -> List[Dict]:
+    def search(
+        self, 
+        query: str, 
+        limit: Optional[int] = None, 
+        ensearch: bool = False
+    ) -> List[Dict]:
         """搜索Bing
 
         Args:

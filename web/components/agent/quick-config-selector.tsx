@@ -23,7 +23,7 @@ export const QuickConfigSelector: React.FC<QuickConfigSelectorProps> = ({
     disabled = false,
     className = '',
 }) => {
-    const [activePreset, setActivePreset] = useState<ConfigPreset>(CONFIG_PRESETS[1]); // 默认选择标准模式
+    const [activePreset, setActivePreset] = useState<ConfigPreset>(CONFIG_PRESETS[0]); // 默认选择快速模式
 
     const handleSelectPreset = (preset: ConfigPreset) => {
         setActivePreset(preset);

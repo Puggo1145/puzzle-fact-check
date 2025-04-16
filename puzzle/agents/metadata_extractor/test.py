@@ -1,6 +1,5 @@
 from langchain_openai import ChatOpenAI
 from .graph import MetadataExtractAgentGraph
-from db import db_integration
 
 
 def test_metadata_extractor():
@@ -19,7 +18,6 @@ def test_metadata_extractor():
         temperature=0
     )
     # 初始化 db news text node
-    db_integration.initialize_with_news_text(example_initial_state["news_text"])
     MetadataExtractAgentGraph(model=model).graph.invoke(example_initial_state)
 
 

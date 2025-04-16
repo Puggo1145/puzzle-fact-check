@@ -3,22 +3,25 @@
 import { useAgentStore } from "@/stores/use-agent-store";
 import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { LucideIcon } from "lucide-react";
+import React from "react";
 
 export const NewsDisplay = () => {
-    const { newsText, status, finalReport } = useAgentStore();
+    const { newsText, status, result } = useAgentStore();
 
-    // Only hide this component when we're in idle state with no report
-    if (status === 'idle' && !finalReport) return null;
+    if (status === 'idle' && !result.report) return null;
 
-    // Choose the appropriate icon and status text based on the current status
-    let StatusIcon;
-    let statusText;
-    let statusColor;
+    // Calculate status display values based on current status
+    let StatusIcon: LucideIcon;
+    let statusText: string;
+    let statusColor: string;
 
+    // When completed and has a verdict, show the verdict badge
+    // Otherwise show status as before
     switch (status) {
         case 'running':
             StatusIcon = Loader2;
-            statusText = "正在核查中（核查期间请勿关闭页面）";
+            statusText = "正在核查中，请稍等片刻";
             statusColor = "text-primary animate-spin";
             break;
         case 'interrupting':
@@ -33,7 +36,7 @@ export const NewsDisplay = () => {
             break;
         case 'completed':
             StatusIcon = CheckCircle2;
-            statusText = "核查结束";
+            statusText = "核查完成";
             statusColor = "text-green-500";
             break;
         default:

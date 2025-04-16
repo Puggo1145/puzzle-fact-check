@@ -60,6 +60,10 @@ export const toolDict: ToolDict = {
         alias: "Bing 搜索",
         icon: () => <SearchIcon className="size-4" />
     },
+    "search_baidu": {
+        alias: "百度搜索",
+        icon: () => <SearchIcon className="size-4" />
+    },
     "search_wikipedia": {
         alias: "维基百科搜索",
         icon: () => <BookAIcon className="size-4" />,

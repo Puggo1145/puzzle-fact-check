@@ -31,7 +31,7 @@ class ReadPDFTool(BaseTool):
     """在线PDF阅读工具，可以读取在线PDF文件的内容而无需下载"""
 
     name: str = "read_pdf"
-    description: str = "当你需要阅读在线PDF文档时使用，可以指定页码范围进行读取"
+    description: str = "当你需要阅读PDF文档时使用，可以指定页码范围进行读取"
     args_schema: Optional[ArgsSchema] = PDFReaderToolInput
 
     session: Any = None

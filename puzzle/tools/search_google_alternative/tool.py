@@ -97,10 +97,10 @@ class SearchGoogleAlternative(BaseTool):
                     # 使用字典访问方式，避免属性访问的类型检查问题
                     result_dict = {
                         "title": getattr(result, "title", ""),
-                        "url": getattr(result, "url", ""),
-                        "description": getattr(result, "description", "")
+                        "link": getattr(result, "link", ""),
+                        "snippet": getattr(result, "description", "")
                     }
-                    if result_dict["title"] and result_dict["description"]:
+                    if result_dict["title"] and result_dict["snippet"]:
                         results.append(result_dict)
                 except Exception:
                     # 忽略无法处理的结果
@@ -114,8 +114,8 @@ class SearchGoogleAlternative(BaseTool):
             # 返回一个包含错误信息的字典列表，而不是字符串列表
             return [{
                 "title": "搜索错误",
-                "url": "",
-                "description": error_message
+                "link": "",
+                "snippet": error_message
             }]
         
     def _run(
@@ -154,7 +154,7 @@ class SearchGoogleAlternative(BaseTool):
             # 返回一个包含错误信息的结果，确保LLM能够理解搜索失败
             error_result = [{
                 "title": "搜索错误",
-                "url": "",
-                "description": f"Google搜索执行失败: {str(e)}"
+                "link": "",
+                "snippet": f"Google搜索执行失败: {str(e)}"
             }]
             return json.dumps(error_result, ensure_ascii=False)

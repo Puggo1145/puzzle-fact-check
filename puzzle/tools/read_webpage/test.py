@@ -11,8 +11,8 @@ class TestReadWebpageTool(unittest.TestCase):
 
     def test_read_webpage(self):
         """测试基本网页读取功能"""
-        result = self.tool.read_webpage(url="https://www.bbc.com/")
-        # print(json.dumps(result, indent=4, ensure_ascii=False))
+        result = self.tool.read_webpage(url="https://gco.iarc.fr")
+        print(json.dumps(result, indent=4, ensure_ascii=False))
         # print("\n", result["content"])
 
         self.assertIsInstance(result, dict)

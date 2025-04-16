@@ -9,7 +9,7 @@ import {
   CardTitle,
   CardDescription
 } from '../ui/card';
-import { FileTextIcon, ClipboardCopyIcon, CheckCircleIcon } from 'lucide-react';
+import { ClipboardCopyIcon, CheckCircleIcon } from 'lucide-react';
 import { Button } from '../ui/button';
 import {
   TypographyH1,
@@ -23,14 +23,25 @@ import {
 import { SourceBadge } from "@/components/agent/source-badge";
 import ReactMarkdown from 'react-markdown';
 
+// Define verdict labels and colors
+const verdictConfig = {
+  'true': { label: '真实', color: 'bg-green-500 dark:bg-green-600 text-white' },
+  'mostly-true': { label: '大部分真实', color: 'bg-emerald-400 dark:bg-emerald-600 text-white' },
+  'mostly-false': { label: '大部分虚假', color: 'bg-orange-500 dark:bg-orange-600 text-white' },
+  'false': { label: '虚假', color: 'bg-red-500 dark:bg-red-600 text-white' },
+  'no-enough-evidence': { label: '无法证实', color: 'bg-gray-400 dark:bg-gray-600 text-white' },
+};
+
 export const Report: React.FC = () => {
-  const finalReport = useAgentStore((state) => state.finalReport);
+  const result = useAgentStore((state) => state.result);
   const [copied, setCopied] = React.useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
   const copyToClipboard = async () => {
+    if (!result.report) return;
+
     try {
-      await navigator.clipboard.writeText(finalReport);
+      await navigator.clipboard.writeText(result.report);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -38,30 +49,34 @@ export const Report: React.FC = () => {
     }
   };
 
-  // Scroll report into view when it appears
   useEffect(() => {
-    if (finalReport && reportRef.current) {
+    if (result.report && reportRef.current) {
       reportRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [finalReport]);
+  }, [result.report]);
 
-  // Don't render anything if no report is available
-  if (!finalReport) {
+  if (!result.report) {
     return null;
   }
+
+  const verdict = result.verdict || "no-enough-evidence";
 
   return (
     <Card ref={reportRef} className="mt-4 w-full animate-in fade-in slide-in-from-bottom-4 duration-500 scroll-mt-4">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex flex-col gap-2">
-            <CardTitle className="flex items-center gap-2">
-              <FileTextIcon className="size-5" />
-              事实核查报告
+            <CardTitle className="flex items-center gap-2 text-2xl">
+              核查报告
+              <p className={`w-fit px-2 py-1 rounded text-xs font-medium 
+                ${verdictConfig[verdict]?.color || verdictConfig['no-enough-evidence'].color}`
+              }>
+                {verdictConfig[verdict]?.label || verdictConfig['no-enough-evidence'].label}
+              </p>
             </CardTitle>
             <CardDescription>
-              <span className="text-sm text-muted-foreground mr-2">
-                核查报告的撰写格式参考自
+              <span className="text-sm text-muted-foreground">
+                核查报告的撰写格式部分参考自：
               </span>
               <SourceBadge
                 source="https://chinafactcheck.com/"
@@ -104,7 +119,7 @@ export const Report: React.FC = () => {
             code: ({ ...props }) => <SourceBadge source={props.children as string} {...props} />,
             blockquote: ({ ...props }) => <TypographyBlockquote {...props} />,
           }}>
-            {finalReport}
+            {result.report}
           </ReactMarkdown>
         </div>
         <TypographyMuted className="pt-6 pb-2 text-center">

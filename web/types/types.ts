@@ -4,7 +4,7 @@ import {
   ModelOption,
   SearchAgentConfig
 } from "@/constants/agent-default-config";
-import type { Event, EventType, TypedEvent } from "@/types/events";
+import type { Event, EventType } from "@/types/events";
 
 export type AgentStatus =
   | 'idle'
@@ -13,11 +13,16 @@ export type AgentStatus =
   | 'interrupted'
   | 'completed';
 
+export type Verdict = "true" | "mostly-true" | "mostly-false" | "false" | "no-enough-evidence";
+
 export interface AgentState {
   sessionId: string | null;
   status: AgentStatus;
   events: Event<any>[];
-  finalReport: string;
+  result: {
+    report?: string;
+    verdict?: Verdict;
+  };
   newsText: string;
   // Agent configurations
   mainAgentConfig: MainAgentConfig;
@@ -37,8 +42,8 @@ export interface AgentState {
   setSelectedTools: (tools: string[]) => void;
   interruptAgent: () => Promise<void>;
   resetState: () => void;
-  addEvent: <T extends EventType>(event: TypedEvent<T>) => void;
-  setFinalReport: (report: string) => void;
+  addEvent: (event: Event) => void;
+  setResult: (report: string, verdict: Verdict) => void;
   closeEventSource: () => void;
   createAndRunAgent: () => Promise<void>;
 } 

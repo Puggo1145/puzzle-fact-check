@@ -19,43 +19,33 @@ class Evidence(BaseModel):
 
 
 class Status(BaseModel):
+    new_evidence: Optional[List[Evidence]] = Field(
+        description="从当前检索结果中提取的证据片段",
+        default=None
+    )
     evaluation: str = Field(
-        description="评估检索结果是否达到上一个步骤的目标"
+        description="简单评估检索结果是否达到上一个步骤的目标"
     )
     missing_information: Optional[str] = Field(
         description="核查目标和当前检索结果之间缺失的证据信息或逻辑关系",
         default=None
     )
-    new_evidence: Optional[List[Evidence]] = Field(
-        description="从当前检索结果中提取的证据片段",
-        default=None
-    )
-    memory: str = Field(description="对上一个步骤的检索结果的总结")
-    next_step: str = Field(description="基于已有信息规划的下一步目标")
-    action: Union[List[ToolCall], Literal["answer"]] = Field(
+    next_step: str = Field(description="基于已有信息规划的下一步")
+    action: Union[ToolCall, Literal["answer"]] = Field(
         description="调用工具或回答",
         json_schema_extra={
             "options": [
-                "如果你希望调用工具，请在以[数组]的形式此处输出工具调用信息",
-                "如果你认为现有信息已经满足预期目标，请在此处输出：'answer'",
+                "如果你希望调用工具，在此输出工具调用信息",
+                "如果你认为现有信息已经满足预期目标，在此输出：'answer'",
             ]
         },
-        default=[],
     )
 
 
 class SearchResult(BaseModel):
     """ search 的核查结论"""
     summary: str = Field(description="对所有检索结果的总结")
-    conclusion: str = Field(description="基于检索历史得出的核查点真实性的结论")
-    confidence: str = Field(
-        description="对结论的可信度评估",
-        examples=[
-            "高",
-            "不确定",
-            "低",
-        ]
-    )
+    conclusion: str = Field(description="对于核查点真实性的结论")
 
 
 class SearchAgentState(BaseModel):
@@ -64,16 +54,14 @@ class SearchAgentState(BaseModel):
     basic_metadata: BasicMetadata
     content: str = Field(description="从新闻中提取的事实陈述")
     purpose: str = Field(description="你的检索目标")
-    expected_sources: List[str] = Field(
-        description="期望找到的信息来源类型，如官方网站、新闻报道、学术论文等。只需要满足其中一项即可"
-    )
+    expected_source: str = Field(description="期望找到的信息来源类型")
     statuses: Annotated[List[Status], operator.add] = Field(
         description="所有已执行的操作", 
         default=[]
     )
-    latest_tool_messages: List[str] = Field(
+    latest_tool_result: Optional[str] = Field(
         description="最近一次工具调用的结果", 
-        default=[]
+        default=None
     )
     evidences: Annotated[List[Evidence], operator.add] = Field(
         description="检索中收集的，与核查目标构成重要关系的证据片段",

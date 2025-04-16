@@ -30,6 +30,11 @@ PROVIDERS_CONFIG = {
         "reasoning_models": str_to_list(os.getenv("OPENAI_REASONING_MODELS")),
         "non_reasoning_models": str_to_list(os.getenv("OPENAI_NON_REASONING_MODELS")),
         "light_models": str_to_list(os.getenv("OPENAI_LIGHT_MODELS"))
+    },
+    "gemini": {
+        "reasoning_models": str_to_list(os.getenv("GEMINI_REASONING_MODELS")),
+        "non_reasoning_models": str_to_list(os.getenv("GEMINI_NON_REASONING_MODELS")),
+        "light_models": str_to_list(os.getenv("GEMINI_LIGHT_MODELS"))
     }
     # Additional providers (e.g., gemini) can be added similarly
 }

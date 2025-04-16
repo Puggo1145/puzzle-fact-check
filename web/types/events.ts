@@ -26,6 +26,22 @@ export type EventType =
     | 'task_interrupted'
     | 'error'
     | 'stream_closed';
+export const eventTypes: EventType[] = [
+    'agent_start',
+    'check_if_news_text_start', 'check_if_news_text_end',
+    'extract_check_point_start', 'extract_check_point_end',
+    'extract_basic_metadata_start', 'extract_basic_metadata_end',
+    'extract_knowledge_start', 'extract_knowledge_end',
+    'retrieve_knowledge_start', 'retrieve_knowledge_end',
+    'search_agent_start', 'evaluate_current_status_start', 'evaluate_current_status_end',
+    'tool_start', 'tool_end',
+    'generate_answer_start', 'generate_answer_end',
+    'evaluate_search_result_start', 'evaluate_search_result_end',
+    'write_fact_check_report_start', 'write_fact_check_report_end',
+    'llm_decision', 'task_complete', 'task_interrupted',
+    'error',
+];
+
 
 export interface Event<T=any> {
     event: EventType;
@@ -42,7 +58,7 @@ export interface IsNewsText {
 export interface RetrievalStep {
     id: string;
     purpose: string;
-    expected_sources: string[];
+    expected_source: string;
     result?: RetrievalResult;
     verification?: RetrievalResultVerification;
 }
@@ -76,14 +92,13 @@ export interface Knowledge {
 export interface SearchAgentStartData {
     content: string;
     purpose: string;
-    expected_sources: string[];
+    expected_source: string;
 }
 
 export interface Status {
     evaluation: string;
     missing_information: string;
     new_evidence: Evidence[];
-    memory: string;
     next_step: string;
 }
 
@@ -97,7 +112,6 @@ export interface Evidence {
 export interface SearchResult {
     summary: string;
     conclusion: string;
-    confidence: string;
 }
 export interface RetrievalResult extends SearchResult {
     check_point_id: string;
@@ -108,7 +122,7 @@ export interface RetrievalResultVerification {
     reasoning: string;
     verified?: boolean;
     updated_purpose?: string;
-    updated_expected_sources?: string[];
+    updated_expected_source?: string;
 }
 
 export interface ToolStartData {
@@ -126,8 +140,9 @@ export interface LLMDecisionData {
     reason: string | null;
 }
 
-export interface FactCheckReportData {
+export interface FactCheckResultData {
     report: string;
+    verdict: "true" | "mostly-true" | "mostly-false" | "false" | "no-enough-evidence";
 }
 
 export interface TaskCompleteData {
@@ -142,37 +157,3 @@ export interface TaskInterruptedData {
 export interface ErrorData {
     message: string;
 }
-
-// Map each event type to its corresponding data interface
-export type EventDataMap = {
-    'agent_start': undefined;
-    'check_if_news_text_start': undefined;
-    'check_if_news_text_end': IsNewsText;
-    'extract_check_point_start': undefined;
-    'extract_check_point_end': CheckPoint[];
-    'extract_basic_metadata_start': undefined;
-    'extract_basic_metadata_end': BasicMetadata;
-    'extract_knowledge_start': undefined;
-    'extract_knowledge_end': Knowledge[];
-    'retrieve_knowledge_start': undefined;
-    'retrieve_knowledge_end': Knowledge;
-    'search_agent_start': SearchAgentStartData;
-    'evaluate_current_status_start': undefined;
-    'evaluate_current_status_end': Status;
-    'tool_start': ToolStartData;
-    'tool_end': ToolEndData;
-    'generate_answer_start': undefined;
-    'generate_answer_end': SearchResult;
-    'evaluate_search_result_start': undefined;
-    'evaluate_search_result_end': RetrievalResultVerification;
-    'write_fact_check_report_start': undefined;
-    'write_fact_check_report_end': FactCheckReportData;
-    'llm_decision': LLMDecisionData;
-    'task_complete': TaskCompleteData;
-    'task_interrupted': TaskInterruptedData;
-    'error': ErrorData;
-    'stream_closed': {};
-}
-
-// Type-safe event helper
-export type TypedEvent<T extends EventType> = Event<EventDataMap[T]>;

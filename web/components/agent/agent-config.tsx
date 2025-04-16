@@ -9,7 +9,7 @@ import type {
   MetadataExtractorConfig,
   SearchAgentConfig,
 } from '@/constants/agent-default-config';
-import { MAIN_AGENT_EXCLUDED_MODELS, SEARCHER_EXCLUDED_MODELS } from '@/constants/agent-default-config';
+import { MAIN_AGENT_MODELS, SEARCH_AGENT_MODELS, METADATA_EXTRACTOR_MODELS } from '@/constants/agent-default-config';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { BotIcon, SearchIcon, InfoIcon } from 'lucide-react';
 
@@ -59,23 +59,15 @@ export const AgentConfigPanel: React.FC<BaseAgentConfigProps> = ({
 // Specialized MainAgentConfig component
 interface MainAgentConfigProps {
   config: MainAgentConfig;
-  availableModels: ModelOption[];
   onChange: (updatedConfig: Partial<MainAgentConfig>) => void;
   disabled?: boolean;
 }
 
 export const MainAgentConfigPanel: React.FC<MainAgentConfigProps> = ({
   config,
-  availableModels,
   onChange,
   disabled = false
 }) => {
-  const filteredModels = useMemo(() => {
-    return availableModels.filter(model =>
-      !MAIN_AGENT_EXCLUDED_MODELS.includes(model.model)
-    );
-  }, [availableModels]);
-
   const handleModelChange = (modelId: string, modelName: string, provider: string) => {
     onChange({
       modelId: modelId,
@@ -97,7 +89,7 @@ export const MainAgentConfigPanel: React.FC<MainAgentConfigProps> = ({
       disabled={disabled}
     >
       <ModelSelector
-        models={filteredModels}
+        models={MAIN_AGENT_MODELS}
         selectedModelId={config.modelId}
         onModelChange={handleModelChange}
         disabled={disabled}
@@ -119,14 +111,12 @@ export const MainAgentConfigPanel: React.FC<MainAgentConfigProps> = ({
 // Specialized MetadataExtractorConfig component
 interface MetadataExtractorConfigProps {
   config: MetadataExtractorConfig;
-  availableModels: ModelOption[];
   onChange: (updatedConfig: Partial<MetadataExtractorConfig>) => void;
   disabled?: boolean;
 }
 
 export const MetadataExtractorConfigPanel: React.FC<MetadataExtractorConfigProps> = ({
   config,
-  availableModels,
   onChange,
   disabled = false
 }) => {
@@ -147,7 +137,7 @@ export const MetadataExtractorConfigPanel: React.FC<MetadataExtractorConfigProps
       disabled={disabled}
     >
       <ModelSelector
-        models={availableModels}
+        models={METADATA_EXTRACTOR_MODELS}
         selectedModelId={config.modelId}
         onModelChange={handleModelChange}
         disabled={disabled}
@@ -159,23 +149,15 @@ export const MetadataExtractorConfigPanel: React.FC<MetadataExtractorConfigProps
 // Specialized SearchAgentConfig component
 interface SearchAgentConfigProps {
   config: SearchAgentConfig;
-  availableModels: ModelOption[];
   onChange: (updatedConfig: Partial<SearchAgentConfig>) => void;
   disabled?: boolean;
 }
 
 export const SearchAgentConfigPanel: React.FC<SearchAgentConfigProps> = ({
   config,
-  availableModels,
   onChange,
   disabled = false
 }) => {
-  const filteredModels = useMemo(() => {
-    return availableModels.filter(model =>
-      !SEARCHER_EXCLUDED_MODELS.includes(model.model)
-    );
-  }, [availableModels]);
-
   const handleModelChange = (modelId: string, modelName: string, provider: string) => {
     onChange({
       modelId: modelId,
@@ -197,7 +179,7 @@ export const SearchAgentConfigPanel: React.FC<SearchAgentConfigProps> = ({
       disabled={disabled}
     >
       <ModelSelector
-        models={filteredModels}
+        models={SEARCH_AGENT_MODELS}
         selectedModelId={config.modelId}
         onModelChange={handleModelChange}
         disabled={disabled}
@@ -207,7 +189,7 @@ export const SearchAgentConfigPanel: React.FC<SearchAgentConfigProps> = ({
         value={config.maxSearchTokens ?? 10000}
         onChange={handleMaxSearchTokensChange}
         min={5000}
-        max={18000}
+        max={30000}
         step={1000}
         disabled={disabled}
         label="每个检索 Agent 允许消耗的最大 token 数"

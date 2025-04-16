@@ -4,7 +4,7 @@ Agent SSE Event Models
 
 import re
 from pydantic import BaseModel
-from agents.main.states import CheckPoint, RetrievalResultVerification, IsNewsText
+from agents.main.states import CheckPoint, RetrievalResultVerification, IsNewsText, Result
 from agents.metadata_extractor.states import BasicMetadata, Knowledge
 from agents.searcher.states import Status, SearchResult
 
@@ -83,7 +83,7 @@ class ExtractCheckPointEnd(BaseEvent):
 class SearchAgentInput(BaseModel):
     content: str
     purpose: str
-    expected_sources: List[str]
+    expected_source: str
 
 
 class SearchAgentStart(BaseEvent):
@@ -126,12 +126,13 @@ class WriteFactCheckReportStart(BaseEvent):
     data: None = None
 
 
-class FactCheckReportData(BaseModel):
+class FactCheckResultData(BaseModel):
     report: str
+    verdict: str
 
 
 class WriteFactCheckReportEnd(BaseEvent):
-    data: FactCheckReportData
+    data: FactCheckResultData
 
 
 class ToolStartData(BaseModel):

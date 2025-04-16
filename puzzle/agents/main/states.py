@@ -1,10 +1,9 @@
 import uuid
 import operator
-from typing import Optional, List, Annotated
 from pydantic import BaseModel, Field
 from ..metadata_extractor.states import MetadataState
 from ..searcher.states import SearchResult, Evidence
-
+from typing import Optional, List, Annotated, Literal
 
 class IsNewsText(BaseModel):
     result: bool = Field(description="是否为可核查文本")
@@ -23,7 +22,7 @@ class RetrievalResultVerification(BaseModel):
         description="如果对检索结果不满意，可以在此处更新该检索步骤的检索目的",
         default=None
     )
-    updated_expected_sources: Optional[List[str]] = Field(
+    updated_expected_source: Optional[str] = Field(
         description="如果对检索结果不满意，可以在此处更新该检索步骤的预期信息来源",
         default=None
     )
@@ -44,10 +43,7 @@ class RetrievalStep(BaseModel):
     purpose: str = Field(
         description="该检索步骤的目的，想要获取什么信息",
     )
-    expected_sources: List[str] = Field(
-        description="期望找到的信息来源类型，如官方网站、新闻报道、学术论文等",
-        default=[],
-    )
+    expected_source: str = Field(description="期望信息的可能来源类型")
     result: Optional[RetrievalResult] = Field(
         description="search agent 检索后返回的核查结论",
         default=None
@@ -76,12 +72,32 @@ class CheckPoints(BaseModel):
     items: List[CheckPoint] = Field(description="从新闻文本中提取的核查点", default_factory=list)
 
 
+class Result(BaseModel):
+    report: str = Field(description="核查报告", default="")
+    verdict: Literal[
+        "true", # 真实 
+        "mostly-true", # 大部分真实
+        "mostly-false", # 大部分虚假
+        "false", # 虚假
+        "no-enough-evidence", # 无法证实
+    ] = Field(
+        description="核查结论评级",
+        json_schema_extra={
+            "true": "真实 - 陈述准确无误，没有任何重大遗漏",
+            "mostly-true": "大部分真实 - 该陈述是准确的，但需要澄清或补充信息",
+            "mostly-false": "大部分虚假 - 该陈述包含真实的成分，但忽略了可能会给人以不同印象的关键事实",
+            "false": "虚假 - 该陈述不准确",
+            "no-enough-evidence": "无法证实 - 没有足够证据支持该陈述，无法证实",
+        }
+    )
+
+
 class FactCheckPlanState(BaseModel):
     news_text: str = Field(description="待核查的新闻文本")
     is_news_text: Optional[IsNewsText] = Field(description="是否为可核查文本", default=None)
     metadata: Optional[MetadataState] = Field(description="新闻元数据", default=None)
     check_points: List[CheckPoint] = Field(default_factory=list)
-    report: str = Field(description="核查报告", default="")
+    result: Optional[Result] = Field(description="核查结果", default=None)
     
     def get_formatted_check_points(self, check_points: CheckPoints) -> List[CheckPoint]:
         """

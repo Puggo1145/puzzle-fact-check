@@ -36,11 +36,17 @@ import {
   SparkleIcon,
   CircleXIcon,
   CircleEllipsisIcon,
+  Loader2Icon,
 } from 'lucide-react';
 import { toolDict } from '@/constants/tools';
 import { cn } from '@/lib/utils';
 
-export const EventItem = ({ event }: { event: Event }) => {
+interface EventItemProps {
+  event: Event;
+  isLastEvent: boolean;
+}
+
+export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
   const { event: eventType, data } = event;
 
   const EventIcon = () => {
@@ -107,7 +113,7 @@ export const EventItem = ({ event }: { event: Event }) => {
         const isNewsText = data as IsNewsText;
         return isNewsText.result ? '准备完毕，开始核查' : '我们无法核查您所提供的文本';
       case 'extract_check_point_start':
-        return '正在提取核查点，这可能需要一些时间...';
+        return '正在提取核查点，这通常需要一些时间...';
       case 'extract_check_point_end':
         return '核查点提取完成';
       case 'extract_basic_metadata_start':
@@ -123,7 +129,7 @@ export const EventItem = ({ event }: { event: Event }) => {
       case 'retrieve_knowledge_end':
         return '知识定义检索完成';
       case 'search_agent_start':
-        return '检索智能体已激活';
+        return '开始处理核查点';
       case 'evaluate_current_status_start':
         return '正在评估当前检索状态...';
       case 'evaluate_current_status_end':
@@ -201,6 +207,7 @@ export const EventItem = ({ event }: { event: Event }) => {
       case 'tool_end':
         return 'bg-blue-50 border-blue-100 text-blue-700 dark:bg-blue-900/40 dark:border-blue-800/50 dark:text-blue-200';
       case 'evaluate_search_result_start':
+        return 'bg-gray-50 border-gray-200 text-gray-700 dark:bg-gray-900/40 dark:border-gray-800/50 dark:text-gray-200';
       case 'evaluate_search_result_end':
         return (data as RetrievalResultVerification)?.verified
           ? 'bg-green-50 border-green-100 text-green-700 dark:bg-green-900/50 dark:border-green-800/50 dark:text-green-200'
@@ -353,9 +360,9 @@ export const EventItem = ({ event }: { event: Event }) => {
             <div className="mt-2 space-y-1">
               <p className="text-xs"><span className="font-medium">核查点:</span> {searchData.content}</p>
               <p className="text-xs"><span className="font-medium">核查目标:</span> {searchData.purpose}</p>
-              {searchData.expected_sources && searchData.expected_sources.length > 0 && (
+              {searchData.expected_source && (
                 <p className="text-xs">
-                  <span className="font-medium">预期信源:</span> {searchData.expected_sources.join(', ')}
+                  <span className="font-medium">预期信源:</span> {searchData.expected_source}
                 </p>
               )}
             </div>
@@ -368,12 +375,9 @@ export const EventItem = ({ event }: { event: Event }) => {
         if (statusData) {
           return (
             <div className="mt-2 space-y-1">
-              <p className="text-xs"><span className="font-medium">评估:</span> {statusData.evaluation}</p>
-              <p className="text-xs"><span className="font-medium">缺失信息:</span> {statusData.missing_information}</p>
-              {statusData.memory && (
-                <p className="text-xs"><span className="font-medium">记忆:</span> {statusData.memory}</p>
-              )}
-              <p className="text-xs"><span className="font-medium">下一步:</span> {statusData.next_step}</p>
+              {/* <p className="text-xs"><span className="font-medium">评估:</span> {statusData.evaluation}</p> */}
+              {/* <p className="text-xs"><span className="font-medium">缺失信息:</span> {statusData.missing_information}</p> */}
+              <p className="text-xs">{statusData.next_step}</p>
 
               {statusData.new_evidence && statusData.new_evidence.length > 0 && (
                 <div className="mt-1">
@@ -404,8 +408,8 @@ export const EventItem = ({ event }: { event: Event }) => {
             {verificationResult.updated_purpose && (
               <p className="text-xs"><span className="font-medium">更新后的检索目的:</span> {verificationResult.updated_purpose}</p>
             )}
-            {verificationResult.updated_expected_sources && (
-              <p className="text-xs"><span className="font-medium">更新后的检索预期来源:</span> {verificationResult.updated_expected_sources.join(', ')}</p>
+            {verificationResult.updated_expected_source && (
+              <p className="text-xs"><span className="font-medium">更新后的检索预期来源:</span> {verificationResult.updated_expected_source}</p>
             )}
           </div>
         );
@@ -417,7 +421,6 @@ export const EventItem = ({ event }: { event: Event }) => {
             <div className="mt-2 space-y-1">
               <p className="text-xs"><span className="font-medium">概要:</span> {resultData.summary}</p>
               <p className="text-xs"><span className="font-medium">结论:</span> {resultData.conclusion}</p>
-              <p className="text-xs"><span className="font-medium">置信度:</span> {resultData.confidence}</p>
             </div>
           );
         }
@@ -425,29 +428,111 @@ export const EventItem = ({ event }: { event: Event }) => {
 
       case 'tool_start':
         const toolData = data as ToolStartData;
-        if (toolData) {
-          return (
-            <div className="mt-2 space-y-1">
-              <p className="text-xs break-all">
-                {toolData.input_str}
-              </p>
-            </div>
-          );
+
+        if (!toolData) return null;
+
+        switch (toolData.tool_name) {
+          case "read_webpage":
+            const url = JSON.parse(toolData.input_str).url;
+            return (
+              <div className="mt-2 space-y-1">
+                <p className="text-xs break-all">
+                  {url}
+                </p>
+              </div>
+            );
+
+          case "search_google_official":
+            const query = JSON.parse(toolData.input_str).query;
+            return (
+              <div className="mt-2 space-y-1">
+                <p className="text-xs break-all">
+                  关键词：{query}
+                </p>
+              </div>
+            );
+
+          default:
+            return (
+              <div className="mt-2 space-y-1">
+                <p className="text-xs break-all">
+                  {toolData.input_str.length > 200
+                    ? toolData.input_str.slice(0, 200) + '...'
+                    : toolData.input_str}
+                </p>
+              </div>
+            );
         }
-        return null;
 
       case 'tool_end':
         const toolEndData = data as ToolEndData;
-        if (toolEndData) {
-          return (
-            <div className="mt-2 space-y-1">
-              <p className="text-xs break-all">
-                {toolEndData.output_str}
-              </p>
-            </div>
-          );
+        switch (toolEndData.tool_name) {
+          case "search_google_official":
+            interface GoogleOfficialResult {
+              title: string;
+              link: string;
+              snippet: string;
+            }
+            const result = JSON.parse(toolEndData.output_str) as GoogleOfficialResult[];
+            return (
+              <div className='mt-2'>
+                <p className="text-xs">
+                  {result.length > 0 ? `查看了 ${result.length} 个结果` : '没有搜索到结果'}
+                </p>
+                {result.length > 0 && <div className="mt-2 flex flex-wrap gap-2">
+                  {result.map((item) => (
+                    <SourceBadge key={item.link} source={item.link} />
+                  ))}
+                </div>}
+              </div>
+            );
+          case "search_baidu":
+            interface BaiduResult {
+              title: string;
+              link: string;
+              snippet: string;
+            }
+            const baiduResult = JSON.parse(toolEndData.output_str) as BaiduResult[];
+            return (
+              <div className='mt-2'>
+                <p className="text-xs">查看了 {baiduResult.length} 个结果</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {baiduResult.map((item) => (
+                    <SourceBadge key={item.link} source={item.link} />
+                  ))}
+                </div>
+              </div>
+            );
+          case "search_google_alternative":
+            interface GoogleAlternativeResult {
+              title: string;
+              link: string;
+              snippet: string;
+            }
+            const googleAlternativeResult = JSON.parse(toolEndData.output_str) as GoogleAlternativeResult[];
+            return (
+              <div className='mt-2'>
+                <p className="text-xs">
+                  {googleAlternativeResult.length > 0 ? `查看了 ${googleAlternativeResult.length} 个结果` : '没有搜索到结果'}
+                </p>
+                {googleAlternativeResult.length > 0 && <div className="mt-2 flex flex-wrap gap-2">
+                  {googleAlternativeResult.map((item, idx) => (
+                    <SourceBadge key={idx} source={item.link} />
+                  ))}
+                </div>}
+              </div>
+            );
+          case "read_webpage":
+            return null;
+          default:
+            return (
+              <div className="mt-2 space-y-1">
+                <p className="text-xs break-all">
+                  {toolEndData.output_str}
+                </p>
+              </div>
+            );
         }
-        return null;
 
       case 'check_if_news_text_end':
         const isNewsText = data as IsNewsText;
@@ -470,7 +555,7 @@ export const EventItem = ({ event }: { event: Event }) => {
   return (
     <div className={cn("p-3 rounded-md border transition-colors", getEventClass())}>
       <div className="flex items-center gap-2">
-        <EventIcon />
+        {isLastEvent ? <Loader2Icon className="size-4 animate-spin" /> : <EventIcon />}
         <div className="text-sm font-medium">
           <EventTitle />
         </div>

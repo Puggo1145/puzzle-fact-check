@@ -1,5 +1,5 @@
 from agents.base import BaseAgent
-from langgraph.graph.state import StateGraph
+from langgraph.graph.state import StateGraph, END
 from langgraph.prebuilt import create_react_agent
 from langgraph.types import Send
 from .prompts import (
@@ -27,10 +27,6 @@ class MetadataExtractAgentGraph(BaseAgent):
         self.tools = [SearchWikipediaTool()]
         self.model_with_tools = self.model.bind_tools(tools=self.tools)
         
-        # if mode == "CLI":
-        #     self.db_events = DBEvents()
-        #     self.cli_events = CLIModeEvents()
-        
     def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(MetadataState)
         
@@ -43,7 +39,7 @@ class MetadataExtractAgentGraph(BaseAgent):
         graph_builder.add_conditional_edges(
             "extract_knowledge",
             self.should_continue_to_retrieval, # type: ignore
-            ["retrieve_knowledge"]
+            ["retrieve_knowledge", END]
         )
         graph_builder.set_finish_point("retrieve_knowledge")
 
@@ -82,7 +78,7 @@ class MetadataExtractAgentGraph(BaseAgent):
                 for knowledge in state.knowledges
             ]
         else:
-            return "merge_knowledges"
+            return END
 
     def retrieve_knowledge(self, sub_state: Knowledge):
         """

@@ -17,6 +17,7 @@ from .prompts import (
     evaluate_search_result_output_parser,
     evaluate_search_result_prompt_template,
     write_fact_check_report_prompt_template,
+    write_fact_check_report_output_parser,
 )
 from ..searcher.states import SearchAgentState
 from ..searcher.graph import SearchAgentGraph
@@ -33,6 +34,7 @@ from .states import (
     CheckPoints,
     RetrievalStep,
     IsNewsText,
+    Result,
 )
 from langchain_openai.chat_models.base import BaseChatOpenAI
 
@@ -47,9 +49,7 @@ class MainAgent(BaseAgent):
         max_search_tokens: int = 5000,
         max_retries: int = 1, # main agent 在一个任务上允许的最多重试次数
     ):
-        super().__init__(
-            model=model,
-        )
+        super().__init__(model=model)
         
         self.metadata_extract_model = metadata_extract_model
         self.metadata_extract_agent = MetadataExtractAgentGraph(
@@ -67,10 +67,6 @@ class MainAgent(BaseAgent):
         self.current_retrieval_task_index = 0  # 跟踪当前检索任务的索引
         self.total_retrieval_tasks_nums = 0  # 总任务数
         
-        # if mode == "CLI":
-        #     self.db_events = DBEvents()
-        #     self.cli_events = CLIModeEvents()
-
     def _build_graph(self) -> CompiledStateGraph:
         graph_builder = StateGraph(FactCheckPlanState)
 
@@ -219,7 +215,6 @@ class MainAgent(BaseAgent):
             retrieval_step_id=search_state.retrieval_step_id,
             summary=search_state.result.summary,
             conclusion=search_state.result.conclusion,
-            confidence=search_state.result.confidence,
             evidences=search_state.evidences,
         )
 
@@ -274,10 +269,10 @@ class MainAgent(BaseAgent):
         }]
 
         # 主模型不认可检索结论，需要更新检索步骤
-        if not verification_result.verified and (verification_result.updated_purpose or verification_result.updated_expected_sources):
+        if not verification_result.verified and (verification_result.updated_purpose or verification_result.updated_expected_source):
             update_data = {
                 "purpose": verification_result.updated_purpose,
-                "expected_sources": verification_result.updated_expected_sources,
+                "expected_source": verification_result.updated_expected_source,
             }
             updates.append({"id": current_step.id, "data": update_data})
 
@@ -319,15 +314,16 @@ class MainAgent(BaseAgent):
         return "continue"
     
     def write_fact_check_report(self, state: FactCheckPlanState):
-        """main agent 认可全部核查结论将核查结果写入报告"""
+        """将核查结果写为核查报告"""
         response = self.model.invoke([
             write_fact_check_report_prompt_template.format(
                 news_text=state.news_text, 
                 check_points=state.check_points
             )
         ])
+        result: Result = write_fact_check_report_output_parser.invoke(response)
         
-        return {"report": response.content}
+        return {"result": result}
     
     def _get_current_retrieval_task(self, state: FactCheckPlanState) -> SearchAgentState:
         """获取要执行的检索任务"""
@@ -338,7 +334,7 @@ class MainAgent(BaseAgent):
                 retrieval_step_id=retrieval_step.id,
                 content=check_point.content,
                 purpose=retrieval_step.purpose,
-                expected_sources=retrieval_step.expected_sources,
+                expected_source=retrieval_step.expected_source,
             )
             
             for check_point in state.check_points
@@ -415,61 +411,3 @@ class MainAgent(BaseAgent):
                 if step.id == retrieval_step_id:
                     return step
         return None
-
-
-# TODO: 支持 CLI Mode
-def cli_select_option(options: List[Dict[str, str]], hint: str):
-    """实现命令行选择功能"""
-    import readchar
-    import sys
-
-    selected = 0
-    
-    print(f"\n{hint}")
-
-    def print_options():
-        sys.stdout.write("\r" + " " * 100 + "\r")
-        for i, option in enumerate(options):
-            if i == selected:
-                sys.stdout.write(f"[•] {option['label']}  ")
-            else:
-                sys.stdout.write(f"[ ] {option['label']}  ")
-        sys.stdout.flush()
-
-    print_options()
-
-    while True:
-        key = readchar.readkey()
-        if key == readchar.key.LEFT and selected > 0:
-            selected -= 1
-            print_options()
-        elif key == readchar.key.RIGHT and selected < len(options) - 1:
-            selected += 1
-            print_options()
-        elif key == readchar.key.ENTER:
-            sys.stdout.write("\n")
-            return options[selected]["value"]
-
-
-def get_user_feedback():
-    """处理用户交互，返回用户反馈"""
-    choice = cli_select_option(
-        options=[
-            {
-                "label": "认可，开始检索",
-                "value": "continue"
-            },
-            {
-                "label": "修改核查计划",
-                "value": "revise"
-            }
-        ], 
-        hint="您是否认可当前的核查计划？"
-    )
-
-    if choice == "continue":
-        return {"action": "continue"}
-    else:
-        print("\n请输入您的修改建议：")
-        feedback = input("> ")
-        return {"action": "revise", "feedback": feedback}

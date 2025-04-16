@@ -60,21 +60,18 @@ export const AgentConfigDialog: React.FC<AgentConfigDialogProps> = ({
                     <div className="space-y-4 mt-4">
                         <MainAgentConfigPanel
                             config={mainAgentConfig}
-                            availableModels={availableModels}
                             onChange={setMainAgentConfig}
                             disabled={disabled}
                         />
 
                         <MetadataExtractorConfigPanel
                             config={metadataExtractorConfig}
-                            availableModels={availableModels}
                             onChange={setMetadataExtractorConfig}
                             disabled={disabled}
                         />
 
                         <SearchAgentConfigPanel
                             config={searcherConfig}
-                            availableModels={availableModels}
                             onChange={setSearcherConfig}
                             disabled={disabled}
                         />
