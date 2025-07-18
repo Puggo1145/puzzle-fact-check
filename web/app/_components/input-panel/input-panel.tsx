@@ -178,17 +178,17 @@ export const InputPanel = () => {
             <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>您确定要返回吗？</DialogTitle>
+                        <DialogTitle>Are you sure?</DialogTitle>
                         <DialogDescription>
-                            Puzzle 暂不支持存储您的核查结果，返回后将不会保存任何结果，您将丢失所有已执行的步骤。确定要返回吗？
+                            Puzzle does not support saving your fact-checking results currently. You will lose all executed steps. Make sure you saved the results before going back.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter className="mt-4">
                         <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
-                            取消
+                            Cancel
                         </Button>
                         <Button onClick={handleReset}>
-                            确认返回
+                            Confirm
                         </Button>
                     </DialogFooter>
                 </DialogContent>
