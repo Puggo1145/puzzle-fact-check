@@ -64,7 +64,7 @@ export const ToolSelector = ({
                         ) : (
                             <>
                                 <PencilRulerIcon className="size-4" />
-                                <span className="hidden lg:block text-xs font-medium">使用高级工具</span>
+                                <span className="hidden lg:block text-xs font-medium">Advanced Tools</span>
                             </>
                         )}
                     </Button>
@@ -93,7 +93,7 @@ export const ToolSelector = ({
                                         <h4 className="text-sm font-medium">{tool.name}</h4>
                                         {tool.available && (
                                             <span className="text-[10px] bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 px-1.5 py-0.5 rounded-full">
-                                                暂未开放
+                                                Comming Soon
                                             </span>
                                         )}
                                     </div>

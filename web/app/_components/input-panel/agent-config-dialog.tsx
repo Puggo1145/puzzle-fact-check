@@ -50,9 +50,9 @@ export const AgentConfigDialog: React.FC<AgentConfigDialogProps> = ({
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>高级配置</DialogTitle>
+                    <DialogTitle>Settings</DialogTitle>
                     <DialogDescription>
-                        Puzzle 是个人早期实验项目，所有成本均由个人承担，请大家在选择模型的时候手下留情，使用最适合自己新闻类型的模型配置。非推理模型在事实核查任务中也有不错的表现哦！😘
+                        Configure the model that is most suitable for your news type.
                     </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="h-80 sm:h-fit">

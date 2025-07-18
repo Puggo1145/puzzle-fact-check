@@ -97,7 +97,7 @@ export const InputPanel = () => {
                 <textarea
                     value={newsText}
                     onChange={onValueChange}
-                    placeholder="告诉我你想核查的新闻。我们关心，你所相信的"
+                    placeholder="Tell me the news you want to check. We care about what you believe"
                     className="w-full h-36 sm:h-20 px-1 outline-none resize-none"
                 />}
             <div className="w-full flex items-center justify-between gap-2">
@@ -131,7 +131,7 @@ export const InputPanel = () => {
                             className="rounded-full flex items-center gap-1"
                         >
                             <CogIcon className="size-4" />
-                            <span className="hidden lg:block text-xs">高级配置</span>
+                            <span className="hidden lg:block text-xs">Settings</span>
                         </Button>
                     </AgentConfigDialog>
                 </div>

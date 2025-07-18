@@ -106,34 +106,34 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
   const EventTitle = () => {
     switch (eventType) {
       case 'agent_start':
-        return '开始运行';
+        return 'Start Running';
       case 'check_if_news_text_start':
-        return '正在进行核查前准备';
+        return 'Preparing for Fact-Checking';
       case 'check_if_news_text_end':
         const isNewsText = data as IsNewsText;
-        return isNewsText.result ? '准备完毕，开始核查' : '我们无法核查您所提供的文本';
+        return isNewsText.result ? 'Ready to Start Fact-Checking' : 'We cannot check the text you provided';
       case 'extract_check_point_start':
-        return '正在提取核查点，这通常需要一些时间...';
+        return 'Extracting Check Points, this may take some time...';
       case 'extract_check_point_end':
-        return '核查点提取完成';
+        return 'Check Points Extracted';
       case 'extract_basic_metadata_start':
-        return '正在提取新闻元数据';
+        return 'Extracting Basic Metadata';
       case 'extract_basic_metadata_end':
-        return '新闻元数据提取完成';
+        return 'Basic Metadata Extracted';
       case 'extract_knowledge_start':
-        return '正在提取知识元';
+        return 'Extracting Knowledge';
       case 'extract_knowledge_end':
-        return '知识元提取完成';
+        return 'Knowledge Extracted';
       case 'retrieve_knowledge_start':
-        return '正在检索知识定义';
+        return 'Retrieving Knowledge Definition';
       case 'retrieve_knowledge_end':
-        return '知识定义检索完成';
+        return 'Knowledge Definition Retrieved';
       case 'search_agent_start':
-        return '开始处理核查点';
+        return 'Processing Check Points';
       case 'evaluate_current_status_start':
-        return '正在评估当前检索状态...';
+        return 'Evaluating Current Retrieval Status...';
       case 'evaluate_current_status_end':
-        return '检索状态评估完成';
+        return 'Current Retrieval Status Evaluated';
       case 'tool_start':
         const toolData = data as ToolStartData;
         return toolDict[toolData.tool_name].alias;
@@ -141,37 +141,37 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
         const toolEndData = data as ToolEndData;
         return `${toolDict[toolEndData.tool_name].alias}完成`;
       case 'generate_answer_start':
-        return '正在分析检索结论...';
+        return 'Analyzing Retrieval Conclusion...';
       case 'generate_answer_end':
-        return '得出检索结论';
+        return 'Retrieval Conclusion Analyzed';
       case 'evaluate_search_result_start':
-        return '正在评估检索结果...';
+        return 'Evaluating Retrieval Result...';
       case 'evaluate_search_result_end':
-        return '检索结果评估完成';
+        return 'Retrieval Result Evaluated';
       case 'write_fact_check_report_start':
-        return '正在撰写核查报告，这可能需要一些时间...';
+        return 'Writing Fact-Checking Report, this may take some time...';
       case 'write_fact_check_report_end':
-        return '核查报告撰写完成';
+        return 'Fact-Checking Report Written';
       case 'llm_decision':
         const decisionData = data as LLMDecisionData;
         const decisionMap: Record<string, string> = {
-          'continue': '继续下一个检索',
-          'force_continue': '超出最大检索重试次数，强制进行下一个检索',
-          'retry': '重试当前检索',
-          'finish': '完成所有检索任务',
+          'continue': 'Continue to Next Retrieval',
+          'force_continue': 'Exceeded Maximum Retrieval Retry Count, Force to Continue to Next Retrieval',
+          'retry': 'Retry Current Retrieval',
+          'finish': 'Finish All Retrieval Tasks',
         }
-        return `LLM 决策: ${decisionMap[decisionData?.decision] || ''}`;
+        return `LLM Decision: ${decisionMap[decisionData?.decision] || ''}`;
       case 'task_complete':
-        return '核查结束';
+        return 'Fact-Checking Finished';
       case 'task_interrupted':
         const interruptData = data as TaskInterruptedData;
-        return interruptData?.message || '任务已中断';
+        return interruptData?.message || 'Task Interrupted';
       case 'error':
         const errorData = data as ErrorData;
         return errorData?.message.length > 100
           ? errorData?.message.slice(0, 100) + '...'
           : errorData?.message
-          || '服务器错误，请稍候再试';
+          || 'Server Error, Please Try Again Later';
       default:
         return eventType;
     }
@@ -238,14 +238,14 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
           return (
             <div className="mt-2 space-y-2">
               <p className="text-sm font-medium">
-                找到 {checkPoints.length} 个核查点:
+                Found {checkPoints.length} Check Points:
               </p>
               {checkPoints
                 .filter((cp: CheckPoint) => cp.is_verification_point)
                 .map((cp: CheckPoint, idx: number) => (
                   <div key={idx} className="p-2 bg-white rounded-md border dark:bg-gray-800/50">
                     <p className="text-sm font-medium">
-                      核查点 {idx + 1}: {cp.content}
+                      Check Point {idx + 1}: {cp.content}
                     </p>
                     {cp.importance &&
                       <p className="text-xs text-gray-600 dark:text-white">
@@ -254,7 +254,7 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
                     }
                     {cp.retrieval_step && cp.retrieval_step.length > 0 && (
                       <div className="mt-1">
-                        <p className="text-xs font-medium">检索计划:</p>
+                        <p className="text-xs font-medium">Retrieval Plan:</p>
                         {cp.retrieval_step.map((step, stepIdx: number) => (
                           <p key={stepIdx} className="text-xs text-gray-600 dark:text-white">{idx + 1}. {step.purpose}</p>
                         ))}
@@ -272,7 +272,7 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
         const formattedMetadata = Object.fromEntries(
           Object.entries(basicMetadata).map(([key, value]) => {
             if (Array.isArray(value)) {
-              return [key, value.length > 0 ? value.join(', ') : '无'];
+              return [key, value.length > 0 ? value.join(', ') : 'None'];
             }
             return [key, value];
           })
@@ -280,25 +280,25 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
         return (
           <div className="mt-2 space-y-1">
             <p className="text-xs">
-              新闻类型:&nbsp;&nbsp;{formattedMetadata.news_type}
+              News Type:&nbsp;&nbsp;{formattedMetadata.news_type}
             </p>
             <p className="text-xs">
-              人物 (Who) :&nbsp;&nbsp;{formattedMetadata.who}
+              Who:&nbsp;&nbsp;{formattedMetadata.who}
             </p>
             <p className="text-xs">
-              时间 (When) :&nbsp;&nbsp;{formattedMetadata.when}
+              When:&nbsp;&nbsp;{formattedMetadata.when}
             </p>
             <p className="text-xs">
-              地点 (Where) :&nbsp;&nbsp;{formattedMetadata.where}
+              Where:&nbsp;&nbsp;{formattedMetadata.where}
             </p>
             <p className="text-xs">
-              事件 (What) :&nbsp;&nbsp;{formattedMetadata.what}
+              What:&nbsp;&nbsp;{formattedMetadata.what}
             </p>
             <p className="text-xs">
-              原因 (Why) :&nbsp;&nbsp;{formattedMetadata.why}
+              Why:&nbsp;&nbsp;{formattedMetadata.why}
             </p>
             <p className="text-xs">
-              过程 (How) :&nbsp;&nbsp;{formattedMetadata.how}
+              How:&nbsp;&nbsp;{formattedMetadata.how}
             </p>
           </div>
         );
@@ -309,19 +309,19 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
           return (
             <div className="mt-2 space-y-2">
               <p className="text-sm font-medium">
-                提取到 {knowledges.length} 个知识元:
+                Found {knowledges.length} Knowledge:
               </p>
               {knowledges.map((knowledge: Knowledge, idx: number) => (
                 <div key={idx} className="p-2 bg-white dark:bg-black/20 rounded-md border space-y-1">
                   <p className="text-xs">
-                    术语: {knowledge.term}
+                    Term: {knowledge.term}
                   </p>
                   <p className="text-xs">
-                    类别: {knowledge.category}
+                    Category: {knowledge.category}
                   </p>
                   {knowledge.description && (
                     <p className="text-xs">
-                      描述: {knowledge.description}
+                      Description: {knowledge.description}
                     </p>
                   )}
                   {knowledge.source && (
@@ -339,13 +339,13 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
         return (
           <div className="mt-2 space-y-1">
             <p className="text-xs">
-              术语: {retrievedKnowledge.term}
+              Term: {retrievedKnowledge.term}
             </p>
             <p className="text-xs">
-              类别: {retrievedKnowledge.category}
+              Category: {retrievedKnowledge.category}
             </p>
             <p className="text-xs">
-              定义: {retrievedKnowledge.description || '未检索到定义'}
+              Definition: {retrievedKnowledge.description || 'No Definition Retrieved'}
             </p>
             {retrievedKnowledge.source && (
               <SourceBadge source={retrievedKnowledge.source} />
@@ -358,11 +358,11 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
         if (searchData) {
           return (
             <div className="mt-2 space-y-1">
-              <p className="text-xs"><span className="font-medium">核查点:</span> {searchData.content}</p>
-              <p className="text-xs"><span className="font-medium">核查目标:</span> {searchData.purpose}</p>
+              <p className="text-xs"><span className="font-medium">Check Point:</span> {searchData.content}</p>
+              <p className="text-xs"><span className="font-medium">Check Purpose:</span> {searchData.purpose}</p>
               {searchData.expected_source && (
                 <p className="text-xs">
-                  <span className="font-medium">预期信源:</span> {searchData.expected_source}
+                  <span className="font-medium">Expected Source:</span> {searchData.expected_source}
                 </p>
               )}
             </div>
@@ -381,12 +381,12 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
 
               {statusData.new_evidence && statusData.new_evidence.length > 0 && (
                 <div className="mt-1">
-                  <p className="text-xs font-medium">新证据:</p>
+                  <p className="text-xs font-medium">New Evidence:</p>
                   {statusData.new_evidence.map((evidence: Evidence, idx: number) => (
                     <div key={idx} className="p-2 bg-white rounded-md border dark:bg-gray-800">
-                      <p className="text-xs"><span className="font-medium">内容:</span> {evidence.content}</p>
-                      <p className="text-xs"><span className="font-medium">关系:</span> {evidence.relationship === 'support' ? '支持' : '反驳'}</p>
-                      <p className="text-xs"><span className="font-medium">推理:</span> {evidence.reasoning}</p>
+                      <p className="text-xs"><span className="font-medium">Content:</span> {evidence.content}</p>
+                      <p className="text-xs"><span className="font-medium">Relationship:</span> {evidence.relationship === 'support' ? 'Support' : 'Refute'}</p>
+                      <p className="text-xs"><span className="font-medium">Reasoning:</span> {evidence.reasoning}</p>
                       {evidence.source && Object.keys(evidence.source).length > 0 && (
                         <SourceBadge source={Object.values(evidence.source).join(', ')} className="mt-2" />
                       )}
@@ -403,13 +403,13 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
         const verificationResult = data as RetrievalResultVerification;
         return (
           <div className="mt-2 space-y-1">
-            <p className="text-xs"><span className="font-medium">核验结论:</span> {verificationResult.verified ? '认可' : '不认可'}</p>
-            <p className="text-xs"><span className="font-medium">推理:</span> {verificationResult.reasoning}</p>
+            <p className="text-xs"><span className="font-medium">Verification Conclusion:</span> {verificationResult.verified ? 'Accept' : 'Reject'}</p>
+            <p className="text-xs"><span className="font-medium">Reasoning:</span> {verificationResult.reasoning}</p>
             {verificationResult.updated_purpose && (
-              <p className="text-xs"><span className="font-medium">更新后的检索目的:</span> {verificationResult.updated_purpose}</p>
+              <p className="text-xs"><span className="font-medium">Updated Retrieval Purpose:</span> {verificationResult.updated_purpose}</p>
             )}
             {verificationResult.updated_expected_source && (
-              <p className="text-xs"><span className="font-medium">更新后的检索预期来源:</span> {verificationResult.updated_expected_source}</p>
+              <p className="text-xs"><span className="font-medium">Updated Expected Source:</span> {verificationResult.updated_expected_source}</p>
             )}
           </div>
         );
@@ -419,8 +419,7 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
         if (resultData) {
           return (
             <div className="mt-2 space-y-1">
-              <p className="text-xs"><span className="font-medium">概要:</span> {resultData.summary}</p>
-              <p className="text-xs"><span className="font-medium">结论:</span> {resultData.conclusion}</p>
+              <p className="text-xs"><span className="font-medium">Summary:</span> {resultData.summary}</p>
             </div>
           );
         }
@@ -447,7 +446,7 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
             return (
               <div className="mt-2 space-y-1">
                 <p className="text-xs break-all">
-                  关键词：{query}
+                  Keywords: {query}
                 </p>
               </div>
             );
@@ -477,7 +476,7 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
             return (
               <div className='mt-2'>
                 <p className="text-xs">
-                  {result.length > 0 ? `查看了 ${result.length} 个结果` : '没有搜索到结果'}
+                  {result.length > 0 ? `Viewed ${result.length} results` : 'No results found'}
                 </p>
                 {result.length > 0 && <div className="mt-2 flex flex-wrap gap-2">
                   {result.map((item) => (
@@ -495,7 +494,7 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
             const baiduResult = JSON.parse(toolEndData.output_str) as BaiduResult[];
             return (
               <div className='mt-2'>
-                <p className="text-xs">查看了 {baiduResult.length} 个结果</p>
+                <p className="text-xs">Viewed {baiduResult.length} results</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {baiduResult.map((item) => (
                     <SourceBadge key={item.link} source={item.link} />
@@ -513,7 +512,7 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
             return (
               <div className='mt-2'>
                 <p className="text-xs">
-                  {googleAlternativeResult.length > 0 ? `查看了 ${googleAlternativeResult.length} 个结果` : '没有搜索到结果'}
+                  {googleAlternativeResult.length > 0 ? `Viewed ${googleAlternativeResult.length} results` : 'No results found'}
                 </p>
                 {googleAlternativeResult.length > 0 && <div className="mt-2 flex flex-wrap gap-2">
                   {googleAlternativeResult.map((item, idx) => (

@@ -21,21 +21,21 @@ export const tools: Tool[] = [
         id: "tavily_search",
         name: "Tavily Search",
         icon: () => <SearchIcon className="size-4" />,
-        description: "为 Agent 提供更快和更高效的网络搜索工具",
+        description: "Provide faster and more efficient web search tools for Agent",
         available: false
     },
     {
         id: "browser_use",
         name: "Browser Use",
         icon: () => <GlobeIcon className="size-4" />,
-        description: "允许 Agent 使用浏览器执行更复杂的任务",
+        description: "Allow Agent to use browser to perform more complex tasks",
         available: true
     },
     {
         id: "vision",
         name: "Vision",
         icon: () => <EyeIcon className="size-4" />,
-        description: "允许 Agent 使用视觉理解更多模态的信息",
+        description: "Allow Agent to use vision to understand more modal information",
         available: true
     },
 ]

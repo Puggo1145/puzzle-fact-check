@@ -81,9 +81,9 @@ export const MainAgentConfigPanel: React.FC<MainAgentConfigProps> = ({
 
   return (
     <AgentConfigPanel
-      label="主智能体"
-      description="负责协调整个事实核查的流程"
-      restrictionText="不支持轻量模型（Light）"
+      label="Main Agent"
+      description="Responsible for coordinating the entire fact-checking process"
+      restrictionText="Does not support lightweight models (Light)"
       icon={BotIcon}
       disabled={disabled}
     >
@@ -101,7 +101,7 @@ export const MainAgentConfigPanel: React.FC<MainAgentConfigProps> = ({
         max={3}
         step={1}
         disabled={disabled}
-        label="每个检索 Agent 允许重试检索的最大次数"
+        label="Maximum number of retries for each search agent"
       />
     </AgentConfigPanel>
   );
@@ -129,8 +129,8 @@ export const MetadataExtractorConfigPanel: React.FC<MetadataExtractorConfigProps
 
   return (
     <AgentConfigPanel
-      label="元数据提取智能体"
-      description="负责提取新闻中的关键元数据"
+      label="Metadata Extraction Agent"
+      description="Responsible for extracting key metadata from news"
       restrictionText=""
       icon={InfoIcon}
       disabled={disabled}
@@ -171,9 +171,9 @@ export const SearchAgentConfigPanel: React.FC<SearchAgentConfigProps> = ({
 
   return (
     <AgentConfigPanel
-      label="检索智能体"
-      description="负责进行深度搜索"
-      restrictionText="不支持轻量模型（Light）"
+      label="Search Agent"
+      description="Responsible for performing deep search"
+      restrictionText="Does not support lightweight models (Light)"
       icon={SearchIcon}
       disabled={disabled}
     >
@@ -191,7 +191,7 @@ export const SearchAgentConfigPanel: React.FC<SearchAgentConfigProps> = ({
         max={30000}
         step={1000}
         disabled={disabled}
-        label="每个检索 Agent 允许消耗的最大 token 数"
+        label="Maximum number of tokens allowed for each search agent"
       />
     </AgentConfigPanel>
   );

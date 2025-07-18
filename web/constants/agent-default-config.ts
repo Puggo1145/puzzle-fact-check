@@ -58,28 +58,28 @@ export const AVAILABLE_MODELS: ModelOption[] = [
   { 
     id: 'qwq-plus-latest', 
     model: 'qwq-plus-latest', 
-    alias: '千问 qwq 32B', 
+    alias: 'qwq 32B', 
     provider: 'qwen', 
     modelType: "reasoning" 
   },
   { 
     id: 'qwen-max-latest', 
     model: 'qwen-max-latest', 
-    alias: '千问 Max', 
+    alias: 'Qwen Max', 
     provider: 'qwen', 
     modelType: "non_reasoning" 
   },
   { 
     id: 'qwen-plus-latest', 
     model: 'qwen-plus-latest', 
-    alias: '千问 Plus', 
+    alias: 'Qwen Plus', 
     provider: 'qwen', 
     modelType: "non_reasoning" 
   },
   { 
     id: 'qwen-turbo', 
     model: 'qwen-turbo', 
-    alias: '千问 Turbo', 
+    alias: 'Qwen Turbo', 
     provider: 'qwen', 
     modelType: "light" 
   },
@@ -158,8 +158,8 @@ export interface ConfigPreset {
 export const CONFIG_PRESETS: ConfigPreset[] = [
   {
     id: 'lightweight',
-    name: '快速模式',
-    description: '适用于简单新闻，速度最快',
+    name: 'fast',
+    description: 'good for simple news. Fastest speed.',
     icon: GaugeIcon,
     mainConfig: {
       modelId: 'qwen-plus-latest',
@@ -182,8 +182,8 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
   },
   {
     id: 'standard',
-    name: '均衡模式',
-    description: '适用于大部分新闻，速度较快',
+    name: 'balanced',
+    description: 'Good for most news. Balanced speed.',
     icon: ScaleIcon,
     mainConfig: {
       modelId: 'qwen-max-latest',
@@ -206,8 +206,8 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
   },
   {
     id: 'high-performance',
-    name: '高性能模式',
-    description: '适用于复杂新闻，速度较慢',
+    name: 'high-performance',
+    description: 'Good for complex news. Takes longer time.',
     icon: ZapIcon,
     mainConfig: {
       modelId: 'qwen-max-latest',
@@ -230,8 +230,8 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
   },
   {
     id: 'deep-check-max',
-    name: '深度核查',
-    description: '使用更强的模型和更大的上下文，花费大量时间，价格最贵',
+    name: 'deep-check-max',
+    description: 'Use stronger model and larger context. Takes longer time. Most expensive.',
     icon: TelescopeIcon,
     mainConfig: {
       modelId: 'o3-mini',

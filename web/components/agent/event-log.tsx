@@ -137,10 +137,10 @@ export const EventLog: React.FC = () => {
         className="flex items-center justify-between p-3 border rounded-t-lg cursor-pointer"
         onClick={toggleCollapse}
       >
-        <h2 className="text-sm font-semibold">核查过程</h2>
+        <h2 className="text-sm font-semibold">Fact-Checking Process</h2>
         <div className="flex items-center gap-2">
           <div className="text-xs text-muted-foreground">
-            已执行 {events.length} 个步骤
+            {events.length} steps executed
           </div>
           {isCollapsed ? (
             <ChevronDownIcon className="size-4" />
@@ -164,7 +164,7 @@ export const EventLog: React.FC = () => {
           ))}
           {events.length === 0 && (
             <div className="text-center text-sm text-muted-foreground">
-              正在连接到 Agent...
+              Connecting to Agent...
             </div>
           )}
           
@@ -172,7 +172,7 @@ export const EventLog: React.FC = () => {
             <button
               onClick={scrollToBottom}
               className="fixed bottom-8 right-8 bg-primary text-primary-foreground rounded-full p-2 shadow-md transition-opacity animate-in fade-in duration-300 hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary"
-              aria-label="滚动到底部"
+              aria-label="Scroll to Bottom"
             >
               <ArrowDownIcon className="size-5" />
             </button>
