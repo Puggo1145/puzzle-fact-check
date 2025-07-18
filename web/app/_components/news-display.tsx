@@ -21,27 +21,27 @@ export const NewsDisplay = () => {
     switch (status) {
         case 'running':
             StatusIcon = Loader2;
-            statusText = "正在核查中，请稍等片刻";
+            statusText = "Fact-checking in progress. Please wait a moment";
             statusColor = "text-primary animate-spin";
             break;
         case 'interrupting':
             StatusIcon = Loader2;
-            statusText = "正在中断...";
+            statusText = "Interrupting...";
             statusColor = "text-primary animate-spin";
             break;
         case 'interrupted':
             StatusIcon = AlertTriangle;
-            statusText = "核查已中断";
+            statusText = "Interrupted";
             statusColor = "text-amber-500";
             break;
         case 'completed':
             StatusIcon = CheckCircle2;
-            statusText = "核查完成";
+            statusText = "Completed";
             statusColor = "text-green-500";
             break;
         default:
             StatusIcon = CheckCircle2;
-            statusText = "核查结束";
+            statusText = "Completed";
             statusColor = "text-green-500";
     }
 

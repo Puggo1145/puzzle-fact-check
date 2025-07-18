@@ -102,7 +102,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         error instanceof Error && error.message.includes('Failed to fetch') ||
         error instanceof Error && error.message.includes('Network error')
       ) {
-        errorMessage = '无法连接到 Puzzle 服务器，请稍后再试（Puzzle 是一个个人实验项目，计算资源较少，请谅解）';
+        errorMessage = 'Unable to connect to Puzzle server. Please try again later (Puzzle is a personal experiment project, with limited computing resources, please understand)';
       } else {
         errorMessage = error instanceof Error ? error.message : String(error);
       }
