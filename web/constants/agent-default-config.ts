@@ -11,6 +11,13 @@ export interface ModelOption {
 }
 export const AVAILABLE_MODELS: ModelOption[] = [
   // OpenAI
+  {
+    id: 'gpt-5', 
+    model: 'gpt-5', 
+    alias: 'GPT 5', 
+    provider: 'openai', 
+    modelType: "non_reasoning" 
+  },
   { 
     id: 'gpt-4.1', 
     model: 'gpt-4.1', 
@@ -19,23 +26,16 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     modelType: "non_reasoning" 
   },
   {
-    id: 'chatgpt-4o-latest', 
-    model: 'chatgpt-4o-latest', 
-    alias: 'GPT 4o', 
-    provider: 'openai', 
-    modelType: "non_reasoning" 
-  },
-  {
-    id: 'o3-mini', 
-    model: 'o3-mini', 
-    alias: 'O3 Mini', 
+    id: 'o4-mini', 
+    model: 'o4-mini', 
+    alias: 'O4 Mini', 
     provider: 'openai', 
     modelType: "reasoning" 
   },
   { 
-    id: 'gpt-4o-mini', 
-    model: 'gpt-4o-mini', 
-    alias: 'GPT-4o Mini', 
+    id: 'gpt-5-mini', 
+    model: 'gpt-5-mini', 
+    alias: 'GPT-5 Mini', 
     provider: 'openai', 
     modelType: "light" 
   },
@@ -46,28 +46,21 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     provider: 'openai', 
     modelType: "light" 
   },
-  { 
-    id: 'gpt-4.1-nano', 
-    model: 'gpt-4.1-nano', 
-    alias: 'GPT-4.1 Nano', 
-    provider: 'openai', 
-    modelType: "light" 
-  },
 
   // Qwen
+  { 
+    id: 'qwen-flash', 
+    model: 'qwen-flash', 
+    alias: 'Qwen Flash', 
+    provider: 'qwen', 
+    modelType: "reasoning" 
+  },
   { 
     id: 'qwq-plus-latest', 
     model: 'qwq-plus-latest', 
     alias: 'qwq 32B', 
     provider: 'qwen', 
     modelType: "reasoning" 
-  },
-  { 
-    id: 'qwen-max-latest', 
-    model: 'qwen-max-latest', 
-    alias: 'Qwen Max', 
-    provider: 'qwen', 
-    modelType: "non_reasoning" 
   },
   { 
     id: 'qwen-plus-latest', 
@@ -77,8 +70,15 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     modelType: "non_reasoning" 
   },
   { 
-    id: 'qwen-turbo', 
-    model: 'qwen-turbo', 
+    id: 'qwen-max-latest', 
+    model: 'qwen-max-latest', 
+    alias: 'Qwen Max', 
+    provider: 'qwen', 
+    modelType: "non_reasoning" 
+  },
+  { 
+    id: 'qwen-turbo-latest', 
+    model: 'qwen-turbo-latest', 
     alias: 'Qwen Turbo', 
     provider: 'qwen', 
     modelType: "light" 
@@ -168,8 +168,8 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
       maxRetries: 1
     },
     metadataConfig: {
-      modelId: 'qwen-turbo',
-      modelName: 'qwen-turbo',
+      modelId: 'qwen-turbo-latest',
+      modelName: 'qwen-turbo-latest',
       modelProvider: 'qwen'
     },
     searchConfig: {
@@ -192,8 +192,8 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
       maxRetries: 2
     },
     metadataConfig: {
-      modelId: 'qwen-turbo',
-      modelName: 'qwen-turbo',
+      modelId: 'qwen-turbo-latest',
+      modelName: 'qwen-turbo-latest',
       modelProvider: 'qwen'
     },
     searchConfig: {
@@ -234,19 +234,19 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
     description: 'Use stronger model and larger context. Takes longer time. Most expensive.',
     icon: TelescopeIcon,
     mainConfig: {
-      modelId: 'o3-mini',
-      modelName: 'o3-mini',
+      modelId: 'gpt-5',
+      modelName: 'gpt-5',
       modelProvider: 'openai',
       maxRetries: 3
     },
     metadataConfig: {
-      modelId: 'gpt-4o-mini',
-      modelName: 'gpt-4o-mini',
+      modelId: 'gpt-5-mini',
+      modelName: 'gpt-5-mini',
       modelProvider: 'openai'
     },
     searchConfig: {
-      modelId: 'o3-mini',
-      modelName: 'o3-mini',
+      modelId: 'gpt-5',
+      modelName: 'gpt-5',
       modelProvider: 'openai',
       maxSearchTokens: 50000,
       selectedTools: []
