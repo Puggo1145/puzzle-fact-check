@@ -11,56 +11,57 @@ current_time = get_current_time.invoke({"timezone": "UTC"})
 evaluate_current_status_output_parser = SafeParse(parser=PydanticOutputParser(pydantic_object=Status))
 search_method_prompt_template = HumanMessagePromptTemplate.from_template(
     """
-现在时间是：{current_time}
+Current time: {current_time}
 
-你正在对一则新闻进行事实核查，请使用工具，对你被分配到的核查点进行核查
+You are conducting a fact-check on a news story. Use the available tools to fact-check the checkpoint assigned to you.
 
-# 新闻元数据：
-确保找到的证据和新闻元数据保持高度一致：
+# News Metadata
+Ensure that the evidence you find is highly consistent with the following news metadata:
 {basic_metadata}
 
-# 核查点：
+# Checkpoint
 {content}
 
-# 核查目标：
+# Fact-Checking Goal
 {purpose}
 
-# 期望目标信源类型：
+# Expected Source Types
 {expected_source}
 
-# 可用工具：
+# Available Tools
 {tools_schema}
 
-# 任务：
-1. 对比核查目标和检索到的信息，提取出能够支持核查目标的证据和缺失的信息
- - 如果检索结果存在能够支持或反对核查目标的部分重要证据，将其更新到 new_evidence 中
- - 如果检索结果存在缺失的证据或逻辑关系，将其更新在 missing_information 中，并作为下一次检索的子目标
-2. 如果检索到的信息足以支撑核查目标，停止检索，开始回答
-3. 如果检索到的信息不能充分满足核查目标，继续检索
+# Tasks
+1) Compare the fact-checking goal with the retrieved information and extract evidence and missing information:
+   - If the retrieved results contain important evidence that supports or contradicts the fact-checking goal, add it to `new_evidence`.
+   - If there is missing evidence or gaps in logical connections, add them to `missing_information`, and treat them as sub-goals for the next retrieval.
+2) If the retrieved information is sufficient to support the fact-checking goal, stop retrieval and begin drafting the answer.
+3) If the retrieved information is insufficient to meet the fact-checking goal, continue retrieval.
 
-# 检索策略：
-以下策略有助于提高你的检索效率
-1. 使用高级检索词
-当你需要聚焦特点类型的信息时，使用高级检索词构造检索关键词
-{search_engine_advanced_query_usage}
+# Retrieval Strategy
+The following strategies may improve retrieval efficiency:
 
-2. 多语言检索：
-- 使用英语检索可以获得更广泛和高质量的信息
-- 使用核查目标的地方语言构造检索关键词，提高找到原始信息的可能性
-    
-3. 社交网络检索
-- 部分新闻的主体会在社交网络上发布信息，其本人/本账号发布信息的原文可以被作为一手资料
-- 如果要使用搜索引擎搜索社交网络信息，使用 site 高级检索词让结果限定在目标社交网络中
-- 如果确定主体社交网络链接，可以直接尝试阅读网页
+1. Use advanced search operators:  
+   When you need to focus on a specific type of information, construct search queries with advanced operators.  
+   {search_engine_advanced_query_usage}
 
-4. 证据信源的标准
-{source_evaluation_prompt}
+2. Multilingual search:  
+   - Use English queries to access a wider range and higher quality of information.  
+   - Use the local language of the fact-checking goal to increase the chance of finding original information.
 
-# 限制：
-1. 你目前无法阅读视频、图片、音频等非文本信息，只能阅读文本信息
-2. 禁止重复提取已存在的证据。确保你提取的是新的、不同的证据！
+3. Social media search:  
+   - Subjects of news may post original information on social media, and such posts can serve as primary sources.  
+   - If using a search engine to find social media content, use the `site:` operator to restrict results to the target platform.  
+   - If the subject’s social media link is known, directly attempt to read the webpage.
 
-# 响应格式：
+4. Standards for evaluating sources:  
+   {source_evaluation_prompt}
+
+# Constraints
+1. You cannot read videos, images, or audio; you can only use text-based information.  
+2. Do not duplicate previously extracted evidence. Ensure that you extract only new, distinct evidence.
+
+# Response Format
 {format_instructions}
 """,
     partial_variables={
@@ -73,14 +74,14 @@ search_method_prompt_template = HumanMessagePromptTemplate.from_template(
 
 evaluate_current_status_prompt_template = HumanMessagePromptTemplate.from_template(
     template="""
-# 检索历史记录：
+# Retrieval History:
 {statuses}
 
-# 上一次工具调用结果：
+# Result of the Most Recent Tool Call:
 {retrieved_information}
 
-# 重要证据：
-这是在先前的检索过程中摘取的重要证据：
+# Key Evidence:
+These are key evidence snippets extracted during prior retrieval steps:
 {evidences}
 """
 )
@@ -88,33 +89,33 @@ evaluate_current_status_prompt_template = HumanMessagePromptTemplate.from_templa
 generate_answer_output_parser = SafeParse(parser=PydanticOutputParser(pydantic_object=SearchResult))
 generate_answer_prompt_template = HumanMessagePromptTemplate.from_template(
     template="""
-现在时间是：{current_time}
+Current time: {current_time}
 
-你正在对一则新闻进行事实核查，你已经对其中一个核查点进行了事实核查，现在需要基于检索到的信息，给出核查结论。
+You are conducting a fact-check on a news story. You have already verified one checkpoint. Now, based on the retrieved information, you must provide a fact-checking conclusion.
 
-# 新闻元数据：
+# News Metadata
 {basic_metadata}
 
-# 核查点：
+# Checkpoint
 {content}
 
-# 核查目标：
+# Fact-Checking Goal
 {purpose}
 
-# 期望目标信源类型：
+# Expected Source Types
 {expected_source}
 
-# 你的检索历史记录：
+# Your Retrieval History
 {statuses}
 
-# 你在检索过程中收集到的重要证据片段：
+# Important Evidence Snippets Collected During Retrieval
 {evidences}
 
-# 任务：
-- 请提供一个全面、充分的核查结论
-- 充分利用收集到的证据片段，确保你的结论有坚实的事实基础
+# Tasks
+- Provide a comprehensive and well-substantiated fact-checking conclusion.
+- Make full use of the collected evidence snippets to ensure your conclusion rests on a solid factual basis.
 
-# 响应格式：
+# Response Format
 {format_instructions}
 """,
     partial_variables={

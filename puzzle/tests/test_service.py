@@ -34,7 +34,7 @@ async def process_test_agent_events(news_text: str, session_id: str, sse_session
         # Add task complete event
         sse_session.add_event({
             "event": "task_complete",
-            "data": {"message": "核查任务完成"}
+            "data": {"message": "Task Complete"}
         })
             
     except Exception as e:

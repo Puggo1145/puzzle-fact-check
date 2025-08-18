@@ -134,7 +134,7 @@ class MainAgent(BaseAgent):
         if not metadata.basic_metadata:
             raise AgentExecutionException(
                 agent_type="main",
-                message="无法从文本中提取新闻元数据，请检查文本",
+                message="Cannot extract news metadata from the text, please check the text",
             )
 
         return {"metadata": metadata}
@@ -182,7 +182,7 @@ class MainAgent(BaseAgent):
         ):
             raise AgentExecutionException(
                 agent_type="main",
-                message="无法从文本中提取核查点或元数据，请检查文本",
+                message="Cannot extract check points or metadata from the text, please check the text",
             )
 
         return "invoke_search_agent"
@@ -193,7 +193,7 @@ class MainAgent(BaseAgent):
         if not current_task:
             raise AgentExecutionException(
                 agent_type="main",
-                message="无法找到检索任务",
+                message="Cannot find retrieval task",
             )
         
         self.retries += 1
@@ -207,7 +207,7 @@ class MainAgent(BaseAgent):
         if not search_state.result:
             raise AgentExecutionException(
                 agent_type="searcher",
-                message="检索模型未返回结果",
+                message="Search model did not return result",
             )
 
         retrieval_result = RetrievalResult(
@@ -234,21 +234,21 @@ class MainAgent(BaseAgent):
         if not current_task:
             raise AgentExecutionException(
                 agent_type="main",
-                message="无法找到当前检索任务",
+                message="Cannot find current retrieval task",
             )
             
         current_step = self.find_retrieval_step(state, current_task.retrieval_step_id)
         if not current_step:
             raise AgentExecutionException(
                 agent_type="main",
-                message="无法找到当前检索步骤",
+                message="Cannot find current retrieval step",
             )
         
         current_result = current_step.result
         if not current_result:
             raise AgentExecutionException(
                 agent_type="main",
-                message="无法找到当前检索步骤的结果",
+                message="Cannot find current retrieval step result",
             )
 
         # 评估当前检索结果
@@ -296,7 +296,7 @@ class MainAgent(BaseAgent):
         if not current_step or not current_step.verification:
             raise AgentExecutionException(
                 agent_type="main",
-                message="无法找到当前检索步骤的验证结果",
+                message="Cannot find current retrieval step verification result",
             )
 
         # 主模型对当前检索结果不满意，且 search agent 重试次数未超过最大重试次数，重试当前检索
@@ -389,10 +389,10 @@ class MainAgent(BaseAgent):
                     if hasattr(step, key):
                         setattr(step, key, value)
                     else:
-                        raise ValueError(f"Retrieval step 没有 '{key}' 属性")
+                        raise ValueError(f"Retrieval step does not have '{key}' attribute")
             else:
                 raise ValueError(
-                    f"找不到 ID 为 '{retrieval_step_id}' 的 retrieval step"
+                    f"Cannot find retrieval step with ID '{retrieval_step_id}'"
                 )
 
         # 返回完整的 check_points 列表
@@ -404,7 +404,7 @@ class MainAgent(BaseAgent):
             if not check_point.retrieval_step:
                 raise AgentExecutionException(
                     agent_type="main",
-                    message=f"核查点下找不到指定 id 为 {retrieval_step_id} 的检索步骤",
+                    message=f"Cannot find retrieval step with ID '{retrieval_step_id}'",
                 )
             
             for step in check_point.retrieval_step:

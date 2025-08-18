@@ -72,7 +72,7 @@ poetry install
 #### 3.1 start the backend
 go to /puzzle and run the command:
 ```
-poetry run python -m api.main
+poetry run python -m api.app
 ```
 
 #### 3.2 start the frontend

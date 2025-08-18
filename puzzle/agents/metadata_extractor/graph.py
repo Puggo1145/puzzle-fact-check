@@ -92,7 +92,7 @@ class MetadataExtractAgentGraph(BaseAgent):
         )
         retrieve_message = (
             "user",
-            f"你需要检索的知识元是：{sub_state.term}。该知识元的类别是：{sub_state.category}"
+            f"The knowledge element you need to retrieve is: {sub_state.term}. The category of the knowledge element is: {sub_state.category}"
         )
         response = sub_graph.invoke({"messages": [retrieve_message]})
         retrieved_knowledge: Knowledge = response["structured_response"]

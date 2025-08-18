@@ -6,24 +6,24 @@ from ..searcher.states import SearchResult, Evidence
 from typing import Optional, List, Annotated, Literal
 
 class IsNewsText(BaseModel):
-    result: bool = Field(description="是否为可核查文本")
-    reason: str = Field(description="判断依据")
+    result: bool = Field(description="Whether the text is suitable for fact-checking")
+    reason: str = Field(description="The reason for the judgment")
 
 
 class RetrievalResultVerification(BaseModel):
     reasoning: str = Field(
-        description="对该检索步骤结论的推理",
+        description="The reasoning for the retrieval step conclusion",
     )
     verified: bool = Field(
-        description="是否认可该检索步骤的结论",
+        description="Whether to accept the retrieval step conclusion",
         default=False
     )
     updated_purpose: Optional[str] = Field(
-        description="如果对检索结果不满意，可以在此处更新该检索步骤的检索目的",
+        description="If the retrieval result is not satisfactory, you can update the retrieval purpose of the retrieval step here",
         default=None
     )
     updated_expected_source: Optional[str] = Field(
-        description="如果对检索结果不满意，可以在此处更新该检索步骤的预期信息来源",
+        description="If the retrieval result is not satisfactory, you can update the expected information source of the retrieval step here",
         default=None
     )
 
@@ -33,7 +33,7 @@ class RetrievalResult(SearchResult):
     check_point_id: str
     retrieval_step_id: str
     evidences: Annotated[List[Evidence], operator.add] = Field(
-        description="检索中收集的，与核查目标构成重要关系的证据片段",
+        description="Evidence fragments collected during retrieval, which are important to the fact-checking goal",
         default_factory=list
     )
 
@@ -41,39 +41,39 @@ class RetrievalResult(SearchResult):
 class RetrievalStep(BaseModel):
     id: str
     purpose: str = Field(
-        description="该检索步骤的目的，想要获取什么信息",
+        description="The purpose of the retrieval step, what information to retrieve",
     )
-    expected_source: str = Field(description="期望信息的可能来源类型")
+    expected_source: str = Field(description="The possible source type of the expected information")
     result: Optional[RetrievalResult] = Field(
-        description="search agent 检索后返回的核查结论",
+        description="The fact-checking conclusion returned by the search agent after retrieval",
         default=None
     )
     verification: Optional[RetrievalResultVerification] = Field(
-        description="main agent 对 search agent 检索结果的复核",
+        description="The verification of the retrieval result by the main agent",
         default=None
     )
 
 
 class CheckPoint(BaseModel):
     id: str
-    content: str = Field(description="从新闻中提取的事实陈述")
-    is_verification_point: bool = Field(description="该陈述是否被选为核查点")
+    content: str = Field(description="The fact statement extracted from the news")
+    is_verification_point: bool = Field(description="Whether the statement is selected as a verification point")
     importance: Optional[str] = Field(
-        description="若被选为核查点，说明其重要性",
+        description="If it is selected as a verification point, explain its importance",
         default=None
     )
     retrieval_step: Optional[List[RetrievalStep]] = Field(
-        description="若被选为核查点，提供检索方案", 
+        description="If it is selected as a verification point, provide a retrieval plan", 
         default=None
     )
 
     
 class CheckPoints(BaseModel):
-    items: List[CheckPoint] = Field(description="从新闻文本中提取的核查点", default_factory=list)
+    items: List[CheckPoint] = Field(description="The check points extracted from the news text", default_factory=list)
 
 
 class Result(BaseModel):
-    report: str = Field(description="核查报告", default="")
+    report: str = Field(description="The fact-checking report", default="")
     verdict: Literal[
         "true", # 真实 
         "mostly-true", # 大部分真实
@@ -81,23 +81,23 @@ class Result(BaseModel):
         "false", # 虚假
         "no-enough-evidence", # 无法证实
     ] = Field(
-        description="核查结论评级",
+        description="The fact-checking conclusion rating",
         json_schema_extra={
-            "true": "真实 - 陈述准确无误，没有任何重大遗漏",
-            "mostly-true": "大部分真实 - 该陈述是准确的，但需要澄清或补充信息",
-            "mostly-false": "大部分虚假 - 该陈述包含真实的成分，但忽略了可能会给人以不同印象的关键事实",
-            "false": "虚假 - 该陈述不准确",
-            "no-enough-evidence": "无法证实 - 没有足够证据支持该陈述，无法证实",
+            "true": "True - The statement is accurate and complete, without any major omissions",
+            "mostly-true": "Mostly True - The statement is accurate, but needs clarification or additional information",
+            "mostly-false": "Mostly False - The statement contains true components, but ignores key facts that may give a different impression",
+            "false": "False - The statement is inaccurate",
+            "no-enough-evidence": "No Enough Evidence - There is not enough evidence to support the statement, cannot be verified",
         }
     )
 
 
 class FactCheckPlanState(BaseModel):
-    news_text: str = Field(description="待核查的新闻文本")
-    is_news_text: Optional[IsNewsText] = Field(description="是否为可核查文本", default=None)
-    metadata: Optional[MetadataState] = Field(description="新闻元数据", default=None)
+    news_text: str = Field(description="The news text to be fact-checked")
+    is_news_text: Optional[IsNewsText] = Field(description="Whether the text is suitable for fact-checking", default=None)
+    metadata: Optional[MetadataState] = Field(description="The metadata of the news", default=None)
     check_points: List[CheckPoint] = Field(default_factory=list)
-    result: Optional[Result] = Field(description="核查结果", default=None)
+    result: Optional[Result] = Field(description="The fact-checking result", default=None)
     
     def get_formatted_check_points(self, check_points: CheckPoints) -> List[CheckPoint]:
         """

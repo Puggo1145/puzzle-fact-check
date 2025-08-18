@@ -189,7 +189,7 @@ class SSESession:
         try:
             # 添加中断事件，并使用更短的超时确保被处理
             self.add_event(
-                TaskInterrupted(data=InterruptData(message="核查任务被用户中断"))
+                TaskInterrupted(data=InterruptData(message="Task is interrupted by the user"))
                 .model_dump()
             )
             # 短暂等待确保事件被处理
@@ -234,7 +234,7 @@ class SSESession:
                     logger.info(f"Stream interrupted for session {self.session_id}")
                     # 发送最后的中断通知
                     try:
-                        yield "event: task_interrupted\ndata: {\"message\": \"任务已被中断\"}\n\n"
+                        yield "event: task_interrupted\ndata: {\"message\": \"Task Interrupted\"}\n\n"
                     except GeneratorExit:
                         logger.info(f"Client disconnected during interrupt notification")
                     break
@@ -243,7 +243,7 @@ class SSESession:
                 if self.consecutive_heartbeats >= MAX_CONSECUTIVE_HEARTBEATS:
                     logger.error(f"Session {self.session_id} reached max consecutive heartbeats ({MAX_CONSECUTIVE_HEARTBEATS}). Model seems unresponsive.")
                     self.add_event(
-                        Error(data=ErrorData(message="模型似乎无响应，已超过最大等待时间(3分钟)"))
+                        Error(data=ErrorData(message="Model seems unresponsive. Maximum waiting time exceeded (3 minutes)"))
                         .model_dump()
                     )
                     error_sent = True
@@ -448,7 +448,7 @@ def interrupt_session(session_id: str) -> bool:
         # 添加中断事件到队列并确保它被处理
         try:
             sse_session.add_event(
-                TaskInterrupted(data=InterruptData(message="核查任务被中断"))
+                TaskInterrupted(data=InterruptData(message="Task Interrupted"))
                 .model_dump()
             )
             # 确保事件被处理的短暂延迟

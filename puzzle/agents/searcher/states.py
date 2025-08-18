@@ -6,68 +6,68 @@ from ..metadata_extractor.states import BasicMetadata
 
 
 class Evidence(BaseModel):
-    """支持或反对核查目标的重要证据片段"""
-    content: str = Field(description="与核查目标高度相关的证据的原文片段")
+    """Supporting or contradicting evidence fragments for the fact-checking goal"""
+    content: str = Field(description="The original fragment of evidence highly relevant to the fact-checking goal")
     source: Dict[str, str] = Field(
-        description="证据来源",
+        description="The source of the evidence",
         examples=[{"xx新闻": "https://www.example_news.com"}]
     )
-    reasoning: str = Field(description="该证据与核查目标之间关系的推理说明")
+    reasoning: str = Field(description="The reasoning for the relationship between the evidence and the fact-checking goal")
     relationship: Literal["support", "contradict"] = Field(
-        description="该证据与核查目标的关系",
+        description="The relationship between the evidence and the fact-checking goal",
     )
 
 
 class Status(BaseModel):
     new_evidence: Optional[List[Evidence]] = Field(
-        description="从当前检索结果中提取的证据片段",
+        description="The evidence fragments extracted from the current retrieval result",
         default=None
     )
     evaluation: str = Field(
-        description="简单评估检索结果是否达到上一个步骤的目标"
+        description="Simple evaluation of whether the retrieval result meets the goal of the previous step"
     )
     missing_information: Optional[str] = Field(
-        description="核查目标和当前检索结果之间缺失的证据信息或逻辑关系",
+        description="The missing evidence information or logical relationship between the fact-checking goal and the current retrieval result",
         default=None
     )
-    next_step: str = Field(description="基于已有信息规划的下一步")
+    next_step: str = Field(description="The next step based on the existing information")
     action: Union[ToolCall, Literal["answer"]] = Field(
-        description="调用工具或回答",
+        description="Call tool or answer",
         json_schema_extra={
             "options": [
-                "如果你希望调用工具，在此输出工具调用信息",
-                "如果你认为现有信息已经满足预期目标，在此输出：'answer'",
+                "If you want to call a tool, output the tool call information here",
+                "If you think the existing information already meets the expected goal, output: 'answer'",
             ]
         },
     )
 
 
 class SearchResult(BaseModel):
-    """ search 的核查结论"""
-    summary: str = Field(description="对所有检索结果的总结")
-    conclusion: str = Field(description="对于核查点真实性的结论")
+    """The fact-checking conclusion of the search"""
+    summary: str = Field(description="The summary of all retrieval results")
+    conclusion: str = Field(description="The conclusion of the fact-checking goal")
 
 
 class SearchAgentState(BaseModel):
     check_point_id: str
     retrieval_step_id: str
     basic_metadata: BasicMetadata
-    content: str = Field(description="从新闻中提取的事实陈述")
-    purpose: str = Field(description="你的检索目标")
-    expected_source: str = Field(description="期望找到的信息来源类型")
+    content: str = Field(description="The fact statement extracted from the news")
+    purpose: str = Field(description="Your retrieval goal")
+    expected_source: str = Field(description="The expected information source type")
     statuses: Annotated[List[Status], operator.add] = Field(
-        description="所有已执行的操作", 
+        description="All executed operations", 
         default=[]
     )
     latest_tool_result: Optional[str] = Field(
-        description="最近一次工具调用的结果", 
+        description="The result of the latest tool call", 
         default=None
     )
     evidences: Annotated[List[Evidence], operator.add] = Field(
-        description="检索中收集的，与核查目标构成重要关系的证据片段",
+        description="The evidence fragments collected during retrieval, which are important to the fact-checking goal",
         default_factory=list
     )
     result: Optional[SearchResult] = Field(
-        description="最终的检索结果和结论", 
+        description="The final retrieval result and conclusion", 
         default=None
     )

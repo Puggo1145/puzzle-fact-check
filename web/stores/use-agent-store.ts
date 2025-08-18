@@ -130,7 +130,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       
       get().addEvent({
         event: 'task_interrupted',
-        data: { message: '正在尝试中断任务...' }
+        data: { message: 'Trying to interrupt task...' }
       });
       
       await api.interruptAgent(sessionId);
@@ -141,7 +141,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       // Always add interrupt success message, even if user already clicked return
       get().addEvent({
         event: 'task_interrupted',
-        data: { message: '任务已被中断' }
+        data: { message: 'Task Interrupted' }
       });
       
       // Only update status if it's still 'interrupting'
@@ -154,10 +154,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       }
       
     } catch (error) {
-      console.error('中断任务失败:', error);
+      console.error('Failed to interrupt task:', error);
       get().addEvent({
         event: 'error',
-        data: { message: `中断任务失败: ${error instanceof Error ? error.message : String(error)}` }
+        data: { message: `Failed to interrupt task: ${error instanceof Error ? error.message : String(error)}` }
       });
       // If interruption fails and status is still 'interrupting', restore to 'running'
       const currentStatus = get().status;

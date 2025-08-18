@@ -156,7 +156,7 @@ export const InputPanel = () => {
                     >
                         <StopCircleIcon className="size-4" />
                         <span className="text-xs">
-                            {INTERRUPTING ? '正在中断' : '中断'}
+                            {INTERRUPTING ? 'Interrupting' : 'Interrupt'}
                         </span>
                     </Button>
                 }
@@ -168,7 +168,7 @@ export const InputPanel = () => {
                         size="sm"
                     >
                         <ArrowLeftIcon className="size-4 rotate-180" />
-                        <span className="text-xs">返回</span>
+                        <span className="text-xs">Back</span>
                     </Button>
                 }
             </div>

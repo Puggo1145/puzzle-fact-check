@@ -124,8 +124,8 @@ class SearchAgentGraph(BaseAgent):
         # 超出最大 token 窗口，强制进行回答
         if self.token_usage >= self.max_search_tokens:
             forced_answer_status = Status(
-                evaluation="检索 token 超出最大可用 token，强制基于当前信息开始回答",
-                next_step="基于已收集的信息生成最终回答",
+                evaluation="Retrieval token exceeds the maximum available token, force to answer based on the current information",
+                next_step="Generate the final answer based on the collected information",
                 action="answer",
             )
             return {"statuses": [forced_answer_status]}
@@ -177,8 +177,8 @@ class SearchAgentGraph(BaseAgent):
         # 如果搜索陷入循环，强制结束并生成回答
         if self._is_in_loop(state):
             forced_status = Status(
-                evaluation="搜索陷入循环",
-                next_step="基于已收集的信息给出检索结论",
+                evaluation="Search is in a loop",
+                next_step="Give a retrieval conclusion based on the collected information",
                 action="answer",
             )
 
@@ -226,12 +226,12 @@ class SearchAgentGraph(BaseAgent):
                 tool_result = json.dumps(tool_result, ensure_ascii=False, indent=2)
             
             # 创建简洁明了的结果格式
-            formatted_result = f"工具名称: {tool_call['name']}\n调用结果:\n{tool_result}"
+            formatted_result = f"Tool name: {tool_call['name']}\nCall result:\n{tool_result}"
             tool_calling_result = formatted_result
         
         except Exception as e:
             # 添加错误信息到结果
-            error_result = f"工具名称: {tool_call['name']}\n错误:\n{str(e)}"
+            error_result = f"Tool name: {tool_call['name']}\nError:\n{str(e)}"
             tool_calling_result = error_result
 
         return {"latest_tool_result": tool_calling_result}

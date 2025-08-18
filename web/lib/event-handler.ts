@@ -47,14 +47,14 @@ export function setupEventSource(
       // Send timeout error event
       addEvent({
         event: 'error',
-        data: { message: `请求超时: ${TIMEOUT_DURATION/1000}秒内没有收到新的事件` }
+        data: { message: `Request timeout: No new events received within ${TIMEOUT_DURATION/1000} seconds` }
       });
       
       // Send interrupted event
       setTimeout(() => {
         addEvent({
           event: 'task_interrupted',
-          data: { message: `由于请求超时，任务已被中断` }
+          data: { message: `Task Interrupted due to timeout` }
         });
       }, 100);
       
@@ -143,7 +143,7 @@ export function setupEventSource(
     isStreamClosed = true;
     
     // Close EventSource connection
-    if (data && data.message === "核查任务完成") {
+    if (data && data.message === "Task Complete") {
       setTimeout(() => {
         eventSource.close();
       }, 500);
@@ -184,7 +184,7 @@ export function setupEventSource(
     if (!isStreamClosed) {
       console.error('EventSource encountered an error:', event);
       
-      const DEFAULT_ERROR_MESSAGE = '与服务器的连接中断，请检查您的网络连接或稍后再试。';
+      const DEFAULT_ERROR_MESSAGE = 'Connection to the server was interrupted, please check your network connection or try again later.';
       let errorMessage = DEFAULT_ERROR_MESSAGE;
       
       // Check if the error is from the response
@@ -196,28 +196,28 @@ export function setupEventSource(
             const msg = data.message;
             
             if (msg.includes('quota')) {
-              errorMessage = '模型额度已用尽，请稍后再试或联系管理员。';
+              errorMessage = 'Model quota exceeded, please try again later or contact the administrator.';
             } else if (msg.includes('Rate limit')) {
-              errorMessage = '请求速率限制，请稍后再试。';
+              errorMessage = 'Rate limit exceeded, please try again later.';
             } else if (msg.includes('data_inspection_failed')) {
-              errorMessage = '核查内容可能存在敏感信息，触发了模型的内容风控，请更换核查文本或模型后重试'
+              errorMessage = 'The content may contain sensitive information, triggering the content control of the model, please replace the content to be checked or the model and try again';
             } else if (msg.includes('not available in your region')) {
-              errorMessage = '所选模型在当前区域不可用，请更换模型后重试。';
+              errorMessage = 'The selected model is not available in your region, please try again with a different model.';
             } else if (msg.includes('model is currently overloaded')) {
-              errorMessage = '模型目前负载过高，请稍后再试。';
+              errorMessage = 'The model is currently overloaded, please try again later.';
             } else {
-              errorMessage = `服务器错误: ${msg}`;
+              errorMessage = `Server error: ${msg}`;
             }
           }
         } catch {
           // If not JSON, check for common error patterns in the string
           const errorString = event.data.toString();
           if (errorString.includes('429')) {
-            errorMessage = '请求过于频繁，请稍后再试。';
+            errorMessage = 'Request frequency too high, please try again later.';
           } else if (errorString.includes('quota') || errorString.includes('exceeded')) {
-            errorMessage = '模型配额已用尽，请稍后再试或联系管理员。';
+            errorMessage = 'Model quota exceeded, please try again later or contact the administrator.';
           } else if (errorString.includes('overloaded')) {
-            errorMessage = '模型目前负载过高，请稍后再试。';
+            errorMessage = 'The model is currently overloaded, please try again later.';
           }
         }
       }

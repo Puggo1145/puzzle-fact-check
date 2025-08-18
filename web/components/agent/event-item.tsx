@@ -139,7 +139,7 @@ export const EventItem = ({ event, isLastEvent }: EventItemProps) => {
         return toolDict[toolData.tool_name].alias;
       case 'tool_end':
         const toolEndData = data as ToolEndData;
-        return `${toolDict[toolEndData.tool_name].alias}完成`;
+        return `${toolDict[toolEndData.tool_name].alias} Finished`;
       case 'generate_answer_start':
         return 'Analyzing Retrieval Conclusion...';
       case 'generate_answer_end':
