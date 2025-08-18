@@ -77,8 +77,8 @@ export const AVAILABLE_MODELS: ModelOption[] = [
     modelType: "non_reasoning" 
   },
   { 
-    id: 'qwen-turbo-latest', 
-    model: 'qwen-turbo-latest', 
+    id: 'qwen-turbo', 
+    model: 'qwen-turbo', 
     alias: 'Qwen Turbo', 
     provider: 'qwen', 
     modelType: "light" 
@@ -168,8 +168,8 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
       maxRetries: 1
     },
     metadataConfig: {
-      modelId: 'qwen-turbo-latest',
-      modelName: 'qwen-turbo-latest',
+      modelId: 'qwen-turbo',
+      modelName: 'qwen-turbo',
       modelProvider: 'qwen'
     },
     searchConfig: {
@@ -192,8 +192,8 @@ export const CONFIG_PRESETS: ConfigPreset[] = [
       maxRetries: 2
     },
     metadataConfig: {
-      modelId: 'qwen-turbo-latest',
-      modelName: 'qwen-turbo-latest',
+      modelId: 'qwen-turbo',
+      modelName: 'qwen-turbo',
       modelProvider: 'qwen'
     },
     searchConfig: {

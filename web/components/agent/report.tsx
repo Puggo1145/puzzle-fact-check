@@ -7,7 +7,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription
 } from '../ui/card';
 import { ClipboardCopyIcon, CheckCircleIcon } from 'lucide-react';
 import { Button } from '../ui/button';
