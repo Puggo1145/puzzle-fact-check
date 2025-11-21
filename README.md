@@ -3,8 +3,8 @@
 # Puzzle
 Puzzle is a self-reflective news fact-checking AI agent based on the idea of DeepSearch. By leveraging deep web search and reasoning across multiple evidences, Puzzle meticulously traces and validates news sources, empowering you to distinguish facts from fiction with confidence.
 
-<!-- ## 🔔 Update
-The online version is temporarily suspended due to the high server costs to me. The frontend page is still remained but the backend is not available currently. To experience the full features, please deploy puzzle to your local machine. Thanks for your support. -->
+## 🔔 Update
+The online version is temporarily suspended due to the high server costs to me. The frontend page is still remained but the backend is not available currently. To experience the full features, please deploy puzzle to your local machine. Thanks!
 
 ## Features
 - 🔍 Deep Search: Puzzle follows logical traces between news and evidences, and goes deeper and deeper until it reaches the truth.
